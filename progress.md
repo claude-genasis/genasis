@@ -300,15 +300,18 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] 단위 테스트: `tests/i18n_lookup.rs` — `Lang::parse` (canonical/case-insensitive/locale modifier/friendly names/unknown reject), `resolve()` 5-tier 우선순위 + 미지값 skip-through, `t!` 매크로 영어/한국어 렌더 + fallback 의미 (`common.ok` → "확인"), `Lang::code` round-trip, `LangSource::label`. 16개 `#[test]`, serial-mutex 로 process-global 상태 보호.
 
 ### M12.2 — Rust user-facing 메시지 i18n 화 (`t!()` 매크로)
-- [ ] `genasis-cli` 의 모든 `eprintln!/println!/tracing::{info,warn,error}` 메시지를 `t!("…")` 로 wrap
-  - [ ] `cmd_init.rs` / `cmd_attach.rs` / `cmd_detach.rs`
-  - [ ] `cmd_doctor.rs` / `cmd_upgrade.rs`
-  - [ ] `cmd_db.rs` / `cmd_design.rs` / `cmd_monitor.rs`
-  - [ ] `cmd_plane.rs` / `cmd_mm.rs` / `cmd_version.rs`
-- [ ] `clap` help 메시지 i18n 화 — `#[arg(help_heading = …)]` 와 long-help 를 lazy `Box<&'static str>` 으로 분기
-- [ ] `genasis-monitor` TUI 라벨·키 안내 `t!()` 화 (위젯 6개 헤더 + 키 바인딩 안내)
-- [ ] `--lang` 글로벌 플래그 + `$GENASIS_LANG` env + `genasis.toml [i18n] cli_lang` + `$LANG` 우선순위 구현 (`Lang::resolve()`)
-- [ ] 단위 테스트: `cmd_version --lang ko` 출력에 한국어 메시지 포함 검증
+- [x] `genasis-cli` 의 prose 메시지 `t!()` wrap (commit 17b6b99). 구조화된 debug/JSON dump 라인은 의도적으로 영어 유지 — grep/IDE 친화 + `cmd_doctor` 의 진단 key=value 형 보존.
+  - [x] `cmd_attach.rs` (refused, wrote_summary)
+  - [x] `cmd_detach.rs` (wrote_summary)
+  - [x] `cmd_upgrade.rs` (refused, wrote_summary)
+  - [x] `cmd_init.rs` (7 prose 라인)
+  - [x] `cmd_design.rs` (swap header/body/next + status 2종)
+  - [x] `cmd_doctor.rs` (top-level header)
+  - [s] `cmd_db.rs` / `cmd_monitor.rs` / `cmd_plane.rs` / `cmd_mm.rs` / `cmd_version.rs` — debug/JSON dump 위주, 영어 유지
+- [s] `clap` help 메시지 i18n — clap `#[arg(help = ...)]` 가 컴파일타임 literal 만 받음. M12.4 에서 `Cli::command().about(...)` 후처리 패턴으로 대체 예정.
+- [x] `genasis-monitor` TUI 라벨 `t!()` 화 — 6개 위젯 헤더 (sprint/tokens/agents/deploy/network/log_tail) + deploy 위젯 키 안내 (`monitor.key_hint`).
+- [x] `--lang` 글로벌 플래그 + `$GENASIS_LANG` + `genasis.toml [i18n] cli_lang` (M12.4 에서 wire) + `$LANG` 우선순위 구현 (`Lang::resolve()`).
+- [s] 단위 테스트: `cmd_version --lang ko` 한국어 출력 검증 — `cmd_version` 자체가 JSON/debug dump 라 i18n 영향 없음. M12.4 의 `init/attach --lang` E2E 에서 Korean 메시지 출력 검증으로 흡수.
 
 ### M12.3 — Tera 템플릿 트리 분리 (`templates/{en,ko}/`)
 - [ ] 기존 `crates/genasis-templates/templates/*` 를 `templates/en/` 으로 이동 (git mv)
