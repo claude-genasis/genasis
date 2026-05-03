@@ -1,0 +1,13 @@
+{
+  "name": "genasis-cli-scripts",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Node sub-process scripts spawned by genasis-cli (Playwright-based Plane user provisioning).",
+  "type": "module",
+  "scripts": {
+    "playwright:install": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  }
+}

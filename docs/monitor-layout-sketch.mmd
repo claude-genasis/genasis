@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph TUI["genasis monitor (Ratatui)"]
+    direction TB
+    P1["Sprint 위젯<br/>현재 Cycle 이름·D-day<br/>todo/in-progress/done 카운트"]
+    P2["Agent 활동 위젯<br/>각 agent 마지막 활동 시각<br/>현 In Progress 이슈"]
+    P3["Token 위젯<br/>RTK 절감량 (rtk gain 파싱)<br/>MCP 호출 / 캐시 hit"]
+    P4["네트워크 위젯<br/>Plane/MM/GitHub API 호출 수<br/>지연 분포"]
+    P5["배포 위젯<br/>dev URL (포트 X) — 상태 LED<br/>prod URL (포트 Y) — 상태 LED<br/>마지막 빌드 / refreshed flag"]
+    P6["Action Pane<br/>[Open dev] [Open prod]<br/>[Build] [Deploy] [Rollback]<br/>[Mark Visited]"]
+    P7["로그 tail<br/>logs/agent-launches/* 실시간"]
+  end
+
+  P5 -. webhook/SSE .-> Build["GitHub Actions /<br/>local dev server"]
+  P3 -. parse .-> RTK["rtk gain --json"]
+  P1 -. polled .-> Plane2[Plane API]
+  P2 -. parse .-> Logs[".pm-delegations/*<br/>logs/*"]
+  P5 -. file watch .-> Deploy[".next/, dist/,<br/>build manifest"]

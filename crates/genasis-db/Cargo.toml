@@ -1,0 +1,20 @@
+[package]
+name = "genasis-db"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Schema kernel: read-only SQL guard + driver dispatch (psql/mysql/sqlite3/duckdb) + write via Atlas / Drizzle Kit / raw runner"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+which.workspace = true
+async-trait.workspace = true
+regex.workspace = true
+genasis-core.workspace = true

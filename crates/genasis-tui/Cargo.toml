@@ -1,0 +1,17 @@
+[package]
+name = "genasis-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared Ratatui components (theme, layout, widgets) used by genasis-cli's attach TUI and genasis-monitor"
+
+[dependencies]
+anyhow.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+tui-textarea.workspace = true
+tui-input.workspace = true
+serde.workspace = true
+genasis-core.workspace = true

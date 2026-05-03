@@ -1,0 +1,19 @@
+[package]
+name = "genasis-design"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Design-system hot-swap orchestrator (ui-style-extractor wrapper, change protocol, ticket emission)"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+genasis-core.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

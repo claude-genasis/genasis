@@ -1,0 +1,24 @@
+[package]
+name = "genasis-overlay"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Overlay engine: detect existing team, inject marker fences, dry-run diffs, validate"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+walkdir.workspace = true
+regex.workspace = true
+tracing.workspace = true
+similar = "2"
+genasis-core.workspace = true
+genasis-templates.workspace = true
+tera.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

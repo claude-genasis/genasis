@@ -1,0 +1,49 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment / secrets
+.env
+.env.local
+.env.agents
+*.pem
+*.key
+
+# Test artifacts
+/coverage/
+*.profraw
+tarpaulin-report.html
+
+# OS
+Thumbs.db
+
+# Local sandbox / scratch
+/tmp/
+*.tmp
+*.log
+*.bak
+
+# install.sh local download cache
+.genasis-download-cache/
+
+# Node sub-process (Plane provisioning) deps
+crates/genasis-cli/scripts/node_modules/
+crates/genasis-cli/scripts/package-lock.json
+
+# Migration backups produced by `genasis migrate-from-genesis`
+.genasis-migration-backup-*/
+
+# Snapshot / backup files produced by overlay engine
+*.genasis-backup-*
+
+# Ad-hoc local artifacts left over from copy
+tmp.mmd
