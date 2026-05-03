@@ -287,7 +287,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 
 ### M12.0 — 사람 승인 게이트
 - [x] `blueprint.md §19` + `docs/impact-of-multilang-prompts.md` 검토 + 사람 승인 (M12 v5 plan 승인 완료, 2026-05-04)
-- [ ] ADR-008 초안 작성·머지 (install-time language selector + active singularity)
+- [x] ADR-008 초안 작성·머지 (install-time language selector + active singularity, commit e8b3793)
 
 ### M12.1 — i18n 인프라 신설 (런타임 — rust-i18n)
 - [ ] `crates/genasis-i18n/` 신규 crate
