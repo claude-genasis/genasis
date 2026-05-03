@@ -1,0 +1,22 @@
+[package]
+name = "genasis-i18n"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "Runtime localisation (en/ko/...) for the Genasis CLI and TUI surfaces."
+
+[dependencies]
+rust-i18n.workspace = true
+once_cell.workspace = true
+serde = { workspace = true, optional = true }
+tracing.workspace = true
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dev-dependencies]

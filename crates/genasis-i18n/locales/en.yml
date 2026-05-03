@@ -1,0 +1,100 @@
+_meta:
+  language: English
+  bcp47: en
+  source_of_truth: true
+
+common:
+  yes: "yes"
+  no: "no"
+  cancel: cancel
+  continue: continue
+  ok: OK
+  warning: WARNING
+  error: ERROR
+
+cli:
+  about: "Genasis — agentic team OS for Claude Code"
+  lang_flag_help: "Locale to use for CLI/TUI output (overrides $GENASIS_LANG / $LANG)."
+  non_interactive_help: "Skip interactive prompts; use defaults."
+  yes_help: "Auto-accept confirmation prompts."
+
+attach:
+  starting: "Attaching Genasis overlay (lang=%{lang})..."
+  success: "Attached overlay to %{count} agent files."
+  failed: "Attach failed: %{reason}"
+  no_agents_found: "No agent files found under .claude/agents/."
+  using_template_dir: "Using template tree: %{path}"
+
+detach:
+  starting: "Detaching Genasis overlay..."
+  success: "Removed overlay from %{count} agent files."
+  failed: "Detach failed: %{reason}"
+  fence_tampered: "Skipped %{path}: fence body was hand-edited (use --force to remove anyway)."
+
+doctor:
+  header: "Genasis doctor"
+  i18n:
+    section: "[i18n]"
+    runtime_locale: "CLI/TUI runtime locale: %{lang} (source: %{source})"
+    active_agent_locale: "Active agent locale: %{lang}"
+    reference_docs_none: "Reference docs: (none)"
+    reference_docs_listed: "Reference docs: %{langs}"
+    parity_ok: "en.yml ↔ ko.yml: %{count} keys, parity OK"
+    parity_missing: "en.yml ↔ ko.yml: %{missing} key(s) missing in %{lang}"
+
+lang:
+  prompt:
+    title_en: "Genasis — Agentic Team Language Setup"
+    title_ko: "Genasis — 에이전트 팀 언어 설정"
+    choose: "Choose the language for your agent team's instructions."
+    targets_intro: "The selected language will be installed into:"
+    target_agents: ".claude/agents/*.md      (overlay fence body)"
+    target_skills: ".claude/genasis/skills/  (scrum, plane-ops, mm-ops, ...)"
+    target_commands: ".claude/genasis/commands/ (/sprint-start, /issue-done, ...)"
+    target_hooks: ".claude/genasis/hooks/   (session-start, branch-guard, ...)"
+    target_contract: "GENASIS.md              (protocol contract — @import'd by your CLAUDE.md)"
+    drift_warning: "Only ONE language goes into agent context. Mixing two languages causes Claude to drift between them mid-response (see docs/impact-of-multilang-prompts.md). You can switch later with `genasis lang switch <lang>`."
+    detected: "Detected $LANG=%{lang_env} → suggesting %{suggested}."
+    option_en: "[1] English (en)"
+    option_ko: "[2] 한국어 (ko)"
+    suggested_marker: "← suggested"
+    select_default_en: "Select [1/2] (default: 1):"
+    select_default_ko: "Select [1/2] (default: 2):"
+    invalid_choice: "Please answer 1, 2, or press Enter for the default."
+    too_many_attempts: "Too many invalid responses; aborting."
+    confirmation: "Will install %{lang_name} (%{lang_code}) instructions into .claude/. Restart Claude Code after install completes for the new context to load."
+    confirm_continue: "Continue? [Y/n]:"
+    aborted: "Aborted by user."
+
+  install:
+    success: "Installed %{lang_name} (%{lang_code}) agent overlay into .claude/."
+    next_step: "Run `genasis doctor` to verify, or `genasis lang switch <other-lang>` to swap later."
+
+  reject_both:
+    line1: "--lang both is not supported."
+    line2: "genasis enforces a single active language in agent context to avoid Claude Code language-drift bugs (e.g. anthropics/claude-code#46846)."
+    line3: "See docs/impact-of-multilang-prompts.md for the full rationale."
+    alternatives: "Recommended alternatives:"
+    alt1: "Pick one active language now, swap later: `genasis init --lang en` then `genasis lang switch ko`."
+    alt2: "Active English + Korean as on-disk reference docs (humans only): `genasis init --lang en --reference-docs ko`."
+    rerun: "Re-run with one of: --lang en | --lang ko"
+
+  switch:
+    starting: "Switching agent locale: %{from} → %{to}..."
+    no_op: "Already on %{lang}. Nothing to do."
+    success: "Switched %{from} → %{to}. Restart Claude Code so the new context loads."
+
+monitor:
+  widget:
+    sprint: "Sprint"
+    tokens: "Tokens"
+    agents: "Agents"
+    deploy: "Deploy"
+    network: "Network"
+    log_tail: "Log"
+  status:
+    idle: idle
+    in_progress: "In Progress"
+    in_review: "In Review"
+    done: Done
+  key_hint: "[1-5] focus  [o] open  [b] build  [d] deploy  [r] rollback  [v] visited  [q] quit"

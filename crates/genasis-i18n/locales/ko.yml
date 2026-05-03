@@ -1,0 +1,101 @@
+_meta:
+  language: 한국어
+  bcp47: ko
+  source_of_truth: false
+  mirrors: en
+
+common:
+  yes: "예"
+  no: "아니오"
+  cancel: 취소
+  continue: 계속
+  ok: 확인
+  warning: 경고
+  error: 오류
+
+cli:
+  about: "Genasis — Claude Code 용 에이전트 팀 OS"
+  lang_flag_help: "CLI/TUI 출력 언어 ($GENASIS_LANG / $LANG 보다 우선합니다)."
+  non_interactive_help: "대화형 prompt 를 건너뛰고 기본값을 사용합니다."
+  yes_help: "확인 prompt 를 자동 수락합니다."
+
+attach:
+  starting: "Genasis overlay 를 부착합니다 (lang=%{lang})..."
+  success: "%{count}개 에이전트 파일에 overlay 를 부착했습니다."
+  failed: "부착 실패: %{reason}"
+  no_agents_found: ".claude/agents/ 아래에 에이전트 파일이 없습니다."
+  using_template_dir: "사용 템플릿 트리: %{path}"
+
+detach:
+  starting: "Genasis overlay 를 분리합니다..."
+  success: "%{count}개 에이전트 파일에서 overlay 를 제거했습니다."
+  failed: "분리 실패: %{reason}"
+  fence_tampered: "%{path} 건너뜀: fence 본문이 수동 편집됨 (--force 로 강제 제거 가능)."
+
+doctor:
+  header: "Genasis doctor"
+  i18n:
+    section: "[다국어]"
+    runtime_locale: "CLI/TUI 실행 언어: %{lang} (출처: %{source})"
+    active_agent_locale: "현재 에이전트 컨텍스트 언어: %{lang}"
+    reference_docs_none: "참조 문서: (없음)"
+    reference_docs_listed: "참조 문서: %{langs}"
+    parity_ok: "en.yml ↔ ko.yml: %{count}개 키 동기화됨"
+    parity_missing: "en.yml ↔ ko.yml: %{lang} 에 %{missing}개 키 누락"
+
+lang:
+  prompt:
+    title_en: "Genasis — Agentic Team Language Setup"
+    title_ko: "Genasis — 에이전트 팀 언어 설정"
+    choose: "에이전트 팀 지침의 언어를 선택하세요."
+    targets_intro: "선택한 언어는 다음 위치에 설치됩니다:"
+    target_agents: ".claude/agents/*.md      (overlay fence 본문)"
+    target_skills: ".claude/genasis/skills/  (scrum, plane-ops, mm-ops, ...)"
+    target_commands: ".claude/genasis/commands/ (/sprint-start, /issue-done, ...)"
+    target_hooks: ".claude/genasis/hooks/   (session-start, branch-guard, ...)"
+    target_contract: "GENASIS.md              (프로토콜 계약 — CLAUDE.md 가 @import)"
+    drift_warning: "에이전트 컨텍스트에는 한 언어만 들어갑니다. 두 언어를 동시에 넣으면 Claude 가 응답 도중 언어를 섞기 시작합니다 (docs/impact-of-multilang-prompts.md 참조). 나중에 `genasis lang switch <lang>` 로 전환할 수 있습니다."
+    detected: "$LANG=%{lang_env} 감지 → %{suggested} 권장."
+    option_en: "[1] English (en)"
+    option_ko: "[2] 한국어 (ko)"
+    suggested_marker: "← 권장"
+    select_default_en: "선택 [1/2] (기본값: 1):"
+    select_default_ko: "선택 [1/2] (기본값: 2):"
+    invalid_choice: "1, 2 또는 Enter (기본값) 중 하나를 입력하세요."
+    too_many_attempts: "잘못된 응답이 너무 많아 중단합니다."
+    confirmation: "%{lang_name}(%{lang_code}) 지침을 .claude/ 에 설치합니다. 설치 완료 후 Claude Code 를 재시작하면 새 컨텍스트가 로드됩니다."
+    confirm_continue: "계속 진행할까요? [Y/n]:"
+    aborted: "사용자가 중단했습니다."
+
+  install:
+    success: "%{lang_name}(%{lang_code}) 에이전트 overlay 를 .claude/ 에 설치했습니다."
+    next_step: "`genasis doctor` 로 검증하거나, `genasis lang switch <다른-언어>` 로 나중에 교체할 수 있습니다."
+
+  reject_both:
+    line1: "--lang both 는 지원하지 않습니다."
+    line2: "Claude Code 의 언어 drift 버그(예: anthropics/claude-code#46846)를 회피하기 위해 genasis 는 에이전트 컨텍스트에 한 언어만 허용합니다."
+    line3: "전체 근거는 docs/impact-of-multilang-prompts.md 를 참조하세요."
+    alternatives: "권장 대안:"
+    alt1: "지금 한 언어를 선택하고 나중에 교체: `genasis init --lang en` 후 `genasis lang switch ko`."
+    alt2: "영어 active + 한국어 참조 문서 (사람용, Claude 미진입): `genasis init --lang en --reference-docs ko`."
+    rerun: "다음 중 하나로 다시 실행하세요: --lang en | --lang ko"
+
+  switch:
+    starting: "에이전트 언어 전환: %{from} → %{to}..."
+    no_op: "이미 %{lang} 입니다. 변경 사항 없음."
+    success: "%{from} → %{to} 전환 완료. 새 컨텍스트가 로드되도록 Claude Code 를 재시작하세요."
+
+monitor:
+  widget:
+    sprint: "Sprint"
+    tokens: "토큰"
+    agents: "에이전트"
+    deploy: "배포"
+    network: "네트워크"
+    log_tail: "로그"
+  status:
+    idle: 대기
+    in_progress: "진행중"
+    in_review: "리뷰중"
+    done: 완료
+  key_hint: "[1-5] 포커스  [o] 열기  [b] 빌드  [d] 배포  [r] 롤백  [v] 방문표시  [q] 종료"
