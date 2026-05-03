@@ -290,14 +290,14 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] ADR-008 초안 작성·머지 (install-time language selector + active singularity, commit e8b3793)
 
 ### M12.1 — i18n 인프라 신설 (런타임 — rust-i18n)
-- [ ] `crates/genasis-i18n/` 신규 crate
-  - [ ] `Cargo.toml` (deps: `rust-i18n = "3"`, `once_cell`)
-  - [ ] `src/lib.rs` — `Lang` enum (`En`/`Ko`), `resolve_lang()` (CLI flag / toml / env / $LANG / fallback `en`), `init()` 가 `rust_i18n::set_locale` 호출
-  - [ ] `i18n!("locales")` 매크로 root 선언
-  - [ ] `locales/en.yml` (key 정의 source — 시작 ~50개)
-  - [ ] `locales/ko.yml` (한국어 mirror, parity 100%)
-- [ ] `Cargo.toml` workspace 에 멤버 추가 + dependency 등록
-- [ ] 단위 테스트: `tests/i18n_lookup.rs` — key 존재 / fallback `en` / `%{var}` interpolation / 누락 key warn 검증
+- [x] `crates/genasis-i18n/` 신규 crate (commit 9a12ed6)
+  - [x] `Cargo.toml` (deps: `rust-i18n = "3"`, `once_cell`)
+  - [x] `src/lib.rs` — `Lang` enum (`En`/`Ko`), `resolve()` (CLI flag / toml / env / $LANG / fallback `en`), `install()` 가 `rust_i18n::set_locale` 호출, `LangSource` 진단 enum
+  - [x] `i18n!("locales", fallback = "en")` 매크로 root 선언, `t!` 재익스포트
+  - [x] `locales/en.yml` (key 정의 source — 49개 키, 12 namespace)
+  - [x] `locales/ko.yml` (한국어 mirror, parity 100%, `_meta.bcp47` 명시)
+- [x] `Cargo.toml` workspace 에 멤버 추가 + dependency 등록 (`rust-i18n = "3"`, `once_cell = "1"`, internal alias)
+- [x] 단위 테스트: `tests/i18n_lookup.rs` — `Lang::parse` (canonical/case-insensitive/locale modifier/friendly names/unknown reject), `resolve()` 5-tier 우선순위 + 미지값 skip-through, `t!` 매크로 영어/한국어 렌더 + fallback 의미 (`common.ok` → "확인"), `Lang::code` round-trip, `LangSource::label`. 16개 `#[test]`, serial-mutex 로 process-global 상태 보호.
 
 ### M12.2 — Rust user-facing 메시지 i18n 화 (`t!()` 매크로)
 - [ ] `genasis-cli` 의 모든 `eprintln!/println!/tracing::{info,warn,error}` 메시지를 `t!("…")` 로 wrap
