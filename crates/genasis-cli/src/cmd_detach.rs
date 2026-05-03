@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::Config;
+use genasis_i18n::t;
 use genasis_overlay::{plan_detach, scan, summary, unified_diff};
 
 #[derive(Parser, Debug)]
@@ -46,9 +47,12 @@ pub async fn run(args: Args) -> Result<()> {
 
     let applied = genasis_overlay::apply(&plan)?;
     println!(
-        "\nremoved fences from {} file(s); {} backup(s) created",
-        applied.written.len(),
-        applied.backups.len()
+        "\n{}",
+        t!(
+            "detach.wrote_summary",
+            count = applied.written.len(),
+            backups = applied.backups.len()
+        )
     );
     Ok(())
 }

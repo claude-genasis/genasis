@@ -6,6 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use genasis_i18n::t;
+
 use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -23,12 +25,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         lines.push(Line::from(format!("Last build: {sha} @ {when}")));
     }
 
-    lines.push(Line::from("[b]uild  [d]eploy  [r]ollback  [o]pen  [v]isited  [q]uit"));
+    lines.push(Line::from(t!("monitor.key_hint").to_string()));
 
+    let title = format!(" {} (4) ", t!("monitor.widget.deploy"));
     let p = Paragraph::new(lines).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Deploy (4) "),
+            .title(title),
     );
     frame.render_widget(p, area);
 }

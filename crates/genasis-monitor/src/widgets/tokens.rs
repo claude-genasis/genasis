@@ -5,6 +5,8 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use genasis_i18n::t;
+
 use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -15,8 +17,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         cache_pct(state.mcp_calls, state.mcp_cache_hits),
         state.anthropic_cache_hit_pct,
     );
+    let title = format!(" {} (2) ", t!("monitor.widget.tokens"));
     let p = Paragraph::new(body)
-        .block(Block::default().borders(Borders::ALL).title(" Tokens (2) "))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::Cyan));
     frame.render_widget(p, area);
 }

@@ -17,6 +17,18 @@ mod tui_attach;
 #[derive(Parser)]
 #[command(name = "genasis", version, about = "Bolt-on agentic team layer")]
 struct Cli {
+    /// Locale for CLI/TUI output (en|ko). Overrides $GENASIS_LANG and $LANG.
+    #[arg(long, global = true, value_name = "LANG", env = "GENASIS_LANG_FLAG")]
+    pub lang: Option<String>,
+
+    /// Skip interactive prompts; use defaults where possible.
+    #[arg(long, global = true)]
+    pub non_interactive: bool,
+
+    /// Auto-accept confirmation prompts.
+    #[arg(long = "yes", short = 'y', global = true)]
+    pub assume_yes: bool,
+
     #[command(subcommand)]
     command: Cmd,
 }
@@ -51,6 +63,16 @@ enum Cmd {
 async fn main() -> Result<()> {
     init_tracing();
     let cli = Cli::parse();
+    // Resolve locale before dispatching so every cmd_*.rs sees a primed
+    // rust-i18n bundle. genasis.toml [i18n] cli_lang is wired in M12.4
+    // when we touch the config schema.
+    let resolved = genasis_i18n::resolve(cli.lang.as_deref(), None);
+    genasis_i18n::install(resolved.lang);
+    tracing::debug!(
+        lang = %resolved.lang,
+        source = resolved.source.label(),
+        "i18n locale installed"
+    );
     match cli.command {
         Cmd::Init(a) => cmd_init::run(a).await,
         Cmd::Attach(a) => cmd_attach::run(a).await,

@@ -5,6 +5,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use genasis_i18n::t;
+
 use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -16,8 +18,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         "Cycle: {}\nD-day: {}\nTodo:{}  In:{}  Review:{}  Done:{}",
         state.sprint_name, dday, state.todo, state.in_progress, state.in_review, state.done
     );
+    let title = format!(" {} (1) ", t!("monitor.widget.sprint"));
     let p = Paragraph::new(body)
-        .block(Block::default().borders(Borders::ALL).title(" Sprint (1) "))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD));
     frame.render_widget(p, area);
 }

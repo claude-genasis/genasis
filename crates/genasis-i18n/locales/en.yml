@@ -24,12 +24,40 @@ attach:
   failed: "Attach failed: %{reason}"
   no_agents_found: "No agent files found under .claude/agents/."
   using_template_dir: "Using template tree: %{path}"
+  refused: "%{count} file(s) refused; pass --force to overwrite or fix the issues listed above."
+  wrote_summary: "wrote %{count} file(s); %{backups} backup(s) created"
 
 detach:
   starting: "Detaching Genasis overlay..."
   success: "Removed overlay from %{count} agent files."
   failed: "Detach failed: %{reason}"
   fence_tampered: "Skipped %{path}: fence body was hand-edited (use --force to remove anyway)."
+  wrote_summary: "wrote %{count} file(s); %{backups} backup(s) created"
+
+upgrade:
+  refused: "%{count} file(s) refused (Tampered or RoleMismatch). Inspect the diff above and re-run with --force to override."
+  wrote_summary: "upgraded %{count} file(s); %{backups} backup(s) created"
+
+design:
+  swap:
+    header: "design swap from %{url}:"
+    previous_present: "previous present: %{value}"
+    impacted_areas: "impacted areas: %{count}"
+    planned_issues: "planned issues:"
+    next_step_1: "Next: run `genasis init` to push these issues to Plane,"
+    next_step_2: "      then post the announcement on Mattermost."
+  status:
+    file_size: "design-system.md: %{bytes} bytes"
+    missing: "design-system.md: missing — run `genasis attach` first."
+
+init:
+  resolving_plane: "→ resolving Plane flavor (%{flavor})…"
+  resolving_mm: "→ resolving Mattermost flavor (%{flavor})…"
+  probe_only_skip: "probe-only: skipping provisioning. Re-run without --probe-only when ready."
+  ensure_project: "→ ensuring Plane project (%{name})…"
+  ensure_channel: "→ ensuring Mattermost #%{channel}…"
+  mm_team_id_missing: "(skipped: MM_TEAM_ID not in environment — set it before running cmd_init for full provisioning)"
+  next_step: "next: run `genasis attach` to bolt the overlay onto your existing agents."
 
 doctor:
   header: "Genasis doctor"

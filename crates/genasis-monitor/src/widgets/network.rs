@@ -5,6 +5,8 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use genasis_i18n::t;
+
 use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -15,8 +17,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         state.gh_calls,
         human_bytes(state.network_bytes),
     );
+    let title = format!(" {} (5) ", t!("monitor.widget.network"));
     let p = Paragraph::new(body)
-        .block(Block::default().borders(Borders::ALL).title(" Network (5) "))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::Magenta));
     frame.render_widget(p, area);
 }

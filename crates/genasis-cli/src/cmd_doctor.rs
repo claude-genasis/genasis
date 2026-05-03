@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
+use genasis_i18n::t;
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -14,7 +15,7 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     let project_root = resolve_project_root(args.project.as_deref())?;
-    println!("genasis doctor — project: {}", project_root.display());
+    println!("{} — project: {}", t!("doctor.header"), project_root.display());
 
     section("Required tools");
     for tool in ["git", "curl", "tar", "bash"] {

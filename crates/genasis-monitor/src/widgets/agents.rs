@@ -5,6 +5,8 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 use ratatui::Frame;
 
+use genasis_i18n::t;
+
 use crate::state::{AgentStatus, AppState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -32,8 +34,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             .collect()
     };
 
+    let title = format!(" {} (3) ", t!("monitor.widget.agents"));
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Agents (3) "))
+        .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::White));
     frame.render_widget(list, area);
 }

@@ -25,12 +25,40 @@ attach:
   failed: "부착 실패: %{reason}"
   no_agents_found: ".claude/agents/ 아래에 에이전트 파일이 없습니다."
   using_template_dir: "사용 템플릿 트리: %{path}"
+  refused: "%{count}개 파일이 거부됨 (Tampered/RoleMismatch). 위 diff 를 확인한 뒤 --force 로 다시 실행하거나 문제를 직접 수정하세요."
+  wrote_summary: "%{count}개 파일 작성, %{backups}개 백업 생성"
 
 detach:
   starting: "Genasis overlay 를 분리합니다..."
   success: "%{count}개 에이전트 파일에서 overlay 를 제거했습니다."
   failed: "분리 실패: %{reason}"
   fence_tampered: "%{path} 건너뜀: fence 본문이 수동 편집됨 (--force 로 강제 제거 가능)."
+  wrote_summary: "%{count}개 파일 작성, %{backups}개 백업 생성"
+
+upgrade:
+  refused: "%{count}개 파일이 거부됨 (Tampered/RoleMismatch). 위 diff 를 확인한 뒤 --force 로 다시 실행하세요."
+  wrote_summary: "%{count}개 파일 업그레이드, %{backups}개 백업 생성"
+
+design:
+  swap:
+    header: "디자인 swap (%{url}):"
+    previous_present: "기존 design-system.md 존재: %{value}"
+    impacted_areas: "영향받은 영역: %{count}개"
+    planned_issues: "생성 예정 이슈:"
+    next_step_1: "다음 단계: `genasis init` 으로 위 이슈를 Plane 에 push,"
+    next_step_2: "          그 후 Mattermost 에 공지 메시지 게시."
+  status:
+    file_size: "design-system.md: %{bytes}바이트"
+    missing: "design-system.md: 없음 — `genasis attach` 먼저 실행하세요."
+
+init:
+  resolving_plane: "→ Plane flavor 결정 중 (%{flavor})…"
+  resolving_mm: "→ Mattermost flavor 결정 중 (%{flavor})…"
+  probe_only_skip: "probe-only 모드: 프로비저닝 건너뜀. 준비되면 --probe-only 없이 다시 실행."
+  ensure_project: "→ Plane 프로젝트 확보 (%{name})…"
+  ensure_channel: "→ Mattermost #%{channel} 확보…"
+  mm_team_id_missing: "(건너뜀: MM_TEAM_ID 환경변수 미설정 — 전체 프로비저닝을 원하면 먼저 설정)"
+  next_step: "다음: `genasis attach` 로 기존 에이전트에 overlay 를 부착하세요."
 
 doctor:
   header: "Genasis doctor"

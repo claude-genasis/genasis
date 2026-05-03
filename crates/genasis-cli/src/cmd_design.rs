@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use genasis_core::config::Config;
+use genasis_i18n::t;
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -38,25 +39,31 @@ pub async fn run(args: Args) -> Result<()> {
             let new_body = std::fs::read_to_string(&body)
                 .with_context(|| format!("read new body: {}", body.display()))?;
             let outcome = genasis_design::run_swap(&project_root, &url, &new_body)?;
-            println!("design swap from {url}:");
-            println!("  previous present: {}", outcome.previous_present);
-            println!("  impacted areas: {}", outcome.areas.len());
+            println!("{}", t!("design.swap.header", url = url.clone()));
+            println!(
+                "  {}",
+                t!("design.swap.previous_present", value = outcome.previous_present)
+            );
+            println!(
+                "  {}",
+                t!("design.swap.impacted_areas", count = outcome.areas.len())
+            );
             for a in &outcome.areas {
                 println!("    - {:?}", a);
             }
-            println!("  planned issues:");
+            println!("  {}", t!("design.swap.planned_issues"));
             for issue in &outcome.planned_issues {
                 println!("    - [{}] {}", issue.label, issue.title);
             }
-            println!("\nNext: run `genasis init` to push these issues to Plane,");
-            println!("      then post the announcement on Mattermost.");
+            println!("\n{}", t!("design.swap.next_step_1"));
+            println!("{}", t!("design.swap.next_step_2"));
         }
         DesignOp::Status => {
             let target = project_root.join("docs").join("design-system.md");
             if let Ok(meta) = std::fs::metadata(&target) {
-                println!("design-system.md: {} bytes", meta.len());
+                println!("{}", t!("design.status.file_size", bytes = meta.len()));
             } else {
-                println!("design-system.md: missing — run `genasis attach` first.");
+                println!("{}", t!("design.status.missing"));
             }
         }
     }

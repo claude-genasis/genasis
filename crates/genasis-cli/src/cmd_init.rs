@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
+use genasis_i18n::t;
 use genasis_providers::{mattermost, plane};
 
 #[derive(Parser, Debug)]
@@ -41,22 +42,22 @@ pub async fn run(args: Args) -> Result<()> {
     let plane_flavor = plane::FlavorChoice::parse(&plane_cfg.flavor)?;
     let mm_flavor = mattermost::FlavorChoice::parse(&mm_cfg.flavor)?;
 
-    println!("→ resolving Plane flavor ({})…", plane_cfg.flavor);
+    println!("{}", t!("init.resolving_plane", flavor = plane_cfg.flavor.clone()));
     let plane_client = plane::build(plane_flavor, &plane_cfg.url, &plane_cfg.workspace_slug, &plane_token).await?;
     let plane_health = plane_client.health().await?;
     println!("  plane health: {}", short_json(&plane_health));
 
-    println!("→ resolving Mattermost flavor ({})…", mm_cfg.flavor);
+    println!("{}", t!("init.resolving_mm", flavor = mm_cfg.flavor.clone()));
     let mm_client = mattermost::build(mm_flavor, &mm_cfg.url, &mm_token).await?;
     let mm_ping = mm_client.ping().await?;
     println!("  mattermost ping: {}", short_json(&mm_ping));
 
     if args.probe_only {
-        println!("\nprobe-only: skipping provisioning. Re-run without --probe-only when ready.");
+        println!("\n{}", t!("init.probe_only_skip"));
         return Ok(());
     }
 
-    println!("\n→ ensuring Plane project ({})…", cfg.project.name);
+    println!("\n{}", t!("init.ensure_project", name = cfg.project.name.clone()));
     let project_id = plane_client
         .ensure_project(&cfg.project.name, &slug_to_identifier(&cfg.project.name))
         .await?;
@@ -74,7 +75,7 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let scrum_channel = format!("scrum-{}", cfg.project.name);
-    println!("\n→ ensuring Mattermost #{scrum_channel}…");
+    println!("\n{}", t!("init.ensure_channel", channel = scrum_channel.clone()));
     let team_id = std::env::var("MM_TEAM_ID").unwrap_or_default();
     if !team_id.is_empty() {
         let ch = mm_client
@@ -82,10 +83,10 @@ pub async fn run(args: Args) -> Result<()> {
             .await?;
         println!("  mm channel = {} ({})", ch.name, ch.id);
     } else {
-        println!("  (skipped: MM_TEAM_ID not in environment — set it before running cmd_init for full provisioning)");
+        println!("  {}", t!("init.mm_team_id_missing"));
     }
 
-    println!("\nnext: run `genasis attach` to bolt the overlay onto your existing agents.");
+    println!("\n{}", t!("init.next_step"));
     Ok(())
 }
 

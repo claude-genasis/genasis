@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
+use genasis_i18n::t;
 use genasis_overlay::{plan_attach, scan, summary, unified_diff, AttachOptions};
 
 const DEFAULT_FENCE_VERSION: &str = "1.0";
@@ -62,16 +63,17 @@ pub async fn run(args: Args) -> Result<()> {
 
     let refused = plan.refused().count();
     if refused > 0 && !args.force {
-        anyhow::bail!(
-            "{refused} file(s) refused; pass --force to overwrite or fix the issues listed above"
-        );
+        anyhow::bail!("{}", t!("attach.refused", count = refused));
     }
 
     let applied = genasis_overlay::apply(&plan)?;
     println!(
-        "\nwrote {} file(s); {} backup(s) created",
-        applied.written.len(),
-        applied.backups.len()
+        "\n{}",
+        t!(
+            "attach.wrote_summary",
+            count = applied.written.len(),
+            backups = applied.backups.len()
+        )
     );
     Ok(())
 }
