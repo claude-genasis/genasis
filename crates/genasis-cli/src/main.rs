@@ -79,7 +79,9 @@ async fn main() -> Result<()> {
     );
     match cli.command {
         Cmd::Init(a) => cmd_init::run(a).await,
-        Cmd::Attach(a) => cmd_attach::pub_run(a, cli.non_interactive, cli.assume_yes).await,
+        Cmd::Attach(a) => {
+            cmd_attach::pub_run(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes).await
+        }
         Cmd::Detach(a) => cmd_detach::run(a).await,
         Cmd::Doctor(a) => cmd_doctor::run(a).await,
         Cmd::Upgrade(a) => cmd_upgrade::run(a).await,

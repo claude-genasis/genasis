@@ -105,7 +105,6 @@ fn switch(project_root: &std::path::Path, raw: &str) -> Result<()> {
         diff: false,
         force: true, // overwrite even Pristine fences from the previous locale
         fence_version: "1.0".to_string(),
-        install_lang: Some(target.code().to_string()),
         reference_docs: cfg
             .i18n
             .as_ref()
@@ -114,7 +113,12 @@ fn switch(project_root: &std::path::Path, raw: &str) -> Result<()> {
     };
     // We synchronously block on the attach future; the caller is already
     // in tokio::main scope, so we drive it through a fresh handle.
-    futures_block_on(crate::cmd_attach::pub_run(attach_args, true, true))?;
+    futures_block_on(crate::cmd_attach::pub_run(
+        attach_args,
+        Some(target.code().to_string()),
+        true,
+        true,
+    ))?;
 
     // Refresh the i18n block after attach has rewritten genasis.toml.
     cfg = Config::load(&cfg_path)?;

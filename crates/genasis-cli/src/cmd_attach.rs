@@ -33,12 +33,6 @@ pub struct Args {
     #[arg(long, default_value = DEFAULT_FENCE_VERSION)]
     pub fence_version: String,
 
-    /// Language for the installed overlay (en|ko). Overrides the global
-    /// `--lang` interpretation for the attach action specifically. `both`
-    /// is rejected — see docs/impact-of-multilang-prompts.md.
-    #[arg(long = "lang", value_name = "LANG")]
-    pub install_lang: Option<String>,
-
     /// Additional language(s) to keep on disk as reference docs (not
     /// `@import`'d). Repeatable.
     #[arg(long = "reference-docs", value_name = "LANG")]
@@ -47,13 +41,18 @@ pub struct Args {
 
 #[allow(dead_code)]
 pub async fn run(args: Args) -> Result<()> {
-    pub_run(args, false, false).await
+    pub_run(args, None, false, false).await
 }
 
-pub async fn pub_run(args: Args, non_interactive: bool, assume_yes: bool) -> Result<()> {
+pub async fn pub_run(
+    args: Args,
+    lang_flag: Option<String>,
+    non_interactive: bool,
+    assume_yes: bool,
+) -> Result<()> {
     // Resolve install language. Interactive prompt fires when no flag and
     // stdin is a TTY; otherwise falls back to $LANG.
-    let decision = lang_prompt::decide(args.install_lang.as_deref(), non_interactive, assume_yes)?;
+    let decision = lang_prompt::decide(lang_flag.as_deref(), non_interactive, assume_yes)?;
     tracing::info!(
         install_lang = %decision.lang,
         via = decision.via.label(),

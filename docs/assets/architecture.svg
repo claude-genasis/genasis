@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 460" width="720" height="460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7aa2f7"/>
+    </marker>
+  </defs>
+  <rect width="720" height="460" fill="#ffffff"/>
+  <!-- L0 -->
+  <rect x="60" y="350" width="600" height="70" rx="8" fill="#f5f3ff" stroke="#bb9af7" stroke-width="2"/>
+  <text x="80" y="378" font-size="14" font-weight="700" fill="#1f2937">L0 — Your existing team</text>
+  <text x="80" y="402" font-size="13" fill="#4b5563">.claude/agents/*.md · src/ · docs/ · target-app DB</text>
+  <!-- L1 -->
+  <rect x="60" y="245" width="600" height="80" rx="8" fill="#eff6ff" stroke="#7aa2f7" stroke-width="2"/>
+  <text x="80" y="273" font-size="14" font-weight="700" fill="#1f2937">L1 — Genasis Overlay</text>
+  <text x="80" y="297" font-size="13" fill="#4b5563">marker fences · GENASIS.md · .claude/genasis/{skills,commands,hooks}/</text>
+  <!-- L2 -->
+  <rect x="60" y="140" width="600" height="80" rx="8" fill="#ecfeff" stroke="#06b6d4" stroke-width="2"/>
+  <text x="80" y="168" font-size="14" font-weight="700" fill="#1f2937">L2 — `genasis` Rust binary</text>
+  <text x="80" y="192" font-size="13" fill="#4b5563">init · attach · detach · doctor · upgrade · design · db · monitor · lang</text>
+  <!-- L3 -->
+  <rect x="60" y="35" width="600" height="80" rx="8" fill="#fef3f2" stroke="#f87171" stroke-width="2"/>
+  <text x="80" y="63" font-size="14" font-weight="700" fill="#1f2937">L3 — External systems</text>
+  <text x="80" y="87" font-size="13" fill="#4b5563">Plane · Mattermost · GitHub  (direct REST, no MCP)</text>
+  <!-- arrows -->
+  <line x1="360" y1="245" x2="360" y2="355" stroke="#bb9af7" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="370" y="335" font-size="11" fill="#7c3aed">preserves</text>
+  <line x1="360" y1="220" x2="360" y2="240" stroke="#7aa2f7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="370" y="232" font-size="11" fill="#2563eb">generates · merges</text>
+  <line x1="360" y1="115" x2="360" y2="135" stroke="#7aa2f7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="370" y="127" font-size="11" fill="#2563eb">direct API</text>
+</svg>

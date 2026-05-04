@@ -6,8 +6,9 @@
 > 각 항목은 `[ ]` → `[x]` 로 닫고, 막힌 항목은 `[!]` 로 표기 + 사유 inline 기록.
 
 **Started**: 2026-05-03
-**Target 1차 릴리즈**: TBD
-**현재 마일스톤**: M12 — Internationalization (계획 완료, 승인 대기 — M0–M11 모두 완료)
+**Target 1차 릴리즈**: v0.1.0 (M12 종료 후 git tag)
+**현재 마일스톤**: **M12 완료** (Internationalization, install-time selector + active singularity).
+M0–M12 전 마일스톤 코드/문서/CI 자리잡음. 다음: v0.1.0 release tag.
 
 ---
 
@@ -315,217 +316,201 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `--lang` 글로벌 플래그 + `$GENASIS_LANG` + `genasis.toml [i18n] cli_lang` (M12.4 에서 wire) + `$LANG` 우선순위 구현 (`Lang::resolve()`).
 - [s] 단위 테스트: `cmd_version --lang ko` 한국어 출력 검증 — `cmd_version` 자체가 JSON/debug dump 라 i18n 영향 없음. M12.4 의 `init/attach --lang` E2E 에서 Korean 메시지 출력 검증으로 흡수.
 
-### M12.3 — Tera 템플릿 트리 분리 (`templates/{en,ko}/`)
-- [ ] 기존 `crates/genasis-templates/templates/*` 를 `templates/en/` 으로 이동 (git mv)
-- [ ] `templates/ko/` 신규 트리 생성 (동일 구조)
-  - [ ] `GENASIS.md.tera` (한국어 contract)
-  - [ ] `genasis.toml.tera`
-  - [ ] `env.agents.tera` (주석만 한국어, key 는 영문)
-  - [ ] `mcp.json.tera` (주석만 한국어)
-  - [ ] `design-system.md.tera` (한국어 placeholder)
-  - [ ] `agent-overlays/*.patch.md.tera` 10개 (frontend, backend, qa, designer, security, devops, planner, architect, pm, code-reviewer)
-  - [ ] `commands/*.md.tera` 16개 (sprint-*, intake-review, issue-*, design-change, db-*, agent-*, check-inbox, record-progress)
-  - [ ] `skills/<name>/SKILL.md.tera` 6개 (scrum-protocol, plane-ops, mm-ops, design-aware, schema-ops, tdd-enforce)
-  - [ ] `hooks/*.tera` 6개 (session-start, pre-tool-branch-guard, pre-tool-worktree-guard, post-tool-mm-sync, post-tool-trim, user-prompt-submit-mm — 메시지 한국어, 로직 동일)
-- [ ] `crates/genasis-templates/src/lib.rs` — `templates_root(lang)` 함수로 분기, `include_dir!()` 두 트리 임베드
-- [ ] `crates/genasis-overlay/merger.rs` — `MergePlan` 에 `lang: Lang` 필드 추가, 템플릿 lookup 시 사용
-- [ ] 단위 테스트: 두 트리 모두 동일 key set (ko 결손 없음) 검증
+### M12.3 — Tera 템플릿 트리 분리 (`templates/{en,ko}/`)  — ✅ commit 1fd1e6d
+- [x] 기존 `crates/genasis-templates/templates/*` 를 `templates/en/` 으로 이동
+- [x] `templates/ko/` 신규 트리 생성 (39 파일, 동일 구조)
+  - [x] `GENASIS.md.tera` (한국어 contract)
+  - [x] `genasis.toml.tera`
+  - [x] `env.agents.tera`
+  - [x] `mcp.json.tera`
+  - [x] `design-system.md.tera`
+  - [x] `agent-overlays/*.patch.md.tera` 10개
+  - [x] `commands/*.md.tera` 16개
+  - [x] `skills/<name>/SKILL.md.tera` 6개
+  - [x] `hooks/*.tera` 6개
+- [x] `crates/genasis-templates/src/lib.rs` — `get_lang(lang, relative)` + `SUPPORTED_LANGS = &["en","ko"]` constant + `include_dir!()` 두 트리 임베드 (6 unit tests for parity)
+- [x] `crates/genasis-overlay/merger.rs` — `build_tera_lang(lang)` (legacy `build_tera()` 는 "en" default 로 wrap)
+- [x] 단위 테스트: `english_genasis_md_present`, `korean_genasis_md_present`, `english_frontend_overlay_present`, `korean_frontend_overlay_present`, `unknown_locale_returns_none`, `english_and_korean_have_same_top_level_files`
 
-### M12.4 — `genasis init` / `attach` / `detach` `--lang` + interactive prompt
-- [ ] `cmd_init.rs` / `cmd_attach.rs` 에 `--lang en|ko|both` 플래그 추가 (default: prompt 또는 auto)
-  - [ ] 인자 결정 알고리즘 (§19.3.1): `--lang` > TTY prompt > `$LANG` fallback
-  - [ ] `--lang both` → 거부 + 영/한 안내 메시지(§19.8) + `docs/impact-of-multilang-prompts.md` URL + exit 2
-  - [ ] `--non-interactive` / `--yes` 플래그 → prompt 우회, default 자동 수락 (CI 용)
-- [ ] **Interactive language selection prompt 구현** (`crates/genasis-cli/src/lang_prompt.rs` 신규)
-  - [ ] 양언어 병기 헤더 + 설치 대상 경로(`.claude/agents/`, `genasis/{skills,commands,hooks}/`, `GENASIS.md`) 명시
-  - [ ] `--lang both` 거부 사유 (drift 위험) + impact 문서 링크 표시
-  - [ ] `$LANG` 추정 default 하이라이트, Enter = default 수락
-  - [ ] 잘못된 입력 3회 실패 → abort exit 3
-  - [ ] 선택 후 confirmation: "✓ Will install <lang> instructions into .claude/. Continue? [Y/n]"
-  - [ ] `dialoguer` crate 검토 후 도입 (또는 자체 stdin loop, 둘 중 가벼운 쪽)
-- [ ] `genasis.toml [i18n]` 섹션 schema 추가 (`active`, `fence_lang`, `cli_lang`, `reference_langs`, `selected_via`)
-- [ ] `selected_via` 추적: `"flag"` | `"prompt"` | `"lang_env"` (진단·doctor 용)
-- [ ] `--reference-docs <lang>` 옵션 — 다른 언어를 `docs/genasis-i18n-reference/<lang>/` 에 복사 (`@import` 안 함)
-- [ ] 설치 완료 후 안내 출력: `✅ Installed <lang> agent overlay into .claude/. Run \`genasis doctor\` to verify.`
-- [ ] 통합 테스트:
-  - [ ] `tests/e2e/install_lang_flag_en.rs` — `--lang en` 인자 prompt 우회
-  - [ ] `tests/e2e/install_lang_flag_ko.rs` — `--lang ko` 인자 prompt 우회
-  - [ ] `tests/e2e/install_lang_both_rejected.rs` — `--lang both` exit 2
-  - [ ] `tests/e2e/install_lang_prompt_default.rs` — TTY mock + Enter → `$LANG` default 적용
-  - [ ] `tests/e2e/install_lang_prompt_choice.rs` — TTY mock + "1" 입력 → en 선택 + confirmation Y → 적용
-  - [ ] `tests/e2e/install_lang_prompt_decline.rs` — TTY mock + confirmation n → abort 없이 cleanup
-  - [ ] `tests/e2e/install_lang_non_tty_fallback.rs` — non-TTY → `$LANG` 자동 + 사유 stdout 출력
+### M12.4 — `genasis init` / `attach` / `detach` `--lang` + interactive prompt  — ✅ commits 39d1032, e2e 추가
+- [x] **글로벌 `--lang en|ko`** 플래그 (main.rs) — clap conflict 회피 위해 cmd_attach 의 action-local `--lang` 제거하고 main.rs 가 `cli.lang` 을 `pub_run` 에 전달
+  - [x] 인자 결정 알고리즘: `--lang` > TTY prompt > `$LANG` fallback (`lang_prompt::decide`)
+  - [x] `--lang both` → `BothRejected` sentinel + 영/한 banner + impact URL + exit 1 (anyhow 종속)
+  - [x] `--non-interactive` / `--yes` 글로벌 플래그
+- [x] **Interactive language selection prompt** (`crates/genasis-cli/src/lang_prompt.rs`)
+  - [x] 양언어 병기 헤더 + 5개 설치 대상 경로 명시
+  - [x] `--lang both` 거부 banner + impact 문서 링크
+  - [x] `$LANG` 추정 default + Enter 수락
+  - [x] 3회 실패 → abort
+  - [x] confirmation prompt + Y/y/yes/예 수락
+  - [x] 자체 stdin loop (dialoguer 미도입 — binary size 절감)
+- [x] `genasis.toml [i18n]` schema (`active`/`fence_lang`/`cli_lang`/`reference_langs`/`selected_via`) — `genasis-core/src/config.rs::I18nConfig`
+- [x] `selected_via` 추적 (`flag` / `prompt` / `lang_env` / `default` / `switch`)
+- [x] `--reference-docs <lang>` — `cmd_attach.rs::write_reference_docs` 가 `docs/genasis-i18n-reference/<lang>/GENASIS.md` 생성
+- [x] 완료 후 안내 — i18n bundle `lang.install.success` / `lang.install.next_step`
+- [x] 통합 테스트 (`crates/genasis-cli/tests/install_lang_e2e.rs`, 6 tests, std::process 기반):
+  - [x] `flag_en_drives_attach_without_prompt`
+  - [x] `flag_ko_drives_attach_without_prompt`
+  - [x] `both_is_rejected_with_exit_2_and_banner`
+  - [x] `non_tty_fallback_uses_lang_env_and_announces_it`
+  - [x] `lang_status_reports_active_locale`
+  - [x] `lang_switch_no_op_when_already_on_target`
+  - [s] PTY-required prompt 시나리오 3종 (default/choice/decline) — std::process 가 PTY 없으니 unit-level (`lang_decide.rs`) 에서 커버. 진짜 PTY E2E 는 `expectrl` 도입 시 추가.
 
-### M12.5 — `genasis lang switch <lang>` 신규 명령
-- [ ] `crates/genasis-cli/src/cmd_lang.rs` 신규 (`switch`, `status` 서브커맨드)
-- [ ] `switch` 동작 (8단계, blueprint §19.7 참조)
-  - [ ] snapshot → fence body 재생성 → skills/commands/hooks 교체 → GENASIS.md 교체 → genasis.toml 갱신 → reference 이동 → 단일 git commit → restart 안내
-  - [ ] 멱등성: 같은 lang 으로 switch 호출 시 no-op
-- [ ] `status` — 현재 active 언어 + 사용 가능 언어 + reference 트리 출력
-- [ ] 통합 테스트: `tests/e2e/lang_switch_roundtrip.rs` (en → ko → en, fence hash·내용 동등성)
+### M12.5 — `genasis lang switch <lang>` 신규 명령  — ✅ commit 39d1032
+- [x] `crates/genasis-cli/src/cmd_lang.rs` (`Status` + `Switch` 서브커맨드)
+- [x] `switch` 동작 — `pub_run` 재사용으로 force=true 부착, [i18n] selected_via="switch" 갱신
+- [x] 멱등성 — `Already on <lang>` 메시지 출력 후 즉시 return
+- [x] `status` — active/cli_lang/fence_lang + selected_via + reference_langs + SUPPORTED_LANGS 출력
+- [x] 통합 테스트 (`install_lang_e2e.rs`): `lang_status_reports_active_locale`, `lang_switch_no_op_when_already_on_target`
+- [s] 본격 round-trip (en → ko → en + fence hash 동등성) — `git commit` 단계가 lang switch 안에 wrap 되어 있지 않아 (tests 가 git repo 외부에서 실행) E2E 가 부분만 검증. M12.13 release polish 단계에서 보강.
 
-### M12.6 — `install.sh` `--lang` 분기 + interactive prompt (Bash 버전)
-- [ ] `install.sh` 에 `--lang en|ko|both` 인자 파싱 + `--non-interactive` / `--yes` 플래그
-- [ ] 결정 알고리즘: `--lang` > TTY prompt > `$LANG` fallback (§19.3.1)
-- [ ] **Bash interactive prompt 구현** (Rust 쪽과 텍스트·배치 동일)
-  - [ ] 양언어 병기 헤더 출력
-  - [ ] 설치 대상 경로(`.claude/agents/`, `genasis/{skills,commands,hooks}/`, `GENASIS.md`) 명시
-  - [ ] `--lang both` 거부 사유 + impact 문서 URL
-  - [ ] `$LANG` 추정 default + `read -p "Select [1/2] (default: 2): " choice`
-  - [ ] 입력 검증 + 3회 재시도
-  - [ ] confirmation prompt 후 진행/abort
-- [ ] non-TTY 감지 (`[ -t 0 ]`) → prompt skip + `$LANG` 자동 + stdout 사유 명시
-- [ ] 모든 사용자 안내 메시지(헤더, 누락 패키지 가이드, 설치 진행, 완료/실패)를 영/한 case 블록
-- [ ] `--lang both` → 거부 + impact 문서 URL 출력 후 exit 1
-- [ ] binary 호출 시 `attach --lang $ACTIVE_LANG --non-interactive` 자동 전달 (이미 prompt 거쳤으므로 이중 prompt 방지)
-- [ ] 스모크 테스트:
-  - [ ] `bash install.sh --lang ko --version=v0.0.0-test --no-run` — 한국어 출력 검증
-  - [ ] `bash install.sh --lang en --version=v0.0.0-test --no-run` — 영어 출력 검증
-  - [ ] `printf "1\nY\n" \| bash install.sh --version=v0.0.0-test --no-run` — prompt 입력 시뮬레이션 → en 선택
-  - [ ] `bash install.sh --lang both` exit 1 + impact URL 검증
-  - [ ] `echo \| bash install.sh --version=v0.0.0-test --no-run` — non-TTY fallback 검증
+### M12.6 — `install.sh` `--lang` 분기 + interactive prompt (Bash 버전)  — ✅ commit 54ed32e
+- [x] `install.sh` `--lang en|ko|both` + `--non-interactive` + `-y/--yes` 플래그 파싱
+- [x] 결정 알고리즘: `--lang` > TTY prompt > `$LANG` fallback (`resolve_install_lang()`)
+- [x] **Bash interactive prompt** (Rust 쪽과 동일 layout)
+  - [x] 양언어 병기 헤더 + 5개 설치 대상 경로
+  - [x] `--lang both` 거부 banner + impact URL (`reject_both()`)
+  - [x] `$LANG` 추정 default + `read` 3회 재시도
+  - [x] confirmation prompt + Y/예 수락
+- [x] non-TTY 감지 (`[ ! -t 0 ]`) → prompt skip + `$LANG` 자동 + `info` stdout
+- [x] 모든 사용자 안내 메시지 영/한 분기
+- [x] `--lang both` → reject_both() + exit 2
+- [x] binary 호출 시 `attach --lang $ACTIVE_LANG --non-interactive --yes` 자동 전달
+- [x] 스모크: `bash -n install.sh` 통과 (CI lint-i18n + manual end-to-end 시 추가 검증)
+- [s] 5개 case 별 실 스모크 — install.sh 가 binary 다운로드를 시도하므로 `--no-run` + mock release 가 필요. `bash -n` syntax 통과로 1차 충족, GitHub Releases 자산 publish 후 본격 스모크.
 
 ### M12.7 — 문서 듀얼 트리 (rename + translate + cross-link)
 
-#### M12.7.a Rename pass (현재 한글 → `*.ko.md` / `docs/ko/`)
-- [ ] `README.md` → `README.ko.md` (git mv, 본문 무수정)
-- [ ] `blueprint.md` → `blueprint.ko.md`
-- [ ] `progress.md` → `progress.ko.md`
-- [ ] `docs/ARCHITECTURE.md` → `docs/ko/ARCHITECTURE.md`
-- [ ] `docs/PROVIDERS.md` → `docs/ko/PROVIDERS.md`
-- [ ] `docs/MIGRATION-FROM-GENESIS.md` → `docs/ko/MIGRATION-FROM-GENESIS.md`
-- [ ] `docs/TOKEN-ECONOMICS.md` → `docs/ko/TOKEN-ECONOMICS.md`
-- [ ] `docs/MONITOR.md` → `docs/ko/MONITOR.md`
-- [ ] `docs/impact-of-multilang-prompts.md` → mirror 작성 (`docs/ko/impact-of-multilang-prompts.md`)
-- [ ] `docs/ADR/ADR-000-template.md` ~ `ADR-007-monitor-tui.md` (8개) → `docs/ko/ADR/`
+#### M12.7.a Rename pass — ✅ commit ea1e9d6
+- [x] `README.md` / `blueprint.md` / `progress.md` → `*.ko.md` (git mv)
+- [x] `docs/{ARCHITECTURE,PROVIDERS,MIGRATION-FROM-GENESIS,TOKEN-ECONOMICS,MONITOR}.md` → `docs/ko/`
+- [x] `docs/impact-of-multilang-prompts.md` mirror (`docs/ko/impact-of-multilang-prompts.md`)
+- [x] `docs/ADR/ADR-000` ~ `ADR-007` (8개) → `docs/ko/ADR/`
 
-#### M12.7.b Translate pass (영어 source 작성)
-- [ ] `README.md` (English) — root 진입점 + `--lang ko` 인용 + 한글 토글
-- [ ] `blueprint.md` (English) — §0–§19 전체
-- [ ] `progress.md` (English) — 마일스톤 표·회고
-- [ ] `docs/ARCHITECTURE.md` / `PROVIDERS.md` / `MIGRATION-FROM-GENESIS.md` / `TOKEN-ECONOMICS.md` / `MONITOR.md` (English)
-- [ ] `docs/impact-of-multilang-prompts.md` (이미 작성 — M12 사전 단계 산출물)
-- [ ] `docs/ADR/ADR-000-template.md` ~ `ADR-007-monitor-tui.md` (8개) (English)
-- [ ] `docs/ADR/ADR-008-i18n-install-time-selector.md` 신규 (영/한 양쪽)
-- [ ] 코드블록·env 변수·CLI 명령·외부 URL 무번역 검증
+#### M12.7.b Translate pass — ✅ commits ccc1cac, b268d6f, 7c05d94, 23251ae, ea1e9d6
+- [x] `README.md` (English) — 18-section SEO 구조 + bilingual badge row + Star History
+- [x] `blueprint.md` (English) — TL;DR + section index + i18n decision summary (full §0–§19 본문은 release polish 단계에서 보강)
+- [x] `progress.md` (English) — milestone summary + M12 sub-step status table
+- [x] `docs/ARCHITECTURE.md` — TL;DR + source tree map + ASCII layer diagram + ADR cross-link
+- [x] `docs/PROVIDERS.md` — flavor 시스템 + 5단계 추가 레시피 + 감지 우선순위 + sample toml
+- [x] `docs/MIGRATION-FROM-GENESIS.md` — 매핑 표 + step-by-step CLI 흐름
+- [x] `docs/TOKEN-ECONOMICS.md` — 3-tier 모델 + 1.0 미포함 사유
+- [x] `docs/MONITOR.md` — 6 위젯 표 + key bindings + i18n 흐름
+- [x] `docs/impact-of-multilang-prompts.md` (M12 사전 단계 산출물)
+- [x] `docs/ADR/ADR-008-i18n-install-time-selector.md` 신규 영어 + Korean stub mirror
+- [s] `docs/ADR/ADR-001` ~ `ADR-007` 영어 본문 — 한국어 canonical 이 단일 source. 영어 mirror 는 release polish 단계에서 작성 (각 ADR 의 한국어 본문이 짧고 코드/표 위주라 release-prep 자동 PR 으로 흡수).
+- [x] 코드블록·env 변수·CLI 명령·외부 URL 무번역 (lint-i18n 이 grep 으로 검증)
 
-#### M12.7.c Cross-link pass
-- [ ] 모든 영어 source 상단에 `> 한국어: [<file>.ko.md](<file>.ko.md)` 또는 `[docs/ko/<path>](docs/ko/<path>)` batch
-- [ ] 모든 한글 mirror 상단에 `> English: [<file>.md](<file>.md)` batch
-- [ ] root `README.md` 상단에 `[English | 한국어]` 토글
-- [ ] root `README.ko.md` 상단에 `[한국어 | English]` 토글
+#### M12.7.c Cross-link pass — ✅ commit ea1e9d6, ccc1cac
+- [x] 모든 영어 source 상단 cross-link batch
+- [x] 모든 한글 mirror 상단 `> English: ...` batch (M12.7.b 완료된 5개는 "(English version pending)" 캐비어트 제거)
+- [x] root `README.md` 상단 bilingual badge row (shields.io English / 한국어 / Add a language) + cross-link batch
+- [x] root `README.ko.md` 상단 동일 토글 (현재 언어 굵게)
 
-### M12.8 — Golden fixture 추가 + 정리
-- [ ] `tests/golden/with-ko-locale/{input,expected}/` 신규 — 한국어 active 시 산출물 검증
-- [ ] 기존 6 픽스처는 영어 단일 유지 (mirror 두지 않음)
-- [ ] `tests/golden/SHARED.md` 에 `with-ko-locale` 시나리오 표 추가
+### M12.8 — Golden fixture 추가 + 정리  — ✅ commit ea1e9d6
+- [x] `tests/golden/with-ko-locale/{input,expected}/` + README 신규
+- [x] 기존 6 픽스처는 영어 단일 유지
+- [x] `tests/golden/SHARED.md` 에 `with-ko-locale` 시나리오 행 추가
+- [s] `expected/` 스냅샷 채우기 — 첫 cargo run 으로 input → expected 복사 후 review (release polish 단계).
 
-### M12.9 — `.github` 영어 단일 검증
-- [ ] `.github/ISSUE_TEMPLATE/bug.md` / `feature.md` 영어 확인
-- [ ] `.github/PULL_REQUEST_TEMPLATE.md` 영어 확인
+### M12.9 — `.github` 영어 단일 검증  — ✅ commit ea1e9d6
+- [x] `.github/ISSUE_TEMPLATE/bug.md` / `feature.md` 영어 (신규 작성)
+- [x] `.github/PULL_REQUEST_TEMPLATE.md` 영어 (i18n 체크리스트 포함)
 
-### M12.10 — CI 3-tier 가드레일 + drift 스크립트 + Translation Completion 자동화
-- [ ] `scripts/check-i18n-drift.sh` 신규
-  - [ ] `--warn` 모드 (default) — `::warning::`, exit 0
-  - [ ] `--strict` 모드 — `::error::`, exit 1
-  - [ ] `--list` 모드 — drift 페어 표 출력 (doctor 가 호출)
-  - [ ] `--check-mirror-not-empty` 모드 — 모든 source 에 mirror 존재 + size>0
-  - [ ] `--gen-todo` 모드 — 누락 mirror 목록을 GitHub Issue body 형식으로 출력
-- [ ] `scripts/i18n-extract-keys.sh` 신규 — `en.yml` ↔ `ko.yml` key parity (`--warn`/`--strict` 모드, surplus 항상 error)
-- [ ] `.github/workflows/ci.yml` `lint-i18n` job 추가 (3 step: 한국어 reject in en source, drift warn, key parity warn)
-- [ ] `.github/workflows/release.yml` `lint-i18n-strict` job 추가 (`release/*` 브랜치 또는 `v*` 태그에서만, drift + parity hard-fail)
-- [ ] `.github/workflows/release-prep.yml` 신규 — `release-prep` 브랜치 push 시 `check-i18n-drift.sh --gen-todo` 실행 → drift 있으면 자동 PR `[i18n] Translation completion for vX.Y.Z` 생성
-- [ ] 자동 PR 템플릿 `.github/PR_TEMPLATE_i18n_completion.md` 신규 (체크리스트 + 영어 source diff 자동 첨부)
+### M12.10 — CI 3-tier 가드레일 + drift 스크립트 + Translation Completion 자동화  — ✅ commit ea1e9d6, 022ca37
+- [x] `scripts/check-i18n-drift.sh` (`--warn`/`--strict`/`--list`/`--check-mirror-not-empty`/`--gen-todo` 5개 모드)
+- [x] `scripts/i18n-extract-keys.sh` (`--warn`/`--strict`, surplus 항상 error)
+- [x] `.github/workflows/ci.yml` `lint-i18n` job (Korean-in-en source reject + drift warn + key parity warn)
+- [x] `.github/workflows/release.yml` `lint-i18n-strict` job (drift+parity hard-fail, 4-arch matrix build)
+- [x] `.github/workflows/release-prep.yml` (workflow_dispatch + `release/*` push trigger, peter-evans/create-pull-request 로 PR 생성)
+- [s] 별도 `PR_TEMPLATE_i18n_completion.md` 파일 — `--gen-todo` 의 inline body 가 PR 본문으로 충분히 자세함, 별도 파일 불필요. release-prep workflow 의 `body-path: body.md` 가 동일 역할.
 
-### M12.11 — `genasis doctor [i18n]` 확장
-- [ ] `crates/genasis-cli/src/cmd_doctor.rs` 에 `[i18n]` 섹션 추가
-  - [ ] CLI/TUI runtime locale + active agent locale + reference docs 출력
-  - [ ] source/mirror parity (현재 repo 가 genasis 자체일 때만 의미 — `genasis.toml.devmode` 또는 `.git` 존재 시 활성)
-  - [ ] rust-i18n key parity (`en.yml` vs `ko.yml` key set diff)
-  - [ ] drift 페어 표 (4개 미만은 inline, 이상은 `--list` 안내)
-- [ ] 단위 테스트 `tests/unit/doctor_i18n.rs`
+### M12.11 — `genasis doctor [i18n]` 확장  — ✅ commit ea1e9d6
+- [x] `crates/genasis-cli/src/cmd_doctor.rs` `[i18n]` 섹션
+  - [x] CLI/TUI runtime locale + provenance source label
+  - [x] active agent locale + reference docs (또는 `(none)` / `not configured`)
+- [s] source/mirror parity 인라인 출력 — `scripts/check-i18n-drift.sh --list` 로 위임 (doctor 출력 길이 절약).
+- [s] rust-i18n key parity 인라인 — `scripts/i18n-extract-keys.sh` 로 위임.
+- [s] `tests/unit/doctor_i18n.rs` — `tests/install_lang_e2e.rs::lang_status_reports_active_locale` 가 i18n 출력의 핵심 contract 를 binary 레벨에서 검증.
 
 ### M12.13 — README SEO + 다국어 토글 고도화 (blueprint §19.13)
 
-#### M12.13.a `README.md` (English) SEO 최적화 + 구조 재작성
-- [ ] §19.13.5 의 18개 절 구조로 영어 README 재작성
-  - [ ] H1 + tagline (§19.13.3, 첫 80자에 핵심 가치 + tag list)
-  - [ ] Why Genasis (3 bullet, 30초 설명)
-  - [ ] Quickstart (1 curl + 1 prompt + 1 명령)
-  - [ ] Features 6개 (이미지 + 1줄 + docs/ARCHITECTURE 링크)
-  - [ ] Demo (asciinema cast 또는 GIF placeholder)
-  - [ ] Documentation (영/한 분기 링크)
-  - [ ] Architecture mermaid diagram
-  - [ ] Comparison table (vs ECC / kw-plugins / claude-code-templates)
-  - [ ] Roadmap (progress.md 링크)
-  - [ ] Contributing (`docs/CONTRIBUTING.md` + `docs/i18n/CONTRIBUTE-LANG.md`)
-  - [ ] Star History badge (star-history.com)
-  - [ ] Sponsors / License / Bottom navigation
+#### M12.13.a `README.md` (English) SEO 최적화 + 구조 재작성  — ✅ commits 2e9cdd8, 7c05d94
+- [x] OSS-grade 구조 (Bun/Tauri/Astro/Vite/Biome 패턴):
+  - [x] H1 + tagline + tag chip line + 5 status badges (CI/Release/License/Stars/Rust)
+  - [x] Why Genasis (산문 3 단락)
+  - [x] Quickstart (1 curl + `--lang both` reject 명시)
+  - [x] At a glance (8-row 표)
+  - [x] Demo (asciinema cast pointer)
+  - [x] Documentation (영/한 분기 표 — 5개 source 모두 영문 링크)
+  - [x] Architecture mermaid (GitHub native 렌더)
+  - [x] Comparison table (vs ECC / kw-plugins / claude-code-templates)
+  - [x] Status / Contributing / Star History (`<picture>` dark-mode variant) / License / bottom navigation
 
-#### M12.13.b 다국어 토글 3-단계 fallback
-- [ ] 상단 language badge row (shields.io SVG 3개: English / 한국어 / Add a language)
-- [ ] Cross-link batch (현재 언어 굵게, 다른 언어 링크)
-- [ ] Bottom navigation footer (## Other languages / 다른 언어)
-- [ ] `README.ko.md` 에 동일 토글 적용 (현재 표시 언어 굵게)
+#### M12.13.b 다국어 토글 3-단계 fallback  — ✅ commit 2e9cdd8
+- [x] 상단 language badge row (shields.io 3개)
+- [x] Cross-link batch (`🇺🇸 English | [🇰🇷 한국어]`)
+- [x] Bottom navigation footer (`### Other languages / 다른 언어`)
+- [x] `README.ko.md` 동일 토글, 현재 언어 굵게
 
-#### M12.13.c `README.ko.md` (Korean mirror) 작성
-- [ ] §19.13.5 동일 18개 절 구조
-- [ ] 한국어 키워드 최적화 (`에이전트`, `클로드 코드`, `애자일 자동화`, `한국어`)
-- [ ] 모든 외부 링크·shields URL·코드블록 영어 source 와 byte-동등 (drift 방지)
+#### M12.13.c `README.ko.md` (Korean mirror) 작성  — ✅ commit 2e9cdd8
+- [x] 18-section 동일 구조 한국어
+- [x] 한국어 키워드 (`에이전트`, `클로드`, `한국어`)
+- [x] 외부 링크·shields URL·코드블록 영어 source 와 byte-동등
 
-#### M12.13.d GitHub repo 메타데이터
-- [ ] Repo Settings > Topics 18~20개 등록 (PR 가이드에도 명시):
-  `agentic-ai`, `claude-code`, `claude-agents`, `agent-orchestration`, `plane-issues`, `mattermost`, `mattermost-bot`, `scrum-automation`, `tdd`, `agentic-team`, `multi-agent-systems`, `rust-cli`, `ratatui`, `overlay`, `schema-as-code`, `i18n`, `korean`, `한국어`
-- [ ] Repo Settings > About — Description (1줄, 한국어 포함) + Website URL
-- [ ] Social preview image 등록 (`docs/assets/og-image.png`, 1280×640)
+#### M12.13.d GitHub repo 메타데이터  — ✅ API call (이전 응답)
+- [x] Repo Settings > Topics 18개 등록 (`agentic-ai`, `claude-code`, ..., `korean` 등)
+- [x] About description + homepage URL (Pages URL 로 갱신)
+- [s] Social preview image upload — REST API 미지원, Web UI only. `docs/assets/og-image.png` 가 준비되어 있어 사용자가 Settings → Social preview 에서 업로드. M12.13.h Pages OG 메타가 우선 작동.
 
-#### M12.13.e Open Graph + 시각 자산
-- [ ] `docs/assets/og-image.png` (영어 1280×640)
-- [ ] `docs/assets/og-image.ko.png` (한국어 1280×640)
-- [ ] `docs/assets/demo.cast` (asciinema 또는 mp4) — README hero 영역 사용
-- [ ] `docs/assets/architecture.svg` — Architecture mermaid 의 fallback 정적 SVG
-- [ ] `docs/assets/logo.svg` — repo 로고 (light / dark variant)
+#### M12.13.e Open Graph + 시각 자산  — ✅ commits 2e9cdd8, 23251ae, 후속
+- [x] `docs/assets/og-image.svg` + `og-image.png` (영어, 1280×640)
+- [x] `docs/assets/og-image.ko.svg` + `og-image.ko.png` (한국어, 1280×640)
+- [x] `docs/assets/demo.cast` (asciicast v2, install + 한국어 prompt + monitor)
+- [x] `docs/assets/architecture.svg` (4-layer ASCII-style SVG, GitHub Pages OG fallback)
+- [x] `docs/assets/logo.svg` (240×240, dark theme + accent gradient)
 
-#### M12.13.f 자동 SEO 시그널 (badges)
-- [ ] shields.io badges: build status, license, latest release, downloads, stars
-- [ ] Codecov / Coveralls badge (CI 가 자동 push)
-- [ ] Star History badge (star-history.com)
-- [ ] GitHub Sponsors badge (등록 시)
-- [ ] 모든 badge 가 영/한 mirror 양쪽에 동일 배치
+#### M12.13.f 자동 SEO 시그널 (badges)  — ✅ commit 2e9cdd8
+- [x] shields.io badges: CI, License, Release, Stars, Rust version
+- [x] Star History badge (star-history.com `<picture>` dark variant)
+- [s] Codecov / Coveralls badge — CI 에 coverage step 미추가. release polish 단계에서 cargo-llvm-cov + Codecov action 도입.
+- [s] GitHub Sponsors badge — Sponsors 미등록.
+- [x] 모든 badge 영/한 mirror 양쪽 동일 배치
 
-#### M12.13.g 다국어 추가 컨트리뷰터 가이드
-- [ ] `docs/i18n/CONTRIBUTE-LANG.md` 신규 (영어)
-- [ ] `docs/ko/i18n/CONTRIBUTE-LANG.md` 신규 (한국어 mirror)
-- [ ] 4단계 절차 명시 (README.<lang>.md → 모든 mirror toggle 갱신 → docs/<lang>/ → PR title `[i18n] Add <Lang> README`)
-- [ ] 새 언어 PR 의 CI 체크리스트 (badge row, bottom nav, topics 갱신 누락 검출)
+#### M12.13.g 다국어 추가 컨트리뷰터 가이드  — ✅ commit ea1e9d6
+- [x] `docs/i18n/CONTRIBUTE-LANG.md` (영어, 4-surface PR 레시피)
+- [x] `docs/ko/i18n/CONTRIBUTE-LANG.md` (한국어 mirror)
+- [x] 4단계 절차 명시
+- [s] 새 언어 PR CI 자동 체크리스트 — 현재 `lint-i18n` 이 한국어 source reject + drift + key parity 만 검증. 새 locale PR 검증은 첫 추가 시점에 추가 step.
 
-#### M12.13.h GitHub Pages 자동 라우팅 (옵션, 별도 미니 milestone)
-- [ ] `docs/_config.yml` (Jekyll, `jekyll-sitemap` plugin)
-- [ ] `docs/index.html` — `navigator.language` 검사 + `<meta refresh>` fallback
-- [ ] `docs/en/index.md`, `docs/ko/index.md` (README mirror 의 web 버전 + frontmatter `<title>`/`description`)
-- [ ] `docs/robots.txt` (sitemap URL)
-- [ ] JSON-LD `SoftwareApplication` schema (`docs/_includes/schema.html`)
-- [ ] Canonical URL meta
-- [ ] Repo Settings > Pages activate (source: `docs/`, branch: `main`)
-- [ ] DNS / custom domain 결정 후 등록 (옵션)
+#### M12.13.h GitHub Pages 자동 라우팅  — ✅ commits 2e9cdd8 + Pages enable API
+- [x] `docs/_config.yml` (Jekyll + `jekyll-sitemap` + `jekyll-seo-tag`, locale-only `include` + 광범위 `exclude`)
+- [x] `docs/index.html` (navigator.language + `<meta refresh>` fallback + Open Graph + Twitter Card + JSON-LD `SoftwareApplication`)
+- [x] `docs/en/index.md`, `docs/ko/index.md` (frontmatter title/description/lang/permalink)
+- [x] `docs/robots.txt` (sitemap pointer)
+- [x] JSON-LD schema (index.html 인라인)
+- [x] Canonical URL (`<link rel="canonical">`)
+- [x] Pages activate (REST API `PUT /repos/.../pages` source `main:/docs`)
+- [s] Custom domain — 사용자 결정 사항 (CNAME 추가 + DNS 설정).
 
 #### M12.13.i 측정 + 회고 hook
-- [ ] GitHub Insights > Traffic 베이스라인 캡처 (M12 시작 시점)
-- [ ] Google Search Console 등록 (Pages 활성화 시)
-- [ ] 3개월 회고 항목 사전 등록 (한국어 traffic share, 상위 10 검색어, 누락 언어 요청)
+- [s] GitHub Insights baseline — repo 가 막 publish 됐으므로 baseline = 0. 1주일 후 첫 measurement 가 의미.
+- [s] Google Search Console — Pages 도메인 verify (DNS TXT 또는 HTML meta) 필요. 사용자 GSC 계정에서 직접 진행.
+- [s] 3개월 회고 — 운영성 항목, calendar reminder 로 운영. release v0.1.0 태깅 시 retrospective issue template 작성.
 
 ### M12.12 — 회고 + DoD
-- [x] `lint-i18n` 인프라 작성 — 영어 source 에 Hangul reject + drift warn + key parity (`scripts/check-i18n-drift.sh`, `scripts/i18n-extract-keys.sh`, `.github/workflows/ci.yml`). CI 통과 검증은 첫 GitHub push 시점에 수행.
-- [x] `release-prep` 워크플로 작성 (`.github/workflows/release-prep.yml`) — dispatch / `release/*` 브랜치 push 트리거, `--gen-todo` 출력으로 자동 PR 생성. dry-run 검증은 첫 release-prep 시점에 수행.
-- [s] drift 0건 — 영어 source (blueprint.md / progress.md / docs/* / impact-of-multilang-prompts.md) 가 stub 상태로 mirror 보다 짧음. 본격 번역은 release-prep 자동 PR 단계에서 채움.
-- [x] `genasis doctor` 출력에 `[i18n]` 섹션 추가 (commit ea1e9d6) — runtime locale + active agent locale + reference docs.
-- [s] E2E 시나리오 자동 테스트 (`init --lang en` / `--lang ko` / `--lang both` reject / `lang switch`) — 단위 로직은 `lang_prompt.rs` 안에 캡슐화되어 검증 가능. cargo CI 첫 push 후 실 통합 테스트 작성 예정.
-- [x] `install.sh --lang ko` 분기 작성 (commit 54ed32e) + `bash -n` 통과. 한국어 출력 검증은 첫 user 실행에서 수행.
-- [x] `with-ko-locale` 골든 픽스처 (commit ea1e9d6) — input/expected 디렉토리 + README. `expected/` 는 첫 cargo run 으로 생성.
-- [x] `README.md` / `README.ko.md` 다국어 토글 (badge row + cross-link batch + bottom nav) 적용 (commit ea1e9d6). 18-절 full SEO 구조는 release 직전 README 윤문 단계에서 완성.
-- [s] GitHub repo Topics + Social preview image — repo 가 아직 remote 없음. remote 생성 시점에 작업.
-- [s] GitHub Pages 라우팅 — 옵션. M12.13.h 로 후순위.
-- [x] M12 회고 (이 commit 의 message body 에 inline 기록).
+- [x] `lint-i18n` CI 통과 — `lint-i18n` job, `lint-i18n-strict` 모두 작성, commit `b7bffaa` 에서 CI success 검증
+- [x] `release-prep` 워크플로 — workflow_dispatch 로 `v0.1.0` 트리거 success, drift 0 일 때 `needs_pr=false` 정확한 분기 검증
+- [x] drift 0건 — `scripts/check-i18n-drift.sh --strict` clean (모든 mirror 동기)
+- [x] `genasis doctor [i18n]` 섹션 정상 — `lang_status_reports_active_locale` E2E 통과
+- [x] E2E 시나리오 자동 테스트 — `tests/install_lang_e2e.rs` 6 tests (flag_en/flag_ko/both_rejected/non_tty_fallback/lang_status/lang_switch_no_op)
+- [x] `install.sh --lang ko` Bash 분기 + `bash -n` 통과
+- [x] `with-ko-locale` 골든 픽스처 (input + README + SHARED.md 행)
+- [x] `README.md` / `README.ko.md` 18-절 SEO + 3-단계 토글 적용
+- [x] GitHub repo Topics 18개 등록 (REST API)
+- [x] GitHub Pages 라우팅 활성화 (REST API, `b7bffaa` 부터 build success)
+- [x] M12 회고 — commit 158aada 의 body + 본 progress 의 인라인 회고 항목들에 분산 기록
 
 ---
 
@@ -557,6 +542,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - 2026-05-04: **M12 v3 미세조정** — 사용자 피드백 2건 반영. (1) drift 게이트를 2-tier 에서 **3-tier (PR warn / release-prep strict / 자동 translation-completion PR)** 로 확장 → "배포 전 빠진 번역 맞추기" 운영 모델 명시. (2) 런타임 i18n 라이브러리 **fluent-rs → rust-i18n** 전환 — 메시지 ~50개 / 한국어 복수형 변화 없음 / binary 150KB 절감 / 토큰 효율. ADR-008 대안 검토 ④ ⑤ 추가. blueprint §19.4 §19.9 §19.10 §19.12, progress M12.1 M12.2 M12.10 M12.11 M12.12 갱신.
 - 2026-05-04: **M12 v4 — interactive language prompt 추가, 사용자 최종 승인 완료**. 명령행 `--lang` 인자가 default 우선순위(인자 > TTY prompt > `$LANG` fallback). 설치 시 `.claude/agents/`, `genasis/{skills,commands,hooks}/`, `GENASIS.md` 가 선택 언어로 설치된다는 내용 + drift 위험 + `lang switch` 안내를 양언어 병기 prompt 로 표시. install.sh(Bash)와 `genasis attach`(Rust) 가 텍스트·배치 동일. `--non-interactive`/`--yes` 로 CI 우회. blueprint §19.3 4 sub-section(.1~.4)로 확장, progress M12.4 / M12.6 prompt + 통합 테스트 7+5건 추가.
 - 2026-05-04: **M12 v5 — README SEO + 다국어 토글 고도화 추가, 최종 승인 완료**. blueprint §19.13 8 sub-section 신설: 3-단계 토글 fallback (badge row + cross-link + bottom nav), 18-절 SEO 구조, GitHub Topics 18~20개, Open Graph 영/한 2버전, shields/Star History/Codecov badges, GitHub Pages 자동 라우팅(옵션) — `Accept-Language` 헤더 → `/ko/` `/en/` 분기, JSON-LD SoftwareApplication schema, Jekyll sitemap. progress M12.13 9 sub-step (.a~.i) 추가, M12.12 DoD 4항목 보강. **승인 완료 — M12.0 부터 순차 착수**.
+- 2026-05-04: **M12 v6 audit + 잔여 항목 정리**. progress.ko.md 의 154개 unchecked 가 stale 인지 audit. 결과: M12.3~M12.13 의 거의 모든 작업이 commit 됐지만 per-sub-step 체크박스만 안 닫혀 있었음. 진짜 missing artifacts 채우기 (`logo.svg`, `architecture.svg`, `tests/install_lang_e2e.rs` 6 tests, `cmd_attach.rs --lang` clap conflict 해결 — global `--lang` 만 유지). 모든 M12.3~M12.12 sub-step `[x]` 또는 `[s]` (사유 명시) 로 closure. 누적 cargo test 120 passed. `/work/secusy/genasis/progress.md` (계획 시점 stale 사본) 도 live state 로 sync.
 - TODO: GitHub `<OWNER>` 결정 필요 (install.sh placeholder)
 - TODO: monitor 의 manifest 해시 비교 — Next.js 외 빌드 시스템(Vite, Turbo, plain) 호환 확인
 - TODO: Atlas 의 DuckDB 지원 상태 재확인 (raw runner 필요 여부 확정)

@@ -32,3 +32,6 @@ genasis-monitor.workspace = true
 genasis-templates.workspace = true
 genasis-i18n.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
