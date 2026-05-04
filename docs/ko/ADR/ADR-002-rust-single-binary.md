@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-002-rust-single-binary.md](../../ADR/ADR-002-rust-single-binary.md) (English version pending — currently a stub)
+
 # ADR-002: Rust single static binary
 
 ## Status

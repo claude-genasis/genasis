@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-007-monitor-tui.md](../../ADR/ADR-007-monitor-tui.md) (English version pending — currently a stub)
+
 # ADR-007: `genasis monitor` Ratatui TUI in 1차 release
 
 ## Status

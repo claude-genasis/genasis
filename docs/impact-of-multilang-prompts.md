@@ -1,3 +1,5 @@
+> 한국어: [ko/impact-of-multilang-prompts.md](ko/impact-of-multilang-prompts.md) (Korean mirror pending — currently a stub)
+
 # Impact of Multilingual Prompts on Claude Agents
 
 > Research conducted 2026-05-04 to inform genasis M12 (i18n) architecture.

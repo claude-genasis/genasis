@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-006-token-economics.md](../../ADR/ADR-006-token-economics.md) (English version pending — currently a stub)
+
 # ADR-006: Token Economics — RTK + prompt cache + trim hook (no MCP proxy)
 
 ## Status

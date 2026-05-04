@@ -47,3 +47,7 @@ crates/genasis-cli/scripts/package-lock.json
 
 # Ad-hoc local artifacts left over from copy
 tmp.mmd
+
+# Claude Code session artifacts (created when claude is launched in this
+# directory; not part of the source).
+/.claude/

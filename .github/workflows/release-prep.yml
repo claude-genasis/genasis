@@ -1,0 +1,61 @@
+name: Release prep
+
+# Triggers:
+#   - manual dispatch
+#   - push to a release/* branch
+#
+# When invoked, scans for i18n drift and opens (or refreshes) a single PR
+# titled "[i18n] Translation completion for vX.Y.Z" listing missing or
+# stale mirrors. The PR sits open until a translator (human or agent)
+# fills it in; merging it satisfies the release.yml `lint-i18n-strict`
+# gate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Target release version (e.g. v0.1.0)"
+        required: true
+  push:
+    branches: ["release/*"]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  open-translation-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute target version
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF##*/release/}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run drift scanner
+        id: drift
+        run: |
+          set -e
+          if scripts/check-i18n-drift.sh --strict 2> drift.log; then
+            echo "needs_pr=false" >> "$GITHUB_OUTPUT"
+            echo "No drift — release-prep is clean."
+          else
+            echo "needs_pr=true" >> "$GITHUB_OUTPUT"
+            scripts/check-i18n-drift.sh --gen-todo > body.md
+          fi
+      - name: Open or refresh translation completion PR
+        if: steps.drift.outputs.needs_pr == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: i18n/translation-completion-${{ steps.ver.outputs.version }}
+          title: "[i18n] Translation completion for ${{ steps.ver.outputs.version }}"
+          body-path: body.md
+          commit-message: "chore(i18n): scaffold translation completion stubs for ${{ steps.ver.outputs.version }}"
+          labels: i18n, release-blocker

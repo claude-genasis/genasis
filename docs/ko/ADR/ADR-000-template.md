@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-000-template.md](../../ADR/ADR-000-template.md) (English version pending — currently a stub)
+
 # ADR-000: Template
 
 > Copy this file when creating a new ADR. Number sequentially. Keep ADRs short.

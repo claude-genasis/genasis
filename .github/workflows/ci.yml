@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+
+  lint-i18n:
+    runs-on: ubuntu-latest
+    name: i18n drift (warn-only on PRs)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject Korean text in English source files
+        run: |
+          set -e
+          # Hangul block (가–힯) — must not appear in en source.
+          OFFENDERS=$(grep -rEnP "[\\x{AC00}-\\x{D7AF}]" \
+               --include="*.md" --include="*.tera" --include="*.rs" --include="*.sh" \
+               --include="*.yml" \
+               --exclude="*.ko.md" \
+               --exclude="ko.yml" \
+               --exclude-dir="ko" --exclude-dir="target" --exclude-dir="node_modules" \
+               . || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::Korean text found in English source files:"
+            echo "$OFFENDERS"
+            exit 1
+          fi
+      - name: Mirror drift (warn-only on PRs)
+        run: scripts/check-i18n-drift.sh --warn
+      - name: i18n key parity (en.yml ↔ ko.yml)
+        run: scripts/i18n-extract-keys.sh --warn

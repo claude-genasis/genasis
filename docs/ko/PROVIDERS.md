@@ -1,3 +1,5 @@
+> English: [../PROVIDERS.md](../PROVIDERS.md) (English version pending — currently a stub)
+
 # Providers — flavor authoring guide
 
 Genasis abstracts external systems (Plane, Mattermost) behind a *flavor* system:

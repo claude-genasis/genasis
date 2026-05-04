@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-003-direct-api-not-mcp.md](../../ADR/ADR-003-direct-api-not-mcp.md) (English version pending — currently a stub)
+
 # ADR-003: Plane / Mattermost via direct REST API, not MCP
 
 ## Status

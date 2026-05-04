@@ -1,3 +1,5 @@
+> English: [../ARCHITECTURE.md](../ARCHITECTURE.md) (English version pending — currently a stub)
+
 # Architecture
 
 Authoritative source: [`../blueprint.md`](../blueprint.md). This file is a navigation index for newcomers.

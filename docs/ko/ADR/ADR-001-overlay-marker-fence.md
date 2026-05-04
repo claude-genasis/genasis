@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-001-overlay-marker-fence.md](../../ADR/ADR-001-overlay-marker-fence.md) (English version pending — currently a stub)
+
 # ADR-001: Overlay = HTML-comment Marker Fence
 
 ## Status

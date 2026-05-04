@@ -1,3 +1,5 @@
+> English: [../MIGRATION-FROM-GENESIS.md](../MIGRATION-FROM-GENESIS.md) (English version pending — currently a stub)
+
 # Migrating from `genesis/` (the bash-script predecessor)
 
 > Status: placeholder for M11.

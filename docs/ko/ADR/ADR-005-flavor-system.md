@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-005-flavor-system.md](../../ADR/ADR-005-flavor-system.md) (English version pending — currently a stub)
+
 # ADR-005: Provider Flavor system (upstream / agent-aware / auto)
 
 ## Status

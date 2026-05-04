@@ -1,3 +1,5 @@
+> English: [../TOKEN-ECONOMICS.md](../TOKEN-ECONOMICS.md) (English version pending — currently a stub)
+
 # Token Economics
 
 > Status: M10 placeholder. Authoritative spec lives in [`../blueprint.md` §10](../blueprint.md).

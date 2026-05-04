@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  lint-i18n-strict:
+    runs-on: ubuntu-latest
+    name: i18n drift (HARD FAIL at tag time)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject Korean text in English source files
+        run: |
+          OFFENDERS=$(grep -rEnP "[\\x{AC00}-\\x{D7AF}]" \
+               --include="*.md" --include="*.tera" --include="*.rs" --include="*.sh" \
+               --include="*.yml" \
+               --exclude="*.ko.md" \
+               --exclude="ko.yml" \
+               --exclude-dir="ko" --exclude-dir="target" --exclude-dir="node_modules" \
+               . || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "::error::Korean text found in English source files:"
+            echo "$OFFENDERS"
+            exit 1
+          fi
+      - name: Mirror completeness (HARD FAIL)
+        run: scripts/check-i18n-drift.sh --strict
+      - name: i18n key parity (HARD FAIL)
+        run: scripts/i18n-extract-keys.sh --strict
+
+  build-and-publish:
+    needs: lint-i18n-strict
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }} --bin genasis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: genasis-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/genasis

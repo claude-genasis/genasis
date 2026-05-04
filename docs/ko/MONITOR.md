@@ -1,3 +1,5 @@
+> English: [../MONITOR.md](../MONITOR.md) (English version pending — currently a stub)
+
 # `genasis monitor`
 
 > Status: M9 placeholder. Authoritative spec lives in [`../blueprint.md` §11](../blueprint.md).

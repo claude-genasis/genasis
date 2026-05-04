@@ -1,3 +1,5 @@
+> English: [../../ADR/ADR-004-db-channel-separation.md](../../ADR/ADR-004-db-channel-separation.md) (English version pending — currently a stub)
+
 # ADR-004: DB read / write channel separation
 
 ## Status

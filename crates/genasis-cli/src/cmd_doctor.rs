@@ -81,6 +81,39 @@ pub async fn run(args: Args) -> Result<()> {
         println!("  {k}: {}", if present { "set ✓" } else { "unset" });
     }
 
+    section(&t!("doctor.i18n.section"));
+    let resolved = genasis_i18n::resolve(None, None);
+    println!(
+        "  {}",
+        t!(
+            "doctor.i18n.runtime_locale",
+            lang = resolved.lang.code(),
+            source = resolved.source.label()
+        )
+    );
+    let cfg_path2 = project_root.join(CONFIG_FILE_NAME);
+    if let Ok(cfg) = Config::load(&cfg_path2) {
+        if let Some(i18n) = &cfg.i18n {
+            println!(
+                "  {}",
+                t!("doctor.i18n.active_agent_locale", lang = i18n.active.clone())
+            );
+            if i18n.reference_langs.is_empty() {
+                println!("  {}", t!("doctor.i18n.reference_docs_none"));
+            } else {
+                println!(
+                    "  {}",
+                    t!(
+                        "doctor.i18n.reference_docs_listed",
+                        langs = i18n.reference_langs.join(", ")
+                    )
+                );
+            }
+        } else {
+            println!("  [i18n] not configured (run `genasis attach --lang en|ko`)");
+        }
+    }
+
     Ok(())
 }
 

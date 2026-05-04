@@ -1,9 +1,18 @@
 # Genasis
 
-> Bolt-on agentic team layer — Plane × Mattermost × TDD/SDD × Design hot-swap × Schema-as-code × Monitoring,
-> non-destructively attached to *any* existing Claude Code agentic team.
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue?style=flat-square" alt="English"></a>
+  <a href="README.ko.md"><img src="https://img.shields.io/badge/%EC%96%B8%EC%96%B4-%ED%95%9C%EA%B5%AD%EC%96%B4-red?style=flat-square" alt="한국어"></a>
+  <a href="docs/i18n/CONTRIBUTE-LANG.md"><img src="https://img.shields.io/badge/+-add%20language-lightgrey?style=flat-square" alt="Add a language"></a>
+</p>
 
-**Status:** v0.0.1 (M0 — bootstrap). See [progress.md](progress.md).
+> 🇺🇸 **English** | [🇰🇷 한국어](README.ko.md)
+
+> **Plane × Mattermost × TDD × Design × DB × Monitor — overlay (not rewrite) for any Claude Code agent team.** Install with one curl command. Korean and English supported.
+>
+> Tags: `claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트`
+
+**Status:** v0.0.1 (M12 — internationalization). See [progress.md](progress.md).
 
 ---
 
@@ -94,3 +103,9 @@ This repository is in its bootstrap phase. The functionality described above is 
 currently executable. Tracker: [progress.md](progress.md).
 
 `<OWNER>` placeholders will be replaced with the actual GitHub owner once the repository is published.
+
+---
+
+### Other languages / 다른 언어
+- 🇺🇸 [English](README.md)
+- 🇰🇷 [한국어](README.ko.md)
