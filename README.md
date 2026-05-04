@@ -131,7 +131,7 @@ flowchart TB
 | Multilingual prompt impact | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
 | ADRs | [`docs/ADR/`](docs/ADR/) | [`docs/ko/ADR/`](docs/ko/ADR/) |
 
-> **Translation status.** ADR-008 (i18n decision) is canonical English. The other English mirrors are stubs that point at the Korean canonical until M12.7.b lands. The release-prep workflow auto-opens an `[i18n] Translation completion for vX.Y.Z` PR before each release tag.
+> **Translation status.** ADR-008 (i18n decision) and the five top-level architecture docs are canonical English; the Korean mirrors live under [`docs/ko/`](docs/ko/). The release-prep workflow auto-opens a `[i18n] Translation completion for vX.Y.Z` PR before each release tag whenever drift is detected.
 
 ## Status
 

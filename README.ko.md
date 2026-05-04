@@ -131,7 +131,7 @@ flowchart TB
 | 다국어 prompt 영향 | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
 | ADR | [`docs/ADR/`](docs/ADR/) | [`docs/ko/ADR/`](docs/ko/ADR/) |
 
-> **번역 상태.** ADR-008 (i18n 결정) 은 영어 source-of-truth. 나머지 영어 mirror 는 M12.7.b 가 land 할 때까지 한국어 canonical 을 가리키는 stub 입니다. 각 release tag 직전에 release-prep 워크플로가 자동으로 `[i18n] Translation completion for vX.Y.Z` PR 을 엽니다.
+> **번역 상태.** ADR-008 (i18n 결정) 과 다섯 개 최상위 아키텍처 문서는 영어 canonical 이고, 한국어 mirror 가 [`docs/ko/`](docs/ko/) 에 있습니다. release-prep 워크플로는 각 release tag 직전에 drift 감지 시 자동으로 `[i18n] Translation completion for vX.Y.Z` PR 을 엽니다.
 
 ## 상태
 
