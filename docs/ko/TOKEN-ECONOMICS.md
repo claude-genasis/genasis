@@ -1,4 +1,4 @@
-> English: [../TOKEN-ECONOMICS.md](../TOKEN-ECONOMICS.md) (English version pending — currently a stub)
+> English: [../TOKEN-ECONOMICS.md](../TOKEN-ECONOMICS.md)
 
 # Token Economics
 

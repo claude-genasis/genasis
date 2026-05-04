@@ -1,4 +1,4 @@
-> English: [../PROVIDERS.md](../PROVIDERS.md) (English version pending — currently a stub)
+> English: [../PROVIDERS.md](../PROVIDERS.md)
 
 # Providers — flavor authoring guide
 

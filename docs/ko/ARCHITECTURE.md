@@ -1,4 +1,4 @@
-> English: [../ARCHITECTURE.md](../ARCHITECTURE.md) (English version pending — currently a stub)
+> English: [../ARCHITECTURE.md](../ARCHITECTURE.md)
 
 # Architecture
 

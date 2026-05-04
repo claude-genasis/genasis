@@ -1,4 +1,4 @@
-> English: [../MIGRATION-FROM-GENESIS.md](../MIGRATION-FROM-GENESIS.md) (English version pending — currently a stub)
+> English: [../MIGRATION-FROM-GENESIS.md](../MIGRATION-FROM-GENESIS.md)
 
 # Migrating from `genesis/` (the bash-script predecessor)
 

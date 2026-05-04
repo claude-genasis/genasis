@@ -1,4 +1,4 @@
-> English: [../MONITOR.md](../MONITOR.md) (English version pending — currently a stub)
+> English: [../MONITOR.md](../MONITOR.md)
 
 # `genasis monitor`
 
