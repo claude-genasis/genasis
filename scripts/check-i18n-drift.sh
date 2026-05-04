@@ -39,6 +39,9 @@ while IFS= read -r en_path; do
     rel="${en_path#./docs/}"
     case "$rel" in
         ko/*) continue ;;
+        en/*) continue ;;          # Pages locale landing page — has ko/ sibling
+        _*) continue ;;            # Jekyll plugins / includes
+        example-*) continue ;;     # design-system sample reference, not Genasis own
         i18n/*) ko_path="docs/ko/$rel" ;;
         ADR/*) ko_path="docs/ko/$rel" ;;
         *) ko_path="docs/ko/$rel" ;;
