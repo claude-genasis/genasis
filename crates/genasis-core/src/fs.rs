@@ -23,7 +23,10 @@ use crate::error::{Error, Result};
 /// Atomically write `content` to `path`. The parent directory must exist.
 pub fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
-        Error::Config(format!("atomic_write: path has no parent: {}", path.display()))
+        Error::Config(format!(
+            "atomic_write: path has no parent: {}",
+            path.display()
+        ))
     })?;
     if !parent.as_os_str().is_empty() {
         std::fs::create_dir_all(parent)?;

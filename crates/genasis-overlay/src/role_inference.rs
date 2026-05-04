@@ -89,7 +89,10 @@ mod tests {
     #[test]
     fn maps_canonical_names() {
         assert_eq!(infer_from_name("pm"), Classified::Known(Role::Pm));
-        assert_eq!(infer_from_name("Frontend"), Classified::Known(Role::Frontend));
+        assert_eq!(
+            infer_from_name("Frontend"),
+            Classified::Known(Role::Frontend)
+        );
         assert_eq!(infer_from_name("e2e-runner"), Classified::Known(Role::Qa));
     }
 

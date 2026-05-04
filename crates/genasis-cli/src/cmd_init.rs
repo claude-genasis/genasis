@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
-use genasis_i18n::t;
+use genasis_i18n::{tr, tr_args};
 use genasis_providers::{mattermost, plane};
 
 #[derive(Parser, Debug)]
@@ -31,33 +31,51 @@ pub async fn run(args: Args) -> Result<()> {
     };
 
     let plane_cfg = cfg.plane.as_ref().context("[plane] section missing")?;
-    let mm_cfg = cfg.mattermost.as_ref().context("[mattermost] section missing")?;
+    let mm_cfg = cfg
+        .mattermost
+        .as_ref()
+        .context("[mattermost] section missing")?;
 
     let plane_token = std::env::var("PLANE_API_KEY")
         .or_else(|_| std::env::var("PLANE_TOKEN_PM"))
         .context("PLANE_API_KEY (or PLANE_TOKEN_PM) not set in environment")?;
-    let mm_token = std::env::var("MM_ADMIN_TOKEN")
-        .context("MM_ADMIN_TOKEN not set in environment")?;
+    let mm_token =
+        std::env::var("MM_ADMIN_TOKEN").context("MM_ADMIN_TOKEN not set in environment")?;
 
     let plane_flavor = plane::FlavorChoice::parse(&plane_cfg.flavor)?;
     let mm_flavor = mattermost::FlavorChoice::parse(&mm_cfg.flavor)?;
 
-    println!("{}", t!("init.resolving_plane", flavor = plane_cfg.flavor.clone()));
-    let plane_client = plane::build(plane_flavor, &plane_cfg.url, &plane_cfg.workspace_slug, &plane_token).await?;
+    println!(
+        "{}",
+        tr_args("init.resolving_plane", &[("flavor", &plane_cfg.flavor)])
+    );
+    let plane_client = plane::build(
+        plane_flavor,
+        &plane_cfg.url,
+        &plane_cfg.workspace_slug,
+        &plane_token,
+    )
+    .await?;
     let plane_health = plane_client.health().await?;
     println!("  plane health: {}", short_json(&plane_health));
 
-    println!("{}", t!("init.resolving_mm", flavor = mm_cfg.flavor.clone()));
+    println!(
+        "{}",
+        tr_args("init.resolving_mm", &[("flavor", &mm_cfg.flavor)])
+    );
     let mm_client = mattermost::build(mm_flavor, &mm_cfg.url, &mm_token).await?;
     let mm_ping = mm_client.ping().await?;
     println!("  mattermost ping: {}", short_json(&mm_ping));
 
     if args.probe_only {
-        println!("\n{}", t!("init.probe_only_skip"));
+        println!("\n{}", tr("init.probe_only_skip"));
         return Ok(());
     }
 
-    println!("\n{}", t!("init.ensure_project", name = cfg.project.name.clone()));
+    println!(
+        "\n{}",
+        tr_args("init.ensure_project", &[("name", &cfg.project.name)])
+    );
     let project_id = plane_client
         .ensure_project(&cfg.project.name, &slug_to_identifier(&cfg.project.name))
         .await?;
@@ -75,7 +93,10 @@ pub async fn run(args: Args) -> Result<()> {
     }
 
     let scrum_channel = format!("scrum-{}", cfg.project.name);
-    println!("\n{}", t!("init.ensure_channel", channel = scrum_channel.clone()));
+    println!(
+        "\n{}",
+        tr_args("init.ensure_channel", &[("channel", &scrum_channel)])
+    );
     let team_id = std::env::var("MM_TEAM_ID").unwrap_or_default();
     if !team_id.is_empty() {
         let ch = mm_client
@@ -83,10 +104,10 @@ pub async fn run(args: Args) -> Result<()> {
             .await?;
         println!("  mm channel = {} ({})", ch.name, ch.id);
     } else {
-        println!("  {}", t!("init.mm_team_id_missing"));
+        println!("  {}", tr("init.mm_team_id_missing"));
     }
 
-    println!("\n{}", t!("init.next_step"));
+    println!("\n{}", tr("init.next_step"));
     Ok(())
 }
 

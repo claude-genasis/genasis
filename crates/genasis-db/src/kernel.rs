@@ -62,7 +62,11 @@ pub async fn query_readonly(driver: Driver, url: &str, sql: &str) -> Result<Quer
 }
 
 /// Apply migrations.
-pub async fn migrate(tool: MigrationTool, project_root: &Path, env: Option<&str>) -> Result<String> {
+pub async fn migrate(
+    tool: MigrationTool,
+    project_root: &Path,
+    env: Option<&str>,
+) -> Result<String> {
     match tool {
         MigrationTool::Atlas => atlas::apply(project_root, env).await,
         MigrationTool::DrizzleKit => drizzle_kit::apply(project_root).await,
@@ -98,6 +102,9 @@ mod tests {
             MigrationTool::parse("drizzle-kit").unwrap(),
             MigrationTool::DrizzleKit
         );
-        assert_eq!(MigrationTool::parse("raw").unwrap(), MigrationTool::RawRunner);
+        assert_eq!(
+            MigrationTool::parse("raw").unwrap(),
+            MigrationTool::RawRunner
+        );
     }
 }

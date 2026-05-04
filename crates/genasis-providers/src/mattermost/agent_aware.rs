@@ -40,12 +40,7 @@ impl MattermostProvider for AgentAwareMattermost {
     async fn post_root(&self, channel_id: &str, message: &str) -> Result<PostRef> {
         self.inner.post_root(channel_id, message).await
     }
-    async fn post_thread(
-        &self,
-        channel_id: &str,
-        root_id: &str,
-        message: &str,
-    ) -> Result<PostRef> {
+    async fn post_thread(&self, channel_id: &str, root_id: &str, message: &str) -> Result<PostRef> {
         self.inner.post_thread(channel_id, root_id, message).await
     }
     async fn ensure_bot(&self, username: &str, display_name: &str) -> Result<String> {

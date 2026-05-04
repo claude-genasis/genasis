@@ -39,13 +39,29 @@ pub fn categorize(line: &str) -> ImpactArea {
         ImpactArea::ColorTokens
     } else if l.contains("font") || l.contains("typography") || l.contains("text-") {
         ImpactArea::Typography
-    } else if l.contains("space") || l.contains("padding") || l.contains("margin") || l.contains("gap") {
+    } else if l.contains("space")
+        || l.contains("padding")
+        || l.contains("margin")
+        || l.contains("gap")
+    {
         ImpactArea::Spacing
-    } else if l.contains("grid") || l.contains("layout") || l.contains("container") || l.contains("breakpoint") {
+    } else if l.contains("grid")
+        || l.contains("layout")
+        || l.contains("container")
+        || l.contains("breakpoint")
+    {
         ImpactArea::Layout
-    } else if l.contains("button") || l.contains("card") || l.contains("input") || l.contains("component") {
+    } else if l.contains("button")
+        || l.contains("card")
+        || l.contains("input")
+        || l.contains("component")
+    {
         ImpactArea::Components
-    } else if l.contains("animation") || l.contains("transition") || l.contains("motion") || l.contains("ease") {
+    } else if l.contains("animation")
+        || l.contains("transition")
+        || l.contains("motion")
+        || l.contains("ease")
+    {
         ImpactArea::Motion
     } else {
         ImpactArea::Other
@@ -90,7 +106,10 @@ mod tests {
 
     #[test]
     fn keyword_categorisation() {
-        assert_eq!(categorize("--color-primary: oklch(60%);"), ImpactArea::ColorTokens);
+        assert_eq!(
+            categorize("--color-primary: oklch(60%);"),
+            ImpactArea::ColorTokens
+        );
         assert_eq!(categorize("font-size: 14px"), ImpactArea::Typography);
         assert_eq!(categorize("padding: 8px"), ImpactArea::Spacing);
         assert_eq!(categorize("grid-template-columns:"), ImpactArea::Layout);

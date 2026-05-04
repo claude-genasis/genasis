@@ -24,7 +24,11 @@ use crate::fs::{atomic_write, read_to_string_optional};
 enum Line {
     Comment(String),
     Blank,
-    Entry { key: String, value: String, quoted: bool },
+    Entry {
+        key: String,
+        value: String,
+        quoted: bool,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -97,7 +101,12 @@ impl EnvFile {
         let key = key.into();
         let value = value.into();
         for ln in self.lines.iter_mut() {
-            if let Line::Entry { key: k, value: v, quoted } = ln {
+            if let Line::Entry {
+                key: k,
+                value: v,
+                quoted,
+            } = ln
+            {
                 if k == &key {
                     *v = value;
                     *quoted = needs_quoting(v);
@@ -114,7 +123,8 @@ impl EnvFile {
 
     /// Remove a key (no-op if absent).
     pub fn remove(&mut self, key: &str) {
-        self.lines.retain(|ln| !matches!(ln, Line::Entry { key: k, .. } if k == key));
+        self.lines
+            .retain(|ln| !matches!(ln, Line::Entry { key: k, .. } if k == key));
     }
 
     /// All entries as an in-order map (last write wins).
@@ -138,7 +148,10 @@ fn parse_value(raw: &str) -> (String, bool) {
     let trimmed = raw.trim();
     if let Some(inner) = trimmed.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
         (unescape_dq(inner), true)
-    } else if let Some(inner) = trimmed.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+    } else if let Some(inner) = trimmed
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+    {
         (inner.to_string(), true)
     } else {
         (trimmed.to_string(), false)
@@ -146,7 +159,9 @@ fn parse_value(raw: &str) -> (String, bool) {
 }
 
 fn needs_quoting(v: &str) -> bool {
-    v.is_empty() || v.chars().any(|c| c.is_whitespace() || matches!(c, '#' | '"' | '\'' | '=' | '$'))
+    v.is_empty()
+        || v.chars()
+            .any(|c| c.is_whitespace() || matches!(c, '#' | '"' | '\'' | '=' | '$'))
 }
 
 fn escape_dq(s: &str) -> String {
@@ -184,7 +199,8 @@ mod tests {
 
     #[test]
     fn round_trips_comments_blanks_and_quoting() {
-        let raw = "# top comment\n\nPLANE_URL=\"https://example.com\"\nPLANE_TOKEN=plain\n# trailing\n";
+        let raw =
+            "# top comment\n\nPLANE_URL=\"https://example.com\"\nPLANE_TOKEN=plain\n# trailing\n";
         let env = EnvFile::from_str(raw).unwrap();
         // Output equals input verbatim.
         assert_eq!(env.to_string(), raw);

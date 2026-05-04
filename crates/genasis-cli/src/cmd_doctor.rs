@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
-use genasis_i18n::t;
+use genasis_i18n::{tr, tr_args};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -15,7 +15,11 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<()> {
     let project_root = resolve_project_root(args.project.as_deref())?;
-    println!("{} — project: {}", t!("doctor.header"), project_root.display());
+    println!(
+        "{} — project: {}",
+        tr("doctor.header"),
+        project_root.display()
+    );
 
     section("Required tools");
     for tool in ["git", "curl", "tar", "bash"] {
@@ -81,14 +85,16 @@ pub async fn run(args: Args) -> Result<()> {
         println!("  {k}: {}", if present { "set ✓" } else { "unset" });
     }
 
-    section(&t!("doctor.i18n.section"));
+    section(&tr("doctor.i18n.section"));
     let resolved = genasis_i18n::resolve(None, None);
     println!(
         "  {}",
-        t!(
+        tr_args(
             "doctor.i18n.runtime_locale",
-            lang = resolved.lang.code(),
-            source = resolved.source.label()
+            &[
+                ("lang", resolved.lang.code()),
+                ("source", resolved.source.label()),
+            ]
         )
     );
     let cfg_path2 = project_root.join(CONFIG_FILE_NAME);
@@ -96,17 +102,15 @@ pub async fn run(args: Args) -> Result<()> {
         if let Some(i18n) = &cfg.i18n {
             println!(
                 "  {}",
-                t!("doctor.i18n.active_agent_locale", lang = i18n.active.clone())
+                tr_args("doctor.i18n.active_agent_locale", &[("lang", &i18n.active)])
             );
             if i18n.reference_langs.is_empty() {
-                println!("  {}", t!("doctor.i18n.reference_docs_none"));
+                println!("  {}", tr("doctor.i18n.reference_docs_none"));
             } else {
+                let langs = i18n.reference_langs.join(", ");
                 println!(
                     "  {}",
-                    t!(
-                        "doctor.i18n.reference_docs_listed",
-                        langs = i18n.reference_langs.join(", ")
-                    )
+                    tr_args("doctor.i18n.reference_docs_listed", &[("langs", &langs)])
                 );
             }
         } else {

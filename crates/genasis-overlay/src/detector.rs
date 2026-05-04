@@ -134,7 +134,11 @@ mod tests {
             "frontend.md",
             "---\nname: frontend\n---\n# Frontend Agent\n",
         );
-        write_agent(d.path(), "qa.md", "---\nname: e2e-runner\n---\n# QA Agent\n");
+        write_agent(
+            d.path(),
+            "qa.md",
+            "---\nname: e2e-runner\n---\n# QA Agent\n",
+        );
         write_agent(
             d.path(),
             "loop-operator.md",

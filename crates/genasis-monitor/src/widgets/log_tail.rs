@@ -5,7 +5,7 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 use ratatui::Frame;
 
-use genasis_i18n::t;
+use genasis_i18n::tr;
 
 use crate::state::AppState;
 
@@ -21,7 +21,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             .map(|l| ListItem::new(l.clone()))
             .collect()
     };
-    let title = format!(" {} (6) ", t!("monitor.widget.log_tail"));
+    let title = format!(" {} (6) ", tr("monitor.widget.log_tail"));
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title(title))
         .style(Style::default().fg(Color::Gray));

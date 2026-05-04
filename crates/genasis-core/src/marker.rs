@@ -45,7 +45,11 @@ pub struct Fence {
 
 impl Fence {
     /// Build a fence from a body, computing the hash automatically.
-    pub fn new(role: impl Into<String>, version: impl Into<String>, body: impl Into<String>) -> Self {
+    pub fn new(
+        role: impl Into<String>,
+        version: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
         let body = body.into();
         let hash = compute_hash(&body);
         Self {
@@ -111,7 +115,9 @@ pub fn find(text: &str) -> Result<Option<(Fence, std::ops::Range<usize>)>> {
         ));
     }
 
-    let end_idx = text[begin_line_end..].find(END_MARKER).map(|n| begin_line_end + n);
+    let end_idx = text[begin_line_end..]
+        .find(END_MARKER)
+        .map(|n| begin_line_end + n);
     let end_idx = end_idx.ok_or_else(|| {
         Error::Overlay("GENASIS:BEGIN found but matching GENASIS:END is missing".into())
     })?;
@@ -124,7 +130,9 @@ pub fn find(text: &str) -> Result<Option<(Fence, std::ops::Range<usize>)>> {
         after_end
     };
 
-    let body = text[begin_line_end + 1..end_idx].trim_end_matches('\n').to_string();
+    let body = text[begin_line_end + 1..end_idx]
+        .trim_end_matches('\n')
+        .to_string();
     let attrs = parse_begin_attrs(begin_line)?;
     let fence = Fence {
         role: attrs.role,
@@ -165,7 +173,8 @@ fn parse_begin_attrs(begin_line: &str) -> Result<BeginAttrs> {
     }
     Ok(BeginAttrs {
         role: role.ok_or_else(|| Error::Overlay("BEGIN missing role= attribute".into()))?,
-        version: version.ok_or_else(|| Error::Overlay("BEGIN missing version= attribute".into()))?,
+        version: version
+            .ok_or_else(|| Error::Overlay("BEGIN missing version= attribute".into()))?,
         hash: hash.ok_or_else(|| Error::Overlay("BEGIN missing hash= attribute".into()))?,
     })
 }
@@ -182,7 +191,11 @@ pub fn insertion_anchor(text: &str) -> usize {
         4 // "---\n"
     };
     let rest = &text[after_first..];
-    let close_pat = if text.contains("\r\n") { "\n---\r\n" } else { "\n---\n" };
+    let close_pat = if text.contains("\r\n") {
+        "\n---\r\n"
+    } else {
+        "\n---\n"
+    };
     if let Some(pos) = rest.find(close_pat) {
         return after_first + pos + close_pat.len();
     }

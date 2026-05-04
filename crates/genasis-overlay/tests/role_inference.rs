@@ -13,8 +13,14 @@ fn every_role_slug_is_recognised() {
 
 #[test]
 fn case_insensitive_matching() {
-    assert_eq!(infer_from_name("FRONTEND"), Classified::Known(Role::Frontend));
-    assert_eq!(infer_from_name("Architect"), Classified::Known(Role::Architect));
+    assert_eq!(
+        infer_from_name("FRONTEND"),
+        Classified::Known(Role::Frontend)
+    );
+    assert_eq!(
+        infer_from_name("Architect"),
+        Classified::Known(Role::Architect)
+    );
 }
 
 #[test]

@@ -26,7 +26,11 @@ pub async fn apply(project_root: &Path, env: Option<&str>) -> Result<String> {
         ])
         .output()
         .await
-        .map_err(|e| Error::Db(format!("atlas: {e} — install: curl -sSf https://atlasgo.sh | sh")))?;
+        .map_err(|e| {
+            Error::Db(format!(
+                "atlas: {e} — install: curl -sSf https://atlasgo.sh | sh"
+            ))
+        })?;
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
     if !out.status.success() {
         return Err(Error::Db(format!(

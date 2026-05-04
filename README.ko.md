@@ -78,6 +78,19 @@ genasis db query "SELECT ..."
 genasis db migrate
 ```
 
+## 데모
+
+<details>
+<summary>30초 설치 + monitor 워크스루 보기 (asciinema)</summary>
+
+[`docs/assets/demo.cast`](docs/assets/demo.cast) 영상은 설치 prompt, locale 확인, overlay 부착, Ratatui monitor 까지 보여줍니다. 재생:
+
+```bash
+asciinema play docs/assets/demo.cast
+```
+
+</details>
+
 ## 아키텍처
 
 ```mermaid

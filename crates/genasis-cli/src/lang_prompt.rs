@@ -6,7 +6,7 @@
 use std::io::{self, BufRead, IsTerminal, Write};
 
 use anyhow::Result;
-use genasis_i18n::{t, Lang};
+use genasis_i18n::{tr, tr_args, Lang};
 
 /// Outcome of `--lang` / prompt resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,12 +111,12 @@ fn print_prompt(suggested: Lang) {
     let _ = writeln!(
         out,
         "┌─ {} / {} ─────────────────────────────",
-        t!("lang.prompt.title_en"),
-        t!("lang.prompt.title_ko")
+        tr("lang.prompt.title_en"),
+        tr("lang.prompt.title_ko")
     );
-    let _ = writeln!(out, "│ {}", t!("lang.prompt.choose"));
+    let _ = writeln!(out, "│ {}", tr("lang.prompt.choose"));
     let _ = writeln!(out, "│");
-    let _ = writeln!(out, "│ {}", t!("lang.prompt.targets_intro"));
+    let _ = writeln!(out, "│ {}", tr("lang.prompt.targets_intro"));
     for key in [
         "lang.prompt.target_agents",
         "lang.prompt.target_skills",
@@ -124,23 +124,25 @@ fn print_prompt(suggested: Lang) {
         "lang.prompt.target_hooks",
         "lang.prompt.target_contract",
     ] {
-        let _ = writeln!(out, "│   • {}", t!(key));
+        let _ = writeln!(out, "│   • {}", tr(key));
     }
     let _ = writeln!(out, "│");
-    let _ = writeln!(out, "│ ⚠ {}", t!("lang.prompt.drift_warning"));
+    let _ = writeln!(out, "│ ⚠ {}", tr("lang.prompt.drift_warning"));
     let _ = writeln!(out, "│");
     let lang_env = std::env::var("LANG").unwrap_or_else(|_| "(unset)".into());
     let _ = writeln!(
         out,
         "│ {}",
-        t!(
+        tr_args(
             "lang.prompt.detected",
-            lang_env = lang_env,
-            suggested = suggested.native_name()
+            &[
+                ("lang_env", &lang_env),
+                ("suggested", suggested.native_name())
+            ]
         )
     );
     let _ = writeln!(out, "│");
-    let suggested_marker = format!("    {}", t!("lang.prompt.suggested_marker"));
+    let suggested_marker = format!("    {}", tr("lang.prompt.suggested_marker"));
     let mark_en = if matches!(suggested, Lang::En) {
         suggested_marker.as_str()
     } else {
@@ -151,8 +153,8 @@ fn print_prompt(suggested: Lang) {
     } else {
         ""
     };
-    let _ = writeln!(out, "│   {}{}", t!("lang.prompt.option_en"), mark_en);
-    let _ = writeln!(out, "│   {}{}", t!("lang.prompt.option_ko"), mark_ko);
+    let _ = writeln!(out, "│   {}{}", tr("lang.prompt.option_en"), mark_en);
+    let _ = writeln!(out, "│   {}{}", tr("lang.prompt.option_ko"), mark_ko);
     let _ = writeln!(out, "└────────────────────────────────────────────");
     let _ = out.flush();
 }
@@ -165,7 +167,7 @@ fn read_choice(suggested: Lang) -> Result<Lang> {
         Lang::Ko => "lang.prompt.select_default_ko",
     };
     for _ in 0..3 {
-        eprint!("{} ", t!(prompt_key));
+        eprint!("{} ", tr(prompt_key));
         let _ = io::stderr().flush();
         let mut line = String::new();
         if handle.read_line(&mut line)? == 0 {
@@ -178,10 +180,10 @@ fn read_choice(suggested: Lang) -> Result<Lang> {
         match trimmed {
             "1" | "en" | "EN" | "English" | "english" => return Ok(Lang::En),
             "2" | "ko" | "KO" | "한국어" | "korean" | "Korean" => return Ok(Lang::Ko),
-            _ => eprintln!("{}", t!("lang.prompt.invalid_choice")),
+            _ => eprintln!("{}", tr("lang.prompt.invalid_choice")),
         }
     }
-    anyhow::bail!("{}", t!("lang.prompt.too_many_attempts"));
+    anyhow::bail!("{}", tr("lang.prompt.too_many_attempts"));
 }
 
 fn confirm_or_abort(lang: Lang) -> Result<()> {
@@ -189,13 +191,15 @@ fn confirm_or_abort(lang: Lang) -> Result<()> {
     let mut handle = stdin.lock();
     eprintln!(
         "\n✓ {}",
-        t!(
+        tr_args(
             "lang.prompt.confirmation",
-            lang_name = lang.native_name(),
-            lang_code = lang.code()
+            &[
+                ("lang_name", lang.native_name()),
+                ("lang_code", lang.code()),
+            ]
         )
     );
-    eprint!("{} ", t!("lang.prompt.confirm_continue"));
+    eprint!("{} ", tr("lang.prompt.confirm_continue"));
     let _ = io::stderr().flush();
     let mut line = String::new();
     if handle.read_line(&mut line)? == 0 {
@@ -209,21 +213,21 @@ fn confirm_or_abort(lang: Lang) -> Result<()> {
     {
         return Ok(());
     }
-    anyhow::bail!("{}", t!("lang.prompt.aborted"));
+    anyhow::bail!("{}", tr("lang.prompt.aborted"));
 }
 
 fn print_both_rejection() {
     let mut err = io::stderr().lock();
     let _ = writeln!(err);
-    let _ = writeln!(err, "✘ {}", t!("lang.reject_both.line1"));
+    let _ = writeln!(err, "✘ {}", tr("lang.reject_both.line1"));
     let _ = writeln!(err);
-    let _ = writeln!(err, "  {}", t!("lang.reject_both.line2"));
-    let _ = writeln!(err, "  {}", t!("lang.reject_both.line3"));
+    let _ = writeln!(err, "  {}", tr("lang.reject_both.line2"));
+    let _ = writeln!(err, "  {}", tr("lang.reject_both.line3"));
     let _ = writeln!(err);
-    let _ = writeln!(err, "  {}", t!("lang.reject_both.alternatives"));
-    let _ = writeln!(err, "    1. {}", t!("lang.reject_both.alt1"));
-    let _ = writeln!(err, "    2. {}", t!("lang.reject_both.alt2"));
+    let _ = writeln!(err, "  {}", tr("lang.reject_both.alternatives"));
+    let _ = writeln!(err, "    1. {}", tr("lang.reject_both.alt1"));
+    let _ = writeln!(err, "    2. {}", tr("lang.reject_both.alt2"));
     let _ = writeln!(err);
-    let _ = writeln!(err, "  {}", t!("lang.reject_both.rerun"));
+    let _ = writeln!(err, "  {}", tr("lang.reject_both.rerun"));
     let _ = err.flush();
 }

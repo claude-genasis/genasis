@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use genasis_core::config::{Config, I18nConfig, CONFIG_FILE_NAME};
-use genasis_i18n::{t, Lang};
+use genasis_i18n::{tr_args, Lang};
 use genasis_templates::SUPPORTED_LANGS;
 
 #[derive(Parser, Debug)]
@@ -82,17 +82,16 @@ fn switch(project_root: &std::path::Path, raw: &str) -> Result<()> {
     if current_active == target.code() {
         println!(
             "{}",
-            t!("lang.switch.no_op", lang = target.native_name())
+            tr_args("lang.switch.no_op", &[("lang", target.native_name())])
         );
         return Ok(());
     }
 
     println!(
         "{}",
-        t!(
+        tr_args(
             "lang.switch.starting",
-            from = current_active.clone(),
-            to = target.code()
+            &[("from", &current_active), ("to", target.code())]
         )
     );
 
@@ -134,10 +133,9 @@ fn switch(project_root: &std::path::Path, raw: &str) -> Result<()> {
 
     println!(
         "{}",
-        t!(
+        tr_args(
             "lang.switch.success",
-            from = current_active,
-            to = target.code()
+            &[("from", &current_active), ("to", target.code())]
         )
     );
     Ok(())

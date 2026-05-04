@@ -24,8 +24,29 @@ use once_cell::sync::OnceCell;
 
 // `rust_i18n::i18n!` walks up from the current crate's manifest dir to
 // resolve the locales path at compile time. We include the YAML files via
-// the macro and surface `t!` to downstream crates by re-export.
+// the macro and surface translation as a function (not the `t!` macro)
+// because the macro generates `crate::_rust_i18n_t` per-crate, which
+// would force every consumer crate to invoke `i18n!()` separately.
 rust_i18n::i18n!("locales", fallback = "en");
+
+/// Translate a key in the currently installed locale.
+///
+/// Use this for simple lookups. For interpolation, see [`tr_args`].
+pub fn tr(key: &str) -> String {
+    rust_i18n::t!(key).to_string()
+}
+
+/// Translate a key and substitute `%{name}` placeholders with the given
+/// values. Lightweight replacement (no plural / gender handling — Korean
+/// has no plural inflection and our message catalog does not need it).
+pub fn tr_args(key: &str, args: &[(&str, &str)]) -> String {
+    let mut out = rust_i18n::t!(key).to_string();
+    for (name, value) in args {
+        let needle = format!("%{{{name}}}");
+        out = out.replace(&needle, value);
+    }
+    out
+}
 
 pub use rust_i18n::t;
 

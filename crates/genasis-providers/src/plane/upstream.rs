@@ -32,7 +32,10 @@ impl UpstreamPlane {
     }
 
     fn url(&self, suffix: &str) -> String {
-        format!("{}/api/v1/workspaces/{}{}", self.base_url, self.workspace_slug, suffix)
+        format!(
+            "{}/api/v1/workspaces/{}{}",
+            self.base_url, self.workspace_slug, suffix
+        )
     }
 
     fn headers(&self) -> HeaderMap {

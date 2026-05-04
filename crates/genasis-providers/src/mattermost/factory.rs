@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use genasis_core::error::{Error, Result};
 
-use super::detect::{detect, DetectedFlavor};
 use super::agent_aware::AgentAwareMattermost;
+use super::detect::{detect, DetectedFlavor};
 use super::upstream::UpstreamMattermost;
 use super::MattermostProvider;
 
@@ -54,7 +54,10 @@ mod tests {
 
     #[test]
     fn flavor_parse() {
-        assert_eq!(FlavorChoice::parse("upstream").unwrap(), FlavorChoice::Upstream);
+        assert_eq!(
+            FlavorChoice::parse("upstream").unwrap(),
+            FlavorChoice::Upstream
+        );
         assert_eq!(
             FlavorChoice::parse("agent-aware").unwrap(),
             FlavorChoice::AgentAware

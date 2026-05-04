@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use genasis_core::error::Result;
 
+pub mod agent_aware;
 pub mod detect;
 pub mod factory;
-pub mod agent_aware;
 pub mod upstream;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,12 +33,7 @@ pub trait MattermostProvider: Send + Sync {
     ) -> Result<ChannelRef>;
 
     async fn post_root(&self, channel_id: &str, message: &str) -> Result<PostRef>;
-    async fn post_thread(
-        &self,
-        channel_id: &str,
-        root_id: &str,
-        message: &str,
-    ) -> Result<PostRef>;
+    async fn post_thread(&self, channel_id: &str, root_id: &str, message: &str) -> Result<PostRef>;
 
     async fn ensure_bot(&self, username: &str, display_name: &str) -> Result<String>;
 }

@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 
 use similar::{ChangeTag, TextDiff};
 
-use crate::merger::{MergePlan, PlannedAction, PlannedChange};
+use crate::merger::{MergePlan, PlannedAction};
 
 pub fn summary(plan: &MergePlan) -> String {
     let mut out = String::new();
@@ -90,7 +90,10 @@ pub fn counts(plan: &MergePlan) -> Counts {
 }
 
 fn changes_disk(a: &PlannedAction) -> bool {
-    matches!(a, PlannedAction::Inject | PlannedAction::Replace | PlannedAction::Remove)
+    matches!(
+        a,
+        PlannedAction::Inject | PlannedAction::Replace | PlannedAction::Remove
+    )
 }
 
 fn action_glyph(a: &PlannedAction) -> &'static str {

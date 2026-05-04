@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::{Config, CONFIG_FILE_NAME};
-use genasis_i18n::t;
+use genasis_i18n::tr_args;
 use genasis_overlay::{plan_attach, scan, summary, unified_diff, AttachOptions};
 
 #[derive(Parser, Debug)]
@@ -57,15 +57,20 @@ pub async fn run(args: Args) -> Result<()> {
     }
     let refused = plan.refused().count();
     if refused > 0 && !args.force {
-        anyhow::bail!("{}", t!("upgrade.refused", count = refused));
+        anyhow::bail!(
+            "{}",
+            tr_args("upgrade.refused", &[("count", &refused.to_string())])
+        );
     }
     let applied = genasis_overlay::apply(&plan)?;
     println!(
         "\n{}",
-        t!(
+        tr_args(
             "upgrade.wrote_summary",
-            count = applied.written.len(),
-            backups = applied.backups.len()
+            &[
+                ("count", &applied.written.len().to_string()),
+                ("backups", &applied.backups.len().to_string()),
+            ]
         )
     );
     Ok(())

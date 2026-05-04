@@ -16,17 +16,17 @@
 //! `crates/genasis-i18n/tests/i18n_lookup.rs` plus the contract checks
 //! below.
 
-use genasis_i18n::{install, t, Lang};
+use genasis_i18n::{install, tr, Lang};
 
 #[test]
 fn install_prompt_strings_exist_in_both_locales() {
     install(Lang::En);
-    let en_line1 = t!("lang.reject_both.line1");
+    let en_line1 = tr("lang.reject_both.line1");
     assert!(!en_line1.is_empty());
     assert!(en_line1.contains("not supported"));
 
     install(Lang::Ko);
-    let ko_line1 = t!("lang.reject_both.line1");
+    let ko_line1 = tr("lang.reject_both.line1");
     assert!(!ko_line1.is_empty());
     assert!(ko_line1.contains("지원하지"));
 }
@@ -34,11 +34,11 @@ fn install_prompt_strings_exist_in_both_locales() {
 #[test]
 fn prompt_target_paths_render_localised() {
     install(Lang::En);
-    let target_agents = t!("lang.prompt.target_agents");
+    let target_agents = tr("lang.prompt.target_agents");
     assert!(target_agents.contains(".claude/agents"));
 
     install(Lang::Ko);
-    let target_agents_ko = t!("lang.prompt.target_agents");
+    let target_agents_ko = tr("lang.prompt.target_agents");
     assert!(target_agents_ko.contains(".claude/agents"));
 }
 
@@ -53,6 +53,9 @@ fn lang_parse_accepts_every_prompt_answer() {
             // tested in genasis-i18n itself.
             continue;
         }
-        assert!(Lang::parse(raw).is_some(), "Lang::parse rejects valid prompt answer: {raw:?}");
+        assert!(
+            Lang::parse(raw).is_some(),
+            "Lang::parse rejects valid prompt answer: {raw:?}"
+        );
     }
 }

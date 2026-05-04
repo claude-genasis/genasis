@@ -22,7 +22,9 @@ pub fn get(path: &str) -> Option<&'static str> {
 /// `"agent-overlays/frontend.patch.md.tera"`).
 pub fn get_lang(lang: &str, relative: &str) -> Option<&'static str> {
     let combined = format!("{lang}/{relative}");
-    TEMPLATES.get_file(&combined).and_then(|f| f.contents_utf8())
+    TEMPLATES
+        .get_file(&combined)
+        .and_then(|f| f.contents_utf8())
 }
 
 /// Locale subtrees that are guaranteed to exist at build time.

@@ -64,7 +64,9 @@ impl PlaneProvider for AgentAwarePlane {
         title: &str,
         description: &str,
     ) -> Result<IssueRef> {
-        self.inner.create_issue(project_id, title, description).await
+        self.inner
+            .create_issue(project_id, title, description)
+            .await
     }
 
     async fn transition(

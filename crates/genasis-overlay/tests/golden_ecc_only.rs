@@ -73,46 +73,63 @@ fn ecc_only_attach_then_detach_round_trips() {
     );
     assert!(after_attach.contains("<!-- GENASIS:END -->"));
 
-    // Backend has no template at M2 → skipped, file unchanged.
-    assert_eq!(read(&backend_path), original_backend);
+    // Backend has a template too (M6) → fence injected.
+    let after_backend = read(&backend_path);
+    assert!(
+        after_backend.contains("<!-- GENASIS:BEGIN role=backend"),
+        "backend.md should have a fence after attach"
+    );
 
-    // Custom agent → skipped, file unchanged.
+    // Custom agent → no template, skipped, file unchanged.
     assert_eq!(read(&custom_path), original_custom);
 
-    // The merger should have written exactly the file(s) it changed.
-    assert_eq!(written.written.len(), 1);
-    assert_eq!(written.written[0], frontend_path);
-    // A snapshot was taken for the file we wrote.
-    assert_eq!(written.backups.len(), 1);
-    assert!(written.backups[0]
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .contains("frontend.md.genasis.bak."));
+    // The merger writes one file per Known role with a template (frontend +
+    // backend in this fixture).
+    assert_eq!(written.written.len(), 2);
+    assert!(written.written.contains(&frontend_path));
+    assert!(written.written.contains(&backend_path));
+    let _ = original_backend;
+    // A snapshot was taken for each Known role we wrote.
+    assert_eq!(written.backups.len(), 2);
 
     // 3. detach
     let report = scan(&project).unwrap();
     let plan = plan_detach(&report.agents).unwrap();
 
-    // Frontend fence is removed; others are NoFenceToRemove.
-    let mut saw_remove = false;
+    // Frontend + backend fences removed; custom is NoFenceToRemove.
+    let mut remove_count = 0;
     let mut saw_nothing = 0;
     for c in &plan.changes {
-        match c.action {
-            PlannedAction::Remove => saw_remove = true,
+        match &c.action {
+            PlannedAction::Remove => remove_count += 1,
             PlannedAction::NoFenceToRemove => saw_nothing += 1,
             other => panic!("unexpected action in detach plan: {other:?}"),
         }
     }
-    assert!(saw_remove, "expected at least one Remove");
-    assert!(saw_nothing >= 1, "expected NoFenceToRemove for non-frontend files");
+    assert_eq!(remove_count, 2, "expected exactly two Remove actions");
+    assert!(
+        saw_nothing >= 1,
+        "expected NoFenceToRemove for the custom agent"
+    );
 
     apply(&plan).unwrap();
 
     // 4. round-trip equality
-    assert_eq!(read(&frontend_path), original_frontend, "frontend not restored");
-    assert_eq!(read(&backend_path), original_backend, "backend changed unexpectedly");
-    assert_eq!(read(&custom_path), original_custom, "custom changed unexpectedly");
+    assert_eq!(
+        read(&frontend_path),
+        original_frontend,
+        "frontend not restored"
+    );
+    assert_eq!(
+        read(&backend_path),
+        original_backend,
+        "backend not restored"
+    );
+    assert_eq!(
+        read(&custom_path),
+        original_custom,
+        "custom changed unexpectedly"
+    );
 }
 
 #[test]

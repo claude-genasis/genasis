@@ -92,11 +92,16 @@ pub fn decide(state: &FenceState, force: bool) -> WriteDecision {
                 WriteDecision::Apply
             } else {
                 WriteDecision::Refuse {
-                    reason: "fence body has been hand-edited (hash mismatch); pass --force to overwrite".into(),
+                    reason:
+                        "fence body has been hand-edited (hash mismatch); pass --force to overwrite"
+                            .into(),
                 }
             }
         }
-        FenceState::RoleMismatch { existing_role, proposed_role } => {
+        FenceState::RoleMismatch {
+            existing_role,
+            proposed_role,
+        } => {
             if force {
                 WriteDecision::Apply
             } else {
@@ -140,7 +145,9 @@ mod tests {
         let proposed_v2 = Fence::new("frontend", "2.0", "BODY V2");
         let s = inspect(&with_v1, &proposed_v2).unwrap();
         match s {
-            FenceState::Outdated { ref existing_version } => assert_eq!(existing_version, "1.0"),
+            FenceState::Outdated {
+                ref existing_version,
+            } => assert_eq!(existing_version, "1.0"),
             other => panic!("unexpected state: {other:?}"),
         }
         assert!(decide(&s, false).is_apply());

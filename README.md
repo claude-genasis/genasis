@@ -78,6 +78,19 @@ genasis db query "SELECT ..."
 genasis db migrate
 ```
 
+## Demo
+
+<details>
+<summary>Watch a 30-second install + monitor walkthrough (asciinema)</summary>
+
+The cast at [`docs/assets/demo.cast`](docs/assets/demo.cast) shows the install prompt, the locale confirmation, an overlay attach, and the Ratatui monitor. View it with:
+
+```bash
+asciinema play docs/assets/demo.cast
+```
+
+</details>
+
 ## Architecture
 
 ```mermaid

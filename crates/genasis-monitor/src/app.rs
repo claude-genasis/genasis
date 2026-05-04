@@ -3,7 +3,9 @@
 use std::io;
 use std::time::Duration;
 
-use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -47,14 +49,14 @@ async fn run_loop<B: ratatui::backend::Backend>(
     loop {
         terminal
             .draw(|frame| {
-                let area = frame.area();
+                let area = frame.size();
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
-                        Constraint::Length(6),  // Sprint + Tokens row
-                        Constraint::Length(8),  // Agents
-                        Constraint::Length(7),  // Deploy + Network
-                        Constraint::Min(3),     // Log tail
+                        Constraint::Length(6), // Sprint + Tokens row
+                        Constraint::Length(8), // Agents
+                        Constraint::Length(7), // Deploy + Network
+                        Constraint::Min(3),    // Log tail
                     ])
                     .split(area);
 

@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_core::config::{Config, I18nConfig, CONFIG_FILE_NAME};
-use genasis_i18n::t;
+use genasis_i18n::tr_args;
 use genasis_overlay::{plan_attach, scan, summary, unified_diff, AttachOptions};
 
 use crate::lang_prompt;
@@ -45,6 +45,7 @@ pub struct Args {
     pub reference_docs: Vec<String>,
 }
 
+#[allow(dead_code)]
 pub async fn run(args: Args) -> Result<()> {
     pub_run(args, false, false).await
 }
@@ -52,11 +53,7 @@ pub async fn run(args: Args) -> Result<()> {
 pub async fn pub_run(args: Args, non_interactive: bool, assume_yes: bool) -> Result<()> {
     // Resolve install language. Interactive prompt fires when no flag and
     // stdin is a TTY; otherwise falls back to $LANG.
-    let decision = lang_prompt::decide(
-        args.install_lang.as_deref(),
-        non_interactive,
-        assume_yes,
-    )?;
+    let decision = lang_prompt::decide(args.install_lang.as_deref(), non_interactive, assume_yes)?;
     tracing::info!(
         install_lang = %decision.lang,
         via = decision.via.label(),
@@ -97,16 +94,21 @@ pub async fn pub_run(args: Args, non_interactive: bool, assume_yes: bool) -> Res
 
     let refused = plan.refused().count();
     if refused > 0 && !args.force {
-        anyhow::bail!("{}", t!("attach.refused", count = refused));
+        anyhow::bail!(
+            "{}",
+            tr_args("attach.refused", &[("count", &refused.to_string())])
+        );
     }
 
     let applied = genasis_overlay::apply(&plan)?;
     println!(
         "\n{}",
-        t!(
+        tr_args(
             "attach.wrote_summary",
-            count = applied.written.len(),
-            backups = applied.backups.len()
+            &[
+                ("count", &applied.written.len().to_string()),
+                ("backups", &applied.backups.len().to_string()),
+            ]
         )
     );
     Ok(())
@@ -170,9 +172,7 @@ fn write_reference_docs(
     if reference_langs.is_empty() {
         return Ok(());
     }
-    let base = project_root
-        .join("docs")
-        .join("genasis-i18n-reference");
+    let base = project_root.join("docs").join("genasis-i18n-reference");
     for raw in reference_langs {
         let lang_code = raw.to_ascii_lowercase();
         if !SUPPORTED_LANGS.contains(&lang_code.as_str()) {
@@ -190,15 +190,13 @@ fn write_reference_docs(
             continue;
         }
         let dir = base.join(&lang_code);
-        std::fs::create_dir_all(&dir).with_context(|| {
-            format!("create reference-docs dir: {}", dir.display())
-        })?;
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("create reference-docs dir: {}", dir.display()))?;
         // Only the GENASIS.md contract makes sense as a reference; per-role
         // overlays would need template variables that only attach knows.
         if let Some(body) = get_lang(&lang_code, "GENASIS.md.tera") {
             let target = dir.join("GENASIS.md");
-            std::fs::write(&target, body)
-                .with_context(|| format!("write {}", target.display()))?;
+            std::fs::write(&target, body).with_context(|| format!("write {}", target.display()))?;
         }
     }
     Ok(())

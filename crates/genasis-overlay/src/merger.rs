@@ -68,9 +68,12 @@ pub struct MergePlan {
 
 impl MergePlan {
     pub fn writable(&self) -> impl Iterator<Item = &PlannedChange> {
-        self.changes
-            .iter()
-            .filter(|c| matches!(c.action, PlannedAction::Inject | PlannedAction::Replace | PlannedAction::Remove))
+        self.changes.iter().filter(|c| {
+            matches!(
+                c.action,
+                PlannedAction::Inject | PlannedAction::Replace | PlannedAction::Remove
+            )
+        })
     }
 
     pub fn refused(&self) -> impl Iterator<Item = &PlannedChange> {
@@ -224,10 +227,22 @@ pub struct AppliedReport {
 }
 
 fn build_tera() -> Result<Tera> {
+    build_tera_lang("en")
+}
+
+/// Build a Tera bundle from `templates/<lang>/agent-overlays/`. Falls back to
+/// the legacy flat path for compatibility with older callers.
+pub fn build_tera_lang(lang: &str) -> Result<Tera> {
     let mut tera = Tera::default();
+    let dir_path = format!("{lang}/agent-overlays");
     let overlays_dir = genasis_templates::TEMPLATES
-        .get_dir("agent-overlays")
-        .ok_or_else(|| Error::Overlay("templates/agent-overlays missing from binary".into()))?;
+        .get_dir(&dir_path)
+        .or_else(|| genasis_templates::TEMPLATES.get_dir("agent-overlays"))
+        .ok_or_else(|| {
+            Error::Overlay(format!(
+                "templates/{lang}/agent-overlays missing from binary"
+            ))
+        })?;
     for file in overlays_dir.files() {
         let name = file
             .path()
@@ -280,19 +295,29 @@ mod tests {
     }
 
     #[test]
-    fn skip_when_template_missing() {
-        // The bundled templates currently only include frontend (we'll add
-        // the rest in M6). For an arbitrary role with no template, we expect
-        // a Skip, not a hard error.
-        let agents = vec![make_agent(Role::Devops, "---\nname: devops\n---\n")];
-        let plan = plan_attach(&agents, &AttachOptions::new("1.0")).unwrap();
+    fn skip_when_role_is_custom() {
+        // M6 added templates for all 10 ECC roles, so a Known(role) lookup
+        // always finds a template. We exercise the Skip path with a Custom
+        // classification (an agent file whose `name:` doesn't match any
+        // built-in role).
+        let agent = DetectedAgent {
+            path: PathBuf::from("/tmp/loop-operator.md"),
+            name: "loop-operator".into(),
+            classification: Classified::Custom("loop-operator".into()),
+            raw: "---\nname: loop-operator\n---\n".into(),
+            has_existing_fence: false,
+        };
+        let plan = plan_attach(&[agent], &AttachOptions::new("1.0")).unwrap();
         assert_eq!(plan.changes.len(), 1);
         assert!(matches!(plan.changes[0].action, PlannedAction::Skip(_)));
     }
 
     #[test]
     fn detach_no_fence_is_noop() {
-        let agents = vec![make_agent(Role::Frontend, "---\nname: frontend\n---\n# body\n")];
+        let agents = vec![make_agent(
+            Role::Frontend,
+            "---\nname: frontend\n---\n# body\n",
+        )];
         let plan = plan_detach(&agents).unwrap();
         assert!(matches!(
             plan.changes[0].action,

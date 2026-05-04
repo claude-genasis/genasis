@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use genasis_core::error::{Error, Result};
 
-use super::detect::{detect, DetectedFlavor};
 use super::agent_aware::AgentAwarePlane;
+use super::detect::{detect, DetectedFlavor};
 use super::upstream::UpstreamPlane;
 use super::PlaneProvider;
 
@@ -57,7 +57,10 @@ mod tests {
 
     #[test]
     fn flavor_parse_known_values() {
-        assert_eq!(FlavorChoice::parse("upstream").unwrap(), FlavorChoice::Upstream);
+        assert_eq!(
+            FlavorChoice::parse("upstream").unwrap(),
+            FlavorChoice::Upstream
+        );
         assert_eq!(
             FlavorChoice::parse("agent-aware").unwrap(),
             FlavorChoice::AgentAware

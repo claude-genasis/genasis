@@ -92,12 +92,7 @@ impl MattermostProvider for UpstreamMattermost {
         post(&self.client, &self.url("/posts"), self.headers(), &body).await
     }
 
-    async fn post_thread(
-        &self,
-        channel_id: &str,
-        root_id: &str,
-        message: &str,
-    ) -> Result<PostRef> {
+    async fn post_thread(&self, channel_id: &str, root_id: &str, message: &str) -> Result<PostRef> {
         let body = json!({
             "channel_id": channel_id,
             "root_id": root_id,

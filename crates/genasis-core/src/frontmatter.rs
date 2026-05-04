@@ -44,10 +44,7 @@ pub fn split(text: &str) -> Split<'_> {
         let raw = &after_open[..close_idx];
         let body_start = open_len + close_idx + close_pat.len();
         return Split {
-            frontmatter: Some(Frontmatter {
-                raw,
-                body_start,
-            }),
+            frontmatter: Some(Frontmatter { raw, body_start }),
             body: &text[body_start..],
         };
     }
@@ -93,9 +90,8 @@ pub fn read_scalar<'a>(frontmatter: &'a str, key: &str) -> Option<&'a str> {
 
 /// `read_scalar` plus an explicit error if the key is required.
 pub fn require_scalar<'a>(frontmatter: &'a str, key: &str) -> Result<&'a str> {
-    read_scalar(frontmatter, key).ok_or_else(|| {
-        Error::Overlay(format!("frontmatter missing required scalar key `{key}`"))
-    })
+    read_scalar(frontmatter, key)
+        .ok_or_else(|| Error::Overlay(format!("frontmatter missing required scalar key `{key}`")))
 }
 
 #[cfg(test)]

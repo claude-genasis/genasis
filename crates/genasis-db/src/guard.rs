@@ -25,9 +25,34 @@ const ALLOWED: &[&str] = &[
 ];
 
 const FORBIDDEN: &[&str] = &[
-    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE",
-    "MERGE", "REPLACE", "CALL", "EXEC", "EXECUTE", "ATTACH", "DETACH", "COPY", "LOAD", "INSTALL",
-    "VACUUM", "REINDEX", "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT", "SET", "RESET", "LOCK",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "DROP",
+    "ALTER",
+    "CREATE",
+    "TRUNCATE",
+    "GRANT",
+    "REVOKE",
+    "MERGE",
+    "REPLACE",
+    "CALL",
+    "EXEC",
+    "EXECUTE",
+    "ATTACH",
+    "DETACH",
+    "COPY",
+    "LOAD",
+    "INSTALL",
+    "VACUUM",
+    "REINDEX",
+    "BEGIN",
+    "COMMIT",
+    "ROLLBACK",
+    "SAVEPOINT",
+    "SET",
+    "RESET",
+    "LOCK",
 ];
 
 /// Returns `Ok(())` only if every top-level statement is read-only.

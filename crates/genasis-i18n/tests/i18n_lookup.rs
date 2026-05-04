@@ -8,7 +8,7 @@
 
 use std::sync::Mutex;
 
-use genasis_i18n::{install, resolve, t, Lang, LangSource};
+use genasis_i18n::{install, resolve, tr, tr_args, Lang, LangSource};
 use once_cell::sync::Lazy;
 
 // `rust_i18n::set_locale` is a process-global write. Multiple tests in
@@ -119,45 +119,40 @@ fn resolve_skips_unknown_flag_and_falls_through() {
 }
 
 #[test]
-fn t_macro_renders_english_attach_success() {
+fn tr_renders_english_attach_success() {
     with_lang(Lang::En, || {
-        let msg = t!("attach.success", count = 3);
+        let msg = tr_args("attach.success", &[("count", "3")]);
         assert!(msg.contains("Attached overlay"));
         assert!(msg.contains("3"));
     });
 }
 
 #[test]
-fn t_macro_renders_korean_attach_success() {
+fn tr_renders_korean_attach_success() {
     with_lang(Lang::Ko, || {
-        let msg = t!("attach.success", count = 5);
+        let msg = tr_args("attach.success", &[("count", "5")]);
         assert!(msg.contains("부착했습니다"));
         assert!(msg.contains("5"));
     });
 }
 
 #[test]
-fn t_macro_falls_back_when_key_missing_in_active_locale() {
-    // Insert a key only in en.yml (none of the production keys are
-    // intentionally one-sided yet). We simulate "missing in ko" by
-    // requesting an English-only key from the Korean locale; rust-i18n
-    // is configured with `fallback = "en"` so we expect to see the
-    // English string verbatim.
+fn tr_returns_localised_value() {
     with_lang(Lang::Ko, || {
-        let msg = t!("common.ok");
+        let msg = tr("common.ok");
         // ko.yml defines this as "확인" — make sure we got the localised
         // value, not silently fell through to "OK".
-        assert_eq!(msg.as_ref(), "확인");
+        assert_eq!(msg, "확인");
     });
 }
 
 #[test]
 fn doctor_section_label_is_localised() {
     with_lang(Lang::En, || {
-        assert_eq!(t!("doctor.i18n.section").as_ref(), "[i18n]");
+        assert_eq!(tr("doctor.i18n.section"), "[i18n]");
     });
     with_lang(Lang::Ko, || {
-        assert_eq!(t!("doctor.i18n.section").as_ref(), "[다국어]");
+        assert_eq!(tr("doctor.i18n.section"), "[다국어]");
     });
 }
 
