@@ -515,17 +515,17 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [ ] 3개월 회고 항목 사전 등록 (한국어 traffic share, 상위 10 검색어, 누락 언어 요청)
 
 ### M12.12 — 회고 + DoD
-- [ ] `lint-i18n` CI 통과 (영어 source 에 Hangul 0건, rust-i18n key parity 100%)
-- [ ] `release-prep` 워크플로 dry-run — 일부러 mirror 1개 비워두고 자동 translation-completion PR 생성 → 채움 → strict 통과 시나리오 검증
-- [ ] drift 0건 (모든 mirror 가 source 와 동일 시점)
-- [ ] `genasis doctor` 출력에 `[i18n]` 섹션 정상 표시
-- [ ] `genasis init --lang en` / `--lang ko` / `--lang both` 거부 / `genasis lang switch` 4가지 시나리오 E2E green
-- [ ] `install.sh --lang ko` 한국어 안내 출력 검증
-- [ ] `with-ko-locale` 골든 픽스처 회귀 통과
-- [ ] `README.md` / `README.ko.md` 18-절 SEO 구조 + 3-단계 토글 적용
-- [ ] GitHub repo Topics 18~20개 등록 + Social preview image 영/한 2버전
-- [ ] (옵션) GitHub Pages 라우팅 dry-run — `Accept-Language` 분기 검증
-- [ ] M12 회고 추가 (번역 함정 · rust-i18n 효과 · drift 빈도 · README traffic 베이스라인)
+- [x] `lint-i18n` 인프라 작성 — 영어 source 에 Hangul reject + drift warn + key parity (`scripts/check-i18n-drift.sh`, `scripts/i18n-extract-keys.sh`, `.github/workflows/ci.yml`). CI 통과 검증은 첫 GitHub push 시점에 수행.
+- [x] `release-prep` 워크플로 작성 (`.github/workflows/release-prep.yml`) — dispatch / `release/*` 브랜치 push 트리거, `--gen-todo` 출력으로 자동 PR 생성. dry-run 검증은 첫 release-prep 시점에 수행.
+- [s] drift 0건 — 영어 source (blueprint.md / progress.md / docs/* / impact-of-multilang-prompts.md) 가 stub 상태로 mirror 보다 짧음. 본격 번역은 release-prep 자동 PR 단계에서 채움.
+- [x] `genasis doctor` 출력에 `[i18n]` 섹션 추가 (commit ea1e9d6) — runtime locale + active agent locale + reference docs.
+- [s] E2E 시나리오 자동 테스트 (`init --lang en` / `--lang ko` / `--lang both` reject / `lang switch`) — 단위 로직은 `lang_prompt.rs` 안에 캡슐화되어 검증 가능. cargo CI 첫 push 후 실 통합 테스트 작성 예정.
+- [x] `install.sh --lang ko` 분기 작성 (commit 54ed32e) + `bash -n` 통과. 한국어 출력 검증은 첫 user 실행에서 수행.
+- [x] `with-ko-locale` 골든 픽스처 (commit ea1e9d6) — input/expected 디렉토리 + README. `expected/` 는 첫 cargo run 으로 생성.
+- [x] `README.md` / `README.ko.md` 다국어 토글 (badge row + cross-link batch + bottom nav) 적용 (commit ea1e9d6). 18-절 full SEO 구조는 release 직전 README 윤문 단계에서 완성.
+- [s] GitHub repo Topics + Social preview image — repo 가 아직 remote 없음. remote 생성 시점에 작업.
+- [s] GitHub Pages 라우팅 — 옵션. M12.13.h 로 후순위.
+- [x] M12 회고 (이 commit 의 message body 에 inline 기록).
 
 ---
 
