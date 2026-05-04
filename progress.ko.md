@@ -42,7 +42,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 
 ### Workspace
 - [x] `Cargo.toml` (workspace, 9 members)
-- [s] `Cargo.lock` (생성은 첫 `cargo build` 후 — 로컬에 cargo 미설치, CI 첫 푸시에서 commit)
+- [x] `Cargo.lock` — rustup stable 설치 + cargo build green 후 commit (현재 14 crates compiled).
 
 ### Crate stubs (Cargo.toml + 최소 src 골격)
 - [x] `crates/genasis-cli/` (main.rs + cmd_*.rs 스텁 11개 + tui_attach.rs + scripts/)
@@ -101,8 +101,8 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `crates/genasis-templates/templates/hooks/README.md` + `.gitkeep`
 
 ### 검증
-- [s] `cargo build` (로컬 cargo 미설치 — CI 첫 push 에서 검증; 모든 stub 에서 모듈 트리·import 정합성을 사람 검토)
-- [s] `cargo test` (동일)
+- [x] `cargo build --workspace` green (14 crates) — rustup stable 설치 후 검증.
+- [x] `cargo test --workspace --no-fail-fast` → 120 passed (28 suites).
 - [x] `bash install.sh --version=v0.0.0-test --no-run` 스모크 — Ubuntu/apt 감지, 패키지 진단 정상, release 미존재 graceful 처리 확인
 
 ### 회고
@@ -135,7 +135,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `crates/genasis-db/guard.rs` 강화 — comment 제거, string-literal 인지 split, EXPLAIN/ANALYZE/PRAGMA/SHOW/DESC/VALUES 허용, 트랜잭션 제어 거부 (10 단위 테스트 + 5 통합 테스트)
 - [x] 단위 테스트: marker fence idempotency + env round-trip + role inference round-trip + SQL guard
 - [x] 통합 테스트: `crates/genasis-core/tests/{marker_idempotent,env_round_trip}.rs`, `crates/genasis-overlay/tests/role_inference.rs`, `crates/genasis-db/tests/sql_guard.rs`
-- [s] CI green — 첫 GitHub push 시 검증 (로컬 cargo 미설치)
+- [x] CI green — commit b7bffaa 부터 GitHub Actions CI success.
 - [x] ADR-001: Overlay = Marker Fence
 - [x] ADR-002: Rust 단일 바이너리
 
@@ -378,7 +378,12 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `--lang both` → reject_both() + exit 2
 - [x] binary 호출 시 `attach --lang $ACTIVE_LANG --non-interactive --yes` 자동 전달
 - [x] 스모크: `bash -n install.sh` 통과 (CI lint-i18n + manual end-to-end 시 추가 검증)
-- [s] 5개 case 별 실 스모크 — install.sh 가 binary 다운로드를 시도하므로 `--no-run` + mock release 가 필요. `bash -n` syntax 통과로 1차 충족, GitHub Releases 자산 publish 후 본격 스모크.
+- [x] 5개 case 별 실 스모크 (`--no-run --skip-prereqs` 조합):
+  - [x] `install.sh --lang=ko` ASCII art + ko 분기 출력 OK
+  - [x] `install.sh --lang=en` 영어 분기 출력 OK
+  - [x] `install.sh --lang=both --skip-prereqs` → reject_both banner + exit 2 (PIPESTATUS 검증)
+  - [x] `echo "" | install.sh --skip-prereqs` non-TTY fallback 출력 OK
+  - [x] `install.sh -h` help 텍스트 정상
 
 ### M12.7 — 문서 듀얼 트리 (rename + translate + cross-link)
 
@@ -412,7 +417,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `tests/golden/with-ko-locale/{input,expected}/` + README 신규
 - [x] 기존 6 픽스처는 영어 단일 유지
 - [x] `tests/golden/SHARED.md` 에 `with-ko-locale` 시나리오 행 추가
-- [s] `expected/` 스냅샷 채우기 — 첫 cargo run 으로 input → expected 복사 후 review (release polish 단계).
+- [x] `expected/` 스냅샷 채움 — `genasis attach --lang ko --non-interactive --yes` 로 생성. 한국어 fence body 확인 (`(Genasis Overlay) Plane / Mattermost 프로토콜`).
 
 ### M12.9 — `.github` 영어 단일 검증  — ✅ commit ea1e9d6
 - [x] `.github/ISSUE_TEMPLATE/bug.md` / `feature.md` 영어 (신규 작성)
@@ -474,7 +479,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 #### M12.13.f 자동 SEO 시그널 (badges)  — ✅ commit 2e9cdd8
 - [x] shields.io badges: CI, License, Release, Stars, Rust version
 - [x] Star History badge (star-history.com `<picture>` dark variant)
-- [s] Codecov / Coveralls badge — CI 에 coverage step 미추가. release polish 단계에서 cargo-llvm-cov + Codecov action 도입.
+- [x] Codecov badge — `cargo-llvm-cov` 설치, `.github/workflows/ci.yml` 에 `coverage` job 추가 (lcov.info 생성 → codecov/codecov-action@v4), README 영/한에 Codecov shield. 로컬 baseline: 54.56% lines / 45.02% fns / 51.36% regions.
 - [s] GitHub Sponsors badge — Sponsors 미등록.
 - [x] 모든 badge 영/한 mirror 양쪽 동일 배치
 
@@ -525,6 +530,66 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 
 ### 회고
 - [x] M11 회고: 1차 sprint 의 모든 마일스톤 코드/문서가 자리잡음. 이후의 노력은 (a) 실 운영 sprint 1회 돌려보고 데이터 인입 hooks 정착, (b) 실 cross-compile 결과로 install.sh 종단간 검증, (c) v0.1.0 태그.
+
+---
+
+## M-D — Design Catalog Integration (post-M12)
+
+> 사용자 승인 2026-05-04. 외부 디자인 provider(`getdesign` npm) 위임 + 두-모드
+> design-system.md(pristine / external-pointer) + 사용자 오버라이드 누적 +
+> pristine 복원 + 비-npx `--from <path>` 진입점.
+
+### 핵심 설계 결정
+- **vendor 안 함**: awesome-design-md 콘텐츠를 다시 짊어지지 않는다. `npx getdesign add <slug>` 위임. 라이선스 컴플라이언스는 getdesign upstream 책임.
+- **두 모드**: `docs/design-system.md` 가 `mode = pristine` 일 때는 본문이 진실, `mode = external` 일 때는 §A 포인터(외부 DESIGN.md) + §B 사용자 오버라이드 + §C 사용 매뉴얼만 들어있음.
+- **외부 DESIGN.md 위치**: `docs/design-system/DESIGN.md`. read-only 취급.
+- **상태 파일**: `docs/.design-state.toml` (mode/slug/source/template_hash/applied_at/previous_slug/gallery_preview/override_count).
+- **백업**: pristine 본문은 `docs/design-system/pristine.bak` 으로 swap 직전 자동 백업. `restore` 시 `docs/design-system/` 디렉터리는 `docs/design-system.archive-<ts>/` 로 옮긴 뒤 백업으로 원복.
+- **이슈 폭주 정책**: `changed_areas.len() ≥ 4` 자동 EPIC 모드 (EPIC 1 + 자식 N). 자식 description 에 EPIC ID 명시 (Plane upstream 호환). `--per-area` / `--full-rewrite` 명시 플래그 노출.
+- **텔레메트리 default OFF**: `genasis design swap` 호출 시 자동으로 `GETDESIGN_DISABLE_TELEMETRY=1` 환경 변수 set. 사용자가 `[design].disable_telemetry = false` 또는 `--telemetry on` 으로 켤 수 있음. genasis 자체 수집 서버는 운영하지 않음.
+- **갤러리 추상화**: `genasis.toml [design]` 의 `add_command` 템플릿(`{slug}`, `{out}` 치환)을 통해 getdesign 외 자체 갤러리로 교체 가능.
+
+### M-D1 — Pristine/External 모드 + swap/restore + skill (in progress)
+- [ ] `genasis-core` 의 `Config` 에 `[design] DesignConfig` 추가 (`gallery_index_url`, `gallery_url_template`, `add_command`, `disable_telemetry`, `external_dir`)
+- [ ] `genasis-design` 크레이트 재구성:
+  - [ ] `mode.rs` — `Mode::Pristine | Mode::External`, `.design-state.toml` R/W
+  - [ ] `swap.rs` — slug 모드(npx invoke) + `--from <path>` 모드(파일 복사) 통합 entry
+  - [ ] `restore.rs` — external→pristine 복원 (archive 이동 + pristine.bak → design-system.md)
+  - [ ] `pointer.rs` — design-system.md 포인터 본문 렌더(§A/§B/§C 골격) — Tera 사용
+  - [ ] 기존 `extractor.rs` / `change_protocol.rs` / `diff.rs` / `ticket_emitter.rs` 는 보존 (M-D2 에서 EPIC 분기 추가)
+- [ ] CLI [`cmd_design.rs`] 확장:
+  - [ ] `swap <slug>` (기존 `swap <url> --body` 와 호환 — `--body` 는 deprecated 경로로 유지)
+  - [ ] `swap --from <path>`
+  - [ ] `restore`
+  - [ ] `status` 출력에 mode/slug/applied_at/override_count/preview URL 포함
+- [ ] 템플릿:
+  - [ ] `templates/{en,ko}/design-system.md.tera` 를 두 변종으로 분리: `design-system.pristine.md.tera`(현재 placeholder), `design-system.external.md.tera`(§A/§B/§C 포인터)
+  - [ ] `templates/{en,ko}/skills/design-aware/SKILL.md.tera` 강화: 참조 순서(pristine → external §A → §B), 사용자 요구 충돌 처리 절차, 외부 DESIGN.md 직접 편집 금지 규칙, 사후 가이드
+- [ ] i18n keys: `design.swap.delegating`, `design.swap.from_local`, `design.restore.archived`, `design.restore.complete`, `design.status.mode_pristine`, `design.status.mode_external` 등 ko/en
+- [ ] e2e (`tests/e2e/design_modes.rs`): pristine → swap slug → swap slug 2 → restore 라운드트립 + sha256 검증
+- [ ] cargo test green
+
+### M-D2 — EPIC plan + Mattermost + 사용자 오버라이드 누적
+- [ ] `ticket_emitter` 에 `Plan::FullRewrite { epic, children }` 추가, `--per-area` / `--full-rewrite` / 자동 임계치(N=4) 분기
+- [ ] Plane 어댑터: EPIC 라벨 + 자식 description 에 부모 ID 명시
+- [ ] Mattermost root post: "🚨 DESIGN CHANGE: <old> → <new>" + EPIC 링크 + preview URL
+- [ ] `genasis design verify` — `.design-state.toml.template_hash` 와 실제 `DESIGN.md` sha256 비교
+- [ ] `genasis design override add "<text>"` — 대화형 충돌 검토:
+  - [ ] §A 관련 항목 grep + 인용 출력
+  - [ ] 사용자 [y/N] 후 §B.2 에 `### override-<id> @ <iso>` 로 append
+  - [ ] `.design-state.toml.override_count` 증가
+- [ ] `genasis design override list` / `remove <id>`
+- [ ] e2e: 7-area swap → EPIC 1 + 자식 N, override 3개 누적 후 swap 시 보존 검증
+
+### M-D3 — Monitor 위젯 + attach 프롬프트 + doctor + ADR
+- [ ] `AppState.design: DesignWidgetState`(mode/slug/applied_at/override_count/preview_url/gallery_url)
+- [ ] `widgets/design.rs` — pristine/external 분기 렌더, 키 7 포커스, Enter 시 preview URL `open`/`xdg-open`
+- [ ] `app.rs` 레이아웃에 Design 패널 추가 (Deploy 옆)
+- [ ] `cmd_attach.rs` 의 interactive 프롬프트에 `[design]` 키 묻기 (default = getdesign 표준값, skip 시 default)
+- [ ] `cmd_doctor.rs` 검사 추가: (a) `npx --version` 가용성(미설치 시 안내), (b) external 모드에서 `.design-state.toml.template_hash` 와 `DESIGN.md` sha256 일치, (c) mode 와 디스크 상태 일관성(pristine 인데 `docs/design-system/DESIGN.md` 가 있으면 경고)
+- [ ] `docs/ADR/ADR-009-design-catalog-delegation.md` (en) + `docs/ko/ADR/ADR-009-...` (ko) — 왜 vendor 안 하는가 / 두 모드 정당화 / 갤러리 URL 추상화 결정 근거
+- [ ] manual smoke: TUI 에서 mode 표시 + Enter 동작
+- [ ] cargo test + lang drift 통과
 
 ---
 

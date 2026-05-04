@@ -41,10 +41,19 @@ pub async fn run(args: Args) -> Result<()> {
     let project_root = resolve_project_root(args.project.as_deref())?;
     let report = scan(&project_root)?;
     let context = build_context(&project_root)?;
+    // Read the active locale from genasis.toml so upgrade re-renders fences
+    // in the language the user originally chose.
+    let active_lang = genasis_core::config::Config::load(
+        &project_root.join(genasis_core::config::CONFIG_FILE_NAME),
+    )
+    .ok()
+    .and_then(|c| c.i18n.map(|i| i.active))
+    .unwrap_or_else(|| "en".to_string());
     let opts = AttachOptions {
         fence_version: args.fence_version,
         context,
         force: args.force,
+        lang: active_lang,
     };
     let plan = plan_attach(&report.agents, &opts)?;
     print!("{}", summary(&plan));

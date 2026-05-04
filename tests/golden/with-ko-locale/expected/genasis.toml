@@ -1,0 +1,10 @@
+[project]
+name = "wkl"
+domain = "example.com"
+
+[i18n]
+active = "ko"
+fence_lang = "ko"
+cli_lang = "ko"
+reference_langs = []
+selected_via = "flag"

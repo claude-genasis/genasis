@@ -23,6 +23,7 @@ pub struct Config {
     pub deploy: Option<DeployConfig>,
     pub token_economics: Option<TokenEconomicsConfig>,
     pub i18n: Option<I18nConfig>,
+    pub design: Option<DesignConfig>,
 }
 
 /// Locale configuration recorded by `genasis init` / `attach` and read by
@@ -128,6 +129,66 @@ pub struct DeployConfig {
 pub struct TokenEconomicsConfig {
     #[serde(default = "default_trim_threshold_kb")]
     pub trim_threshold_kb: u32,
+}
+
+/// `[design]` — external design provider integration (M-D1+).
+///
+/// `add_command` is a templated shell command run when `genasis design swap
+/// <slug>` is invoked. Placeholders `{slug}` and `{out}` are substituted.
+/// The default delegates to `getdesign` (npm) but a self-hosted gallery can
+/// replace it without code changes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesignConfig {
+    /// Gallery landing URL shown in CLI/TUI prose.
+    #[serde(default = "default_gallery_index_url")]
+    pub gallery_index_url: String,
+
+    /// Per-slug preview URL template. `{slug}` is substituted.
+    #[serde(default = "default_gallery_url_template")]
+    pub gallery_url_template: String,
+
+    /// Shell command template for the npx-style fetch path. `{slug}` and
+    /// `{out}` are substituted.
+    #[serde(default = "default_add_command")]
+    pub add_command: String,
+
+    /// When true, `genasis design swap` exports `GETDESIGN_DISABLE_TELEMETRY=1`
+    /// before invoking `add_command`. Default: true.
+    #[serde(default = "default_disable_telemetry")]
+    pub disable_telemetry: bool,
+
+    /// Directory (relative to project root) that holds the active external
+    /// `DESIGN.md` plus state/backup. Default: `docs/design-system`.
+    #[serde(default = "default_external_dir")]
+    pub external_dir: String,
+}
+
+impl Default for DesignConfig {
+    fn default() -> Self {
+        Self {
+            gallery_index_url: default_gallery_index_url(),
+            gallery_url_template: default_gallery_url_template(),
+            add_command: default_add_command(),
+            disable_telemetry: default_disable_telemetry(),
+            external_dir: default_external_dir(),
+        }
+    }
+}
+
+fn default_gallery_index_url() -> String {
+    "https://getdesign.md/".to_string()
+}
+fn default_gallery_url_template() -> String {
+    "https://getdesign.md/{slug}/design-md".to_string()
+}
+fn default_add_command() -> String {
+    "npx getdesign@latest add {slug} --force --out {out}".to_string()
+}
+fn default_disable_telemetry() -> bool {
+    true
+}
+fn default_external_dir() -> String {
+    "docs/design-system".to_string()
 }
 
 fn default_flavor() -> String {

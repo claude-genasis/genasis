@@ -96,6 +96,9 @@ pub struct AttachOptions {
     pub context: serde_json::Value,
     /// `--force` overrides Tampered / RoleMismatch refusals.
     pub force: bool,
+    /// BCP-47 locale code for the template subtree (`templates/<lang>/`).
+    /// Defaults to `"en"` for backward compatibility.
+    pub lang: String,
 }
 
 impl AttachOptions {
@@ -104,7 +107,14 @@ impl AttachOptions {
             fence_version: fence_version.into(),
             context: serde_json::json!({}),
             force: false,
+            lang: "en".to_string(),
         }
+    }
+
+    /// Builder-style setter for the install locale.
+    pub fn with_lang(mut self, lang: impl Into<String>) -> Self {
+        self.lang = lang.into();
+        self
     }
 }
 
@@ -112,7 +122,7 @@ impl AttachOptions {
 /// has already done.
 pub fn plan_attach(agents: &[DetectedAgent], opts: &AttachOptions) -> Result<MergePlan> {
     let mut changes = Vec::with_capacity(agents.len());
-    let tera = build_tera()?;
+    let tera = build_tera_lang(&opts.lang)?;
 
     for agent in agents {
         let role_slug = match &agent.classification {

@@ -723,11 +723,15 @@ name = "genasis-design"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "genasis-core",
+ "hex",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
+ "toml",
  "tracing",
 ]
 

@@ -1,5 +1,5 @@
 ---
-description: "Always reference docs/design-system.md before introducing UI tokens."
+description: "Read docs/design-system.md (and any external DESIGN.md it points at) before any UI work."
 ---
 
 # Skill: design-aware
@@ -8,20 +8,55 @@ description: "Always reference docs/design-system.md before introducing UI token
 > The skill is a thin contract — it points at GENASIS.md and the relevant
 > sections of `blueprint.md` rather than restating them.
 
-## When to invoke
-Always reference docs/design-system.md before introducing UI tokens.
+## When to invoke (always, before any of these)
+- Introducing a new color / spacing / typography / radius / shadow token.
+- Creating a new UI component.
+- Reviewing or PR-checking UI changes.
+- Responding to user requests that mention design, style, branding, or theme.
 
-## What I should do
-1. Read `GENASIS.md` first.
-2. If this skill is about an external system (Plane, Mattermost, DB),
-   check the corresponding section of the per-role overlay fence in my
-   own agent file.
-3. Use the **direct API helpers** (or `genasis` CLI subcommands) rather
-   than re-implementing protocol logic.
-4. On any state change, post to the Mattermost issue thread; on any
-   destructive op, refuse without explicit confirmation.
+## Reference order (absolute rule)
+1. Open `docs/design-system.md`. Inspect the `mode` field of its frontmatter.
+2. **`mode: pristine`** → the body of `docs/design-system.md` is the truth.
+   Stop here.
+3. **`mode: external`** →
+   a. Read `docs/design-system/DESIGN.md` first (= §A, the 1st-class truth).
+   b. Read §B "User overrides" of `docs/design-system.md` next.
+   c. Final decision = (DESIGN.md) ⊕ (§B). §B wins on overlap.
+4. The frontmatter also carries `gallery_preview` — surface it to the user
+   when they want to see the active design rendered.
+
+## When the user asks for a design / style change
+1. Quote the relevant §A item (or pristine body item) **verbatim**, side-by-
+   side with the user request.
+2. If the request matches §A → proceed. No override is recorded.
+3. If §A is silent on the topic → proceed. Optionally suggest a §B entry if
+   the request introduces a new convention.
+4. If the request **conflicts with §A** → ask explicitly:
+   "DESIGN.md says X = `<old>`. You're asking for `<new>` —
+    override DESIGN.md? [y/N]"
+5. On `y` → run `genasis design override add "<request>"`. The CLI appends
+   the entry to §B.2 of `docs/design-system.md` and bumps `override_count`
+   in `docs/.design-state.toml`. Then proceed.
+6. On `n` → honour §A and offer an alternative that respects it.
+
+## Hard rules
+- Never edit `docs/design-system/DESIGN.md` directly. It is read-only.
+  To change source, swap to a different external design.
+- Never invent hex/px literals. If a token is missing, add it via §B
+  override (with user approval) or escalate.
+- Never silently override §A. Always surface the conflict and get explicit
+  user approval before running `override add`.
+
+## After a design swap (`genasis design swap <slug>` or `--from <path>`)
+- The CLI prints next-step guidance. Echo it to the user thread:
+  • UI agents will reference docs/design-system.md → §A → §B.
+  • Preview link, gallery link, restore command.
+- If existing in-progress UI work was based on the previous design, post
+  in the relevant Plane issue thread: "📘 design replaced: <old> → <new>".
+  Re-check the affected components against the new §A.
 
 ## Anti-patterns
-- Restating the lifecycle locally (drifts from GENASIS.md).
-- Using admin tokens when a role-scoped PAT is available.
-- Issuing schema-modifying SQL outside of `genasis db migrate`.
+- Quoting tokens from memory instead of from the current §A.
+- Adding overrides without surfacing the conflict and asking the user.
+- Editing `docs/design-system/DESIGN.md` directly (use swap or §B).
+- Treating §A and §B as equal — §B is *patch on top*, not a rival truth.

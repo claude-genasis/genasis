@@ -78,6 +78,7 @@ pub async fn pub_run(
         fence_version: args.fence_version.clone(),
         context,
         force: args.force,
+        lang: decision.lang.code().to_string(),
     };
     let plan = plan_attach(&report.agents, &opts)?;
 

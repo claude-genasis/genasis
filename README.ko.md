@@ -9,7 +9,8 @@ Plane × Mattermost × TDD × Design hot-swap × Schema-as-code × Monitor — �
 [![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
 [![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
-[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
+[![Coverage](https://img.shields.io/codecov/c/github/claude-genasis/genasis?style=flat-square&logo=codecov)](https://codecov.io/gh/claude-genasis/genasis)
+[![Rust](https://img.shields.io/badge/rust-stable-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
 
 [**한국어**](README.ko.md)&nbsp;·&nbsp;[**English**](README.md)&nbsp;·&nbsp;[새 언어 추가](docs/ko/i18n/CONTRIBUTE-LANG.md)
 
@@ -139,7 +140,7 @@ Pre-release. M11 까지의 기능은 자리잡았고 M12 (i18n) 마무리 단계
 
 ## 기여
 
-새 언어 추가는 4-surface PR 입니다 ([가이드](docs/ko/i18n/CONTRIBUTE-LANG.md)). 그 외에는 Issue 로 열어 마일스톤 추적에 맞춰드립니다.
+처음이신가요? [`CONTRIBUTING.ko.md`](CONTRIBUTING.ko.md) 가 모든 prerequisite (rustup / cargo / OpenSSL / atlas / cargo-llvm-cov / asciinema 등) 와 그 이유를 설명합니다. 새 언어 추가는 4-surface PR ([가이드](docs/ko/i18n/CONTRIBUTE-LANG.md)). 그 외에는 Issue 로 열어 마일스톤 추적에 맞춰드립니다.
 
 PR 컨벤션:
 

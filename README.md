@@ -9,7 +9,8 @@ Plane × Mattermost × TDD × Design hot-swap × Schema-as-code × Monitor — n
 [![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
 [![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
-[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
+[![Coverage](https://img.shields.io/codecov/c/github/claude-genasis/genasis?style=flat-square&logo=codecov)](https://codecov.io/gh/claude-genasis/genasis)
+[![Rust](https://img.shields.io/badge/rust-stable-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
 
 [**English**](README.md)&nbsp;·&nbsp;[**한국어**](README.ko.md)&nbsp;·&nbsp;[Add a language](docs/i18n/CONTRIBUTE-LANG.md)
 
@@ -139,7 +140,7 @@ Pre-release. Functionality below the M11 line is in place; M12 (i18n) is wrappin
 
 ## Contributing
 
-Adding a new language is a four-surface PR ([guide](docs/i18n/CONTRIBUTE-LANG.md)). Everything else: open an Issue, we'll line it up against the milestone tracker.
+New here? Read [`CONTRIBUTING.md`](CONTRIBUTING.md) — it walks through every prerequisite (rustup / cargo / OpenSSL / atlas / cargo-llvm-cov / asciinema, etc.) and explains why each is needed. Adding a new language is a four-surface PR ([guide](docs/i18n/CONTRIBUTE-LANG.md)). Everything else: open an Issue, we'll line it up against the milestone tracker.
 
 PR conventions:
 

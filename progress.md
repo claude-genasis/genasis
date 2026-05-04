@@ -46,6 +46,30 @@
 - ☐ M12.12 — Retrospective + DoD signoff (post-translation)
 - ☐ M12.13 — README SEO + 3-step language toggle (post-translation)
 
+## Phase D — Design Catalog Integration (post-M12)
+
+External design provider integration on top of the existing M7 hot-swap.
+Two-mode `docs/design-system.md` (pristine vs external-pointer), getdesign
+delegation (no vendoring), local `--from <path>` non-npx entry, user-override
+accumulation with conflict prompts, and pristine restore.
+
+User-approved 2026-05-04. Detailed sub-step checklist mirrors in
+`progress.ko.md` §M-D.
+
+| Sub-milestone | Scope | Status |
+|---|---|---|
+| M-D1 | `[design]` config schema; `cmd_design swap <slug>` (npx delegate) and `swap --from <path>`; `restore`; `.design-state.toml`; design-system.md pointer template (en/ko); design-aware SKILL strengthened; e2e round-trip | in progress |
+| M-D2 | EPIC plan (auto when ≥4 areas) + Mattermost announce; `verify` (sha256); `override add/list/remove` with conflict prompt; user-override §B accumulator | pending |
+| M-D3 | Monitor "Design" widget (key 7, Enter→preview); attach prompts `[design]` keys; doctor checks (npx availability, hash match, mode coherence); ADR-009; post-swap i18n guidance keys | pending |
+
+Design decisions:
+- Telemetry default OFF — `genasis design swap` sets `GETDESIGN_DISABLE_TELEMETRY=1`
+  before invoking npx. No genasis-side collection server.
+- No vendoring of awesome-design-md content — fully delegated to `getdesign` npm
+  package. License compliance owned by getdesign upstream.
+- `add_command` template is configurable so a self-hosted gallery can replace
+  getdesign without code changes.
+
 ## Releases
 
 No release tagged yet. First release will be cut after M12.7.b
