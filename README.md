@@ -8,101 +8,129 @@
 
 > 🇺🇸 **English** | [🇰🇷 한국어](README.ko.md)
 
-> **Plane × Mattermost × TDD × Design × DB × Monitor — overlay (not rewrite) for any Claude Code agent team.** Install with one curl command. Korean and English supported.
+> **Plane × Mattermost × TDD × Design × DB × Monitor — overlay (not rewrite) for any Claude Code agent team.** Install with one curl command. Korean and English supported, single-language at a time, no model drift.
 >
-> Tags: `claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트`
+> Tags: `claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `claude-skills`
 
-**Status:** v0.0.1 (M12 — internationalization). See [progress.md](progress.md).
-
----
-
-## What is this
-
-The predecessor was an 11k-line bash script (`create-agentic-team.sh`) that scaffolded a single team for a
-single project. **Genasis** is the polyglot, modular successor:
-
-- A **single Rust binary** (no Python, no Node runtime requirement on the target machine for the core CLI).
-- **Non-destructive overlay** — it does not rewrite your existing `.claude/agents/*.md`. It injects a small
-  marker-fenced block per agent and keeps the rest of your team untouched.
-- **Reversible** — `genasis detach` removes everything.
-- **Idempotent** — running `attach` twice yields the same result.
-- **Rich TUI** for both attach-time visualisation and the runtime `genasis monitor` dashboard.
-
-Read [blueprint.md](blueprint.md) for the full design.
+<p align="center">
+  <a href="https://github.com/claude-genasis/genasis/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square" alt="License"></a>
+  <a href="https://github.com/claude-genasis/genasis/releases"><img src="https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&label=release" alt="Release"></a>
+  <a href="https://github.com/claude-genasis/genasis/stargazers"><img src="https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square" alt="Stars"></a>
+</p>
 
 ---
 
-## Install (end-user)
+## Why Genasis
+
+- **Don't rewrite your team.** Genasis attaches a **non-destructive overlay** onto your existing `.claude/agents/*.md`, leaving everything outside marker fences untouched.
+- **One-command Plane + Mattermost + TDD + Design hot-swap + Schema-as-code + Monitor.** Built for teams that are tired of duct-taping these layers themselves.
+- **Single Rust binary, single active language at install time.** No Python, no Node runtime in the hot path; no Korean/English mixed-context model drift.
+
+## Quickstart
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/genasis/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-The installer:
-
-1. Detects your OS / arch (Linux x86_64/arm64, macOS arm64/x86_64; WSL on Windows).
-2. **Checks prerequisites** (git, curl, tar; optionally node ≥18, gh, atlas, psql/mysql/sqlite3/duckdb, rtk, claude).
-3. Prints **OS-specific install commands for any missing packages** — it does not install them automatically.
-4. Downloads the matching release binary, verifies sha256, extracts to `~/.local/bin/genasis`.
-5. Optionally runs `genasis attach` to bolt onto your current project.
-
-Flags:
-
-```
-install.sh [--no-run] [--prefix=PATH] [--version=vX.Y.Z]
-```
-
----
-
-## Build from source (contributors)
+The installer auto-detects your locale (`$LANG`) and asks you whether to install English or Korean instructions. Skip the prompt with `--lang`:
 
 ```bash
-git clone https://github.com/OWNER/genasis
-cd genasis
-cargo build --release
-./target/release/genasis --help
+curl -fsSL .../install.sh | sh -s -- --lang en        # English
+curl -fsSL .../install.sh | sh -s -- --lang ko        # Korean
+curl -fsSL .../install.sh | sh -s -- --lang both      # Rejected — see why ↓
 ```
 
-Toolchain pinned via [rust-toolchain.toml](rust-toolchain.toml) (Rust 1.78+).
+`--lang both` is rejected by design. Both-language overlays cause Claude Code to drift mid-response (see [docs/impact-of-multilang-prompts.md](docs/impact-of-multilang-prompts.md)). Use `genasis lang switch <lang>` to swap atomically later.
 
----
+## Features
 
-## Usage at a glance
+| | |
+|---|---|
+| 🔗 **Plane integration** | Direct REST (no MCP). Auto-detects upstream vs agent-aware flavor. [docs](docs/ko/PROVIDERS.md) |
+| 💬 **Mattermost bot** | One bot per agent role, threaded per Plane issue. |
+| 🧪 **TDD enforcement** | `unit: pass` + `integration: pass` mandatory for In Review → Done. |
+| 🎨 **Design hot-swap** | `genasis design swap <ref-url>` regenerates `docs/design-system.md` and emits Plane issues for impacted areas. |
+| 🗄 **Schema-as-code** | Read via SQL guard, write via Atlas / Drizzle Kit / DuckDB raw runner. |
+| 📊 **Monitor TUI** | Ratatui dashboard: sprint, tokens, agents, deploy LEDs, network, log tail. |
+| 🌐 **i18n** | English / Korean install-time selector. `--lang both` rejected. `genasis lang switch` for atomic swaps. |
+| 💰 **Token economics** | RTK auto-wrap + Anthropic prompt-cache friendly stable prefix + trim hook. |
 
-```bash
-genasis init        # blank project → ECC team + overlay + Plane/MM provisioning
-genasis attach      # existing team → bolt overlay on, leaving original files mostly intact
-genasis detach      # remove overlay (marker fences only)
-genasis doctor      # verify env/tools/permissions
-genasis upgrade     # bump overlay version (fence-hash diff)
+## Demo
 
-genasis monitor     # Ratatui TUI: sprint, tokens, agents, deploy, network, logs
+(asciinema cast lives at `docs/assets/demo.cast` once recorded — wire it after first release.)
 
-genasis design swap <reference-url>
-genasis db query "SELECT ..."     # read-only with SQL guard
-genasis db migrate                 # delegates to Atlas / Drizzle Kit / DuckDB raw runner
+## Documentation
+
+| Doc | Korean mirror |
+|---|---|
+| [`blueprint.md`](blueprint.md) | [`blueprint.ko.md`](blueprint.ko.md) |
+| [`progress.md`](progress.md) | [`progress.ko.md`](progress.ko.md) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (pending) | [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) |
+| [`docs/PROVIDERS.md`](docs/PROVIDERS.md) (pending) | [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) |
+| [`docs/MIGRATION-FROM-GENESIS.md`](docs/MIGRATION-FROM-GENESIS.md) (pending) | [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) |
+| [`docs/TOKEN-ECONOMICS.md`](docs/TOKEN-ECONOMICS.md) (pending) | [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) |
+| [`docs/MONITOR.md`](docs/MONITOR.md) (pending) | [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) |
+| [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
+| [ADR-001 ~ ADR-008](docs/ADR/) | [ADR-001 ~ ADR-007 (ko)](docs/ko/ADR/) |
+
+> **Translation status**: ADR-008 (i18n decision) is canonical English. The remaining English mirrors are stubs that point at the Korean canonical. The release-prep workflow auto-opens a `[i18n] Translation completion for vX.Y.Z` PR before each release tag.
+
+## Architecture
+
+```mermaid
+flowchart TB
+  L0["L0 — Your existing team<br/>(.claude/agents/*.md, src/, DB)"]
+  L1["L1 — Genasis Overlay<br/>(marker fences, GENASIS.md, .claude/genasis/)"]
+  L2["L2 — Genasis Rust binary<br/>(init / attach / db / design / monitor / lang)"]
+  L3["L3 — Plane / Mattermost / GitHub"]
+  L0 -. preserved .-> L1
+  L2 -- generates / merges --> L1
+  L1 -- direct API --> L3
 ```
 
----
+## Comparison
 
-## Why "Genasis"?
+| Feature | Genasis | ECC | knowledge-work-plugins | claude-code-templates |
+|---|---|---|---|---|
+| Non-destructive overlay | ✅ | — | — | — |
+| Plane integration | ✅ direct API | manual | — | — |
+| Mattermost bot orchestration | ✅ per-agent | — | — | — |
+| Design hot-swap | ✅ | — | — | — |
+| Schema-as-code | ✅ Atlas/Drizzle/raw | — | — | — |
+| Monitor TUI | ✅ Ratatui | — | — | — |
+| Install-time i18n (en/ko) | ✅ active singularity | — | — | — |
+| Single Rust binary | ✅ | — (bash) | — (npm) | — (npm) |
 
-`genesis` (the script) → `genasis` (the framework). Same root, broader scope.
+## Roadmap
 
----
+See [`progress.md`](progress.md) for the milestone-by-milestone tracker. Currently in **M12 — Internationalization**.
+
+Major milestones:
+
+- M0–M11 (2026-05-03) — workspace bootstrap, providers, DB kernel, design hot-swap, monitor TUI, ADRs 1–7
+- **M12 (current)** — install-time `--lang` selector, rust-i18n runtime, dual-tree docs, release-prep automation
+- v0.1.0 (planned) — first public release after M12.7.b translation completion lands
+
+## Contributing
+
+Read [`docs/i18n/CONTRIBUTE-LANG.md`](docs/i18n/CONTRIBUTE-LANG.md) before adding a new language. For everything else, open an Issue describing what you want to add and we'll line it up against the milestone tracker.
+
+PR conventions:
+
+- Conventional Commits (`feat / fix / docs / chore / i18n`).
+- All user-facing strings go through `t!()` and land in **both** `en.yml` and `ko.yml`.
+- All English documentation changes either update the Korean mirror or accept the warning from `lint-i18n`. Release tags hard-fail on drift.
+
+## Star history
+
+<a href="https://star-history.com/#claude-genasis/genasis">
+  <img src="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date" alt="Star History" width="600">
+</a>
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
----
-
-## Status
-
-This repository is in its bootstrap phase. The functionality described above is the **target**, not what is
-currently executable. Tracker: [progress.md](progress.md).
-
-`<OWNER>` placeholders will be replaced with the actual GitHub owner once the repository is published.
 
 ---
 
