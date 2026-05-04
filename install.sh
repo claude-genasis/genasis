@@ -28,12 +28,18 @@ RELEASE_VERSION="latest"
 PREFIX=""
 RUN_AFTER_INSTALL=1
 SKIP_PREREQS=0
+LANG_FLAG=""           # --lang en|ko (empty = prompt or fallback)
+NON_INTERACTIVE=0      # --non-interactive
+ASSUME_YES=0           # --yes / -y
 
 # ---- parse args -------------------------------------------------------------
 for arg in "$@"; do
     case "$arg" in
         --no-run) RUN_AFTER_INSTALL=0 ;;
         --skip-prereqs) SKIP_PREREQS=1 ;;
+        --non-interactive) NON_INTERACTIVE=1 ;;
+        -y|--yes) ASSUME_YES=1 ;;
+        --lang=*) LANG_FLAG="${arg#--lang=}" ;;
         --prefix=*) PREFIX="${arg#--prefix=}" ;;
         --version=*) RELEASE_VERSION="${arg#--version=}" ;;
         -h|--help)
@@ -42,9 +48,14 @@ Genasis installer
 
 Usage:
   curl -fsSL https://raw.githubusercontent.com/${OWNER}/${REPO}/main/install.sh | sh
-  curl -fsSL .../install.sh | sh -s -- --no-run --version=v0.1.0
+  curl -fsSL .../install.sh | sh -s -- --lang ko --no-run
 
 Flags:
+  --lang=LANG          Agent-context language (en|ko). Rejects "both".
+                       Without this, an interactive prompt asks (TTY) or
+                       \$LANG is parsed (non-TTY).
+  --non-interactive    Skip the prompt; use \$LANG fallback.
+  -y, --yes            Auto-accept the confirmation step.
   --no-run             Skip the auto attach run.
   --prefix=PATH        Override install dir (default: ~/.local/bin).
   --version=vX.Y.Z     Pin a release (default: latest).
@@ -69,6 +80,162 @@ warn()  { printf "%b[WARN]%b %s\n" "$C_YLW" "$C_RST" "$*" >&2; }
 err()   { printf "%b[ERR]%b %s\n" "$C_RED" "$C_RST" "$*" >&2; }
 die()   { err "$*"; exit 1; }
 hr()    { printf "%b%s%b\n" "$C_DIM" "----------------------------------------------------------------" "$C_RST"; }
+
+# ---- language resolution + bilingual prompt --------------------------------
+# Mirrors the Rust prompt in crates/genasis-cli/src/lang_prompt.rs so the
+# user sees the same layout regardless of entry path.
+
+# Suggest a locale based on $LANG; fall through to "en".
+suggest_lang() {
+    case "${LANG:-}" in
+        ko*|KO*|*ko_KR*|*ko_KP*) echo "ko" ;;
+        *) echo "en" ;;
+    esac
+}
+
+reject_both() {
+    cat <<EN >&2
+
+✘ --lang both is not supported.
+
+  genasis enforces a single active language in agent context to avoid
+  Claude Code language-drift bugs (e.g. anthropics/claude-code#46846).
+  See docs/impact-of-multilang-prompts.md for the full rationale.
+
+  Recommended alternatives:
+    1. Pick one active language now, swap later:
+         install.sh --lang en
+         genasis lang switch ko    # later
+    2. Active English + Korean as on-disk reference docs (humans only):
+         install.sh --lang en
+         genasis attach --reference-docs ko
+
+  Re-run with one of: --lang en | --lang ko
+EN
+    cat <<KO >&2
+
+✘ --lang both 는 지원하지 않습니다.
+
+  Claude Code 의 언어 drift 버그(예: anthropics/claude-code#46846) 를
+  회피하기 위해 genasis 는 에이전트 컨텍스트에 한 언어만 허용합니다.
+  전체 근거는 docs/impact-of-multilang-prompts.md 를 참조하세요.
+
+  권장 대안:
+    1. 지금 한 언어 선택 후 나중에 교체:
+         install.sh --lang en
+         genasis lang switch ko    # 나중에
+    2. 영어 active + 한국어 reference 문서 (사람용, Claude 미진입):
+         install.sh --lang en
+         genasis attach --reference-docs ko
+
+  다음 중 하나로 다시 실행하세요: --lang en | --lang ko
+KO
+    exit 2
+}
+
+print_lang_prompt() {
+    suggested="$1"
+    cat <<EOF
+
+┌─ Genasis — Agentic Team Language Setup / 에이전트 팀 언어 설정 ─────────────────
+│ Choose the language for your agent team's instructions.
+│ 에이전트 팀 지침의 언어를 선택하세요.
+│
+│ The selected language will be installed into:
+│ 선택한 언어는 다음 위치에 설치됩니다:
+│   • .claude/agents/*.md      (overlay fence body)
+│   • .claude/genasis/skills/  (scrum, plane-ops, mm-ops, ...)
+│   • .claude/genasis/commands/ (/sprint-start, /issue-done, ...)
+│   • .claude/genasis/hooks/   (session-start, branch-guard, ...)
+│   • GENASIS.md               (protocol contract — @import'd by CLAUDE.md)
+│
+│ ⚠ Only ONE language goes into agent context. Mixing two languages
+│   causes Claude to drift between them mid-response (see
+│   docs/impact-of-multilang-prompts.md). Switch later via
+│   \`genasis lang switch <lang>\`.
+│ ⚠ 에이전트 컨텍스트에는 한 언어만 들어갑니다. 두 언어를 동시에 넣으면
+│   Claude 가 응답 중 언어를 섞기 시작합니다. 나중에
+│   \`genasis lang switch <lang>\` 로 전환할 수 있습니다.
+│
+│ Detected \$LANG=${LANG:-(unset)} → suggesting ${suggested}.
+│
+EOF
+    if [ "$suggested" = "ko" ]; then
+        printf "│   [1] English (en)\n"
+        printf "│   [2] 한국어 (ko)   ← suggested / 권장\n"
+    else
+        printf "│   [1] English (en)   ← suggested / 권장\n"
+        printf "│   [2] 한국어 (ko)\n"
+    fi
+    printf "└─────────────────────────────────────────────────────────────────────\n"
+}
+
+resolve_install_lang() {
+    if [ -n "$LANG_FLAG" ]; then
+        case "$LANG_FLAG" in
+            both|BOTH) reject_both ;;
+            en|EN|english|English|eng) ACTIVE_LANG="en"; LANG_VIA="flag" ;;
+            ko|KO|korean|Korean|kor|kr) ACTIVE_LANG="ko"; LANG_VIA="flag" ;;
+            *) die "unknown --lang value: $LANG_FLAG (allowed: en, ko)" ;;
+        esac
+        return 0
+    fi
+
+    suggested="$(suggest_lang)"
+
+    if [ "$NON_INTERACTIVE" -eq 1 ] || [ ! -t 0 ]; then
+        ACTIVE_LANG="$suggested"
+        LANG_VIA="lang_env"
+        info "non-interactive: using --lang $ACTIVE_LANG (override with --lang en|ko)"
+        return 0
+    fi
+
+    print_lang_prompt "$suggested"
+
+    attempts=0
+    while [ "$attempts" -lt 3 ]; do
+        attempts=$((attempts + 1))
+        if [ "$suggested" = "ko" ]; then
+            printf "Select [1/2] (default: 2): "
+        else
+            printf "Select [1/2] (default: 1): "
+        fi
+        if ! IFS= read -r choice; then
+            choice=""
+        fi
+        case "${choice:-}" in
+            "")
+                ACTIVE_LANG="$suggested"
+                break
+                ;;
+            1|en|EN|English|english)
+                ACTIVE_LANG="en"; break ;;
+            2|ko|KO|한국어|korean|Korean)
+                ACTIVE_LANG="ko"; break ;;
+            *)
+                printf "Please answer 1, 2, or press Enter for the default.\n  1, 2 또는 Enter (기본값) 중 하나를 입력하세요.\n"
+                ;;
+        esac
+    done
+    [ -z "${ACTIVE_LANG:-}" ] && die "too many invalid responses; aborting."
+    LANG_VIA="prompt"
+
+    if [ "$ASSUME_YES" -ne 1 ]; then
+        if [ "$ACTIVE_LANG" = "ko" ]; then
+            printf "\n✓ %s 지침을 .claude/ 에 설치합니다. 설치 완료 후 Claude Code 를 재시작하세요.\n" "한국어(ko)"
+            printf "  계속 진행할까요? [Y/n]: "
+        else
+            printf "\n✓ Will install English (en) instructions into .claude/. Restart Claude Code after install completes.\n"
+            printf "  Continue? [Y/n]: "
+        fi
+        if IFS= read -r ans; then
+            case "${ans:-}" in
+                ""|y|Y|yes|YES|예)  : ;;
+                *) die "Aborted by user." ;;
+            esac
+        fi
+    fi
+}
 
 # ---- detect OS / arch / distro ---------------------------------------------
 detect_platform() {
@@ -349,12 +516,17 @@ main() {
     hr
     detect_platform
     run_prereq_check
+    resolve_install_lang
     resolve_prefix
 
     if fetch_binary; then
         if [ "$RUN_AFTER_INSTALL" -eq 1 ]; then
-            info "Running 'genasis attach' (use --no-run to skip)"
-            "$PREFIX/genasis" attach || warn "'genasis attach' exited non-zero — check output above."
+            info "Running 'genasis attach --lang $ACTIVE_LANG --non-interactive' (use --no-run to skip)"
+            "$PREFIX/genasis" attach \
+                --lang "$ACTIVE_LANG" \
+                --non-interactive \
+                --yes \
+                || warn "'genasis attach' exited non-zero — check output above."
         else
             ok "Skipping auto-run (--no-run)."
         fi
