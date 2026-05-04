@@ -1,0 +1,35 @@
+# genasis.toml — project-local configuration. Safe to commit.
+# Secrets live in .env.agents (which is gitignored).
+
+[project]
+name = "{{ project_name }}"
+domain = "{{ project_domain }}"
+
+[plane]
+url = "{{ plane_url }}"
+flavor = "{{ plane_flavor | default(value=\"auto\") }}"
+workspace_slug = "{{ plane_workspace_slug }}"
+{% if plane_project_id %}project_id = "{{ plane_project_id }}"{% endif %}
+
+[mattermost]
+url = "{{ mm_url }}"
+flavor = "{{ mm_flavor | default(value=\"auto\") }}"
+team_name = "{{ mm_team_name }}"
+
+{% if db_driver %}
+[db]
+driver = "{{ db_driver }}"           # postgres | mysql | sqlite | duckdb
+url = "{{ db_url }}"
+migration_tool = "{{ db_migration_tool | default(value=\"atlas\") }}"
+{% endif %}
+
+[deploy]
+# build = "pnpm build"
+# cmd_dev = "pnpm dev --port 3000"
+# cmd_prod = "vercel deploy --prod"
+# rollback = "git revert HEAD && git push"
+# dev_url = "http://localhost:3000"
+# prod_url = "https://app.example.com"
+
+[token_economics]
+trim_threshold_kb = 32

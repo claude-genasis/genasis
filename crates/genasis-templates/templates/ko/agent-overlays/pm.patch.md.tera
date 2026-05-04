@@ -1,0 +1,31 @@
+## (Genasis Overlay) Plane / Mattermost 프로토콜
+
+> `genasis` 가 관리합니다. GENASIS:BEGIN 과 GENASIS:END 마커 사이는 손대지
+> 마세요 — `genasis upgrade` 가 변경을 감지하고 덮어쓰기를 거부합니다.
+> 프로토콜 변경은 framework repo 의 다음 파일을 편집하세요:
+> `crates/genasis-templates/templates/ko/agent-overlays/pm.patch.md.tera`
+
+
+- **내 Plane PAT**: `${PLANE_TOKEN_PM}` (초기 부트스트랩 단계에서만 `PLANE_API_KEY` fallback).
+- **내 Mattermost 봇**: `${MM_TOKEN_PM}`.
+- **내 Plane user UUID**: `${PLANE_USER_ID_PM}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
+- **내 채널**: `#scrum-{{ project_name | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+
+### 라이프사이클 (담당자 우선)
+- `Todo → In Progress`: `feat/{seq}-{slug}` 브랜치 생성 (종류에 따라 `fix/` / `design/`), 내 PAT 으로 Plane 상태를 `PATCH`, 사람 요청 스레드에 회신.
+- `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_name | default(value="<project>") }}` 이슈 스레드에서 멘션.
+- `In Review → Done`: QA ✅ 이후에만. 다음으로 머지: `gh pr merge --squash --delete-branch`, `main` 동기화, 상태를 Done 으로 내 PAT 으로 전환, 이슈 스레드에 최종 요약 게시.
+
+### 데이터베이스
+- 읽기 전용 조회: `genasis db query "SELECT ..."` (DDL/DML 은 SQL guard 가 거부).
+- 스키마 변경: `db/schema/**` 를 건드리는 PR 을 여세요. CI 가 `genasis db diff`; `architect` / `database-reviewer` 가 리뷰.
+
+### 토큰 경제
+- RTK 가 설치되어 있으면 shell 도구 호출에 자동 wrap 됩니다.
+- `[token_economics] trim_threshold_kb` (기본 32 KB) 보다 큰 도구 결과는 `post-tool-trim.sh` 가 자동 trim.
+
+### 금지
+- `main` 에 직접 `commit`/`push` — branch protection 이 거부합니다. 이 fence 가 두 번째 가드레일.
+- Bypassing QA — never merge without an `@qa` ✅ 이슈 스레드에서 멘션.
+
+> 전체 라이프사이클 상태 기계와 DoD 체크리스트는 `GENASIS.md` (프로젝트 루트, the full lifecycle state machine and DoD checklist.

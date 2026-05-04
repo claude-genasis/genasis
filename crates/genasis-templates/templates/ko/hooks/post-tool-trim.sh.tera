@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Genasis PostToolUse hook — trim large tool outputs.
+#
+# Reads stdin (the tool result envelope from Claude Code) and emits a
+# trimmed version when the body exceeds ${GENASIS_TRIM_THRESHOLD_KB:-32}
+# kilobytes. Trimming preserves head + tail and inserts a marker.
+
+set -euo pipefail
+threshold_kb="${GENASIS_TRIM_THRESHOLD_KB:-32}"
+limit=$((threshold_kb * 1024))
+
+body="$(cat)"
+size=${#body}
+if [ "$size" -le "$limit" ]; then
+  printf '%s' "$body"
+  exit 0
+fi
+
+half=$((limit / 2))
+head_chunk="${body:0:$half}"
+tail_chunk="${body: -$half}"
+trimmed_lines=$(printf '%s' "$body" | wc -l)
+printf '%s\n... (genasis trimmed: original %d bytes / %d lines, kept first/last %d KB) ...\n%s\n' \
+  "$head_chunk" "$size" "$trimmed_lines" "$threshold_kb" "$tail_chunk"

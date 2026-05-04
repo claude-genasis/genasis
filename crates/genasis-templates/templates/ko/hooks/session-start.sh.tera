@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Genasis SessionStart hook — runs once at the beginning of each Claude
+# Code session in this project.
+#
+# Responsibilities:
+#  - Verify the GENASIS.md contract is present.
+#  - Probe RTK; if installed, surface savings since the last session.
+#  - Surface any pending design-bootstrap flag.
+
+set -euo pipefail
+
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+[ -f "$PROJECT_ROOT/GENASIS.md" ] || echo "[genasis] warning: GENASIS.md missing — re-run 'genasis attach'."
+
+if command -v rtk >/dev/null 2>&1; then
+  echo "[genasis] rtk gain since last session:"
+  rtk gain --since "session" 2>/dev/null || rtk gain 2>/dev/null || true
+fi
+
+if [ -f "$PROJECT_ROOT/.claude/.design-bootstrap-needed" ]; then
+  echo "[genasis] design-system bootstrap pending — see docs/design-system.md"
+fi

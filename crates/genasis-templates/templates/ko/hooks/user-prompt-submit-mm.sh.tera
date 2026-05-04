@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Genasis UserPromptSubmit hook — on the first user prompt of a session,
+# print a short banner that points the agent at GENASIS.md.
+#
+# Idempotent: writes a marker file under .cache/ so the banner only
+# appears once per session.
+
+set -euo pipefail
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+marker="$PROJECT_ROOT/.cache/genasis-session-banner"
+[ -f "$marker" ] && exit 0
+mkdir -p "$(dirname "$marker")"
+touch "$marker"
+
+cat <<'BANNER'
+[genasis] welcome — the protocol contract is GENASIS.md (project root).
+[genasis] agents must use their per-role PAT / bot token from .env.agents,
+          not the admin tokens. Schema changes go through `genasis db migrate`.
+BANNER

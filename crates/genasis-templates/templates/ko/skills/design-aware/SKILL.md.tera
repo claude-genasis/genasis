@@ -1,0 +1,27 @@
+---
+description: "Always reference docs/design-system.md before introducing UI tokens."
+---
+
+# 스킬: design-aware
+
+> Auto-installed by `genasis attach` under `.claude/genasis/skills/design-aware/`.
+> The skill is a thin contract — it points at GENASIS.md and the relevant
+> sections of `blueprint.md` rather than restating them.
+
+## When to invoke
+Always reference docs/design-system.md before introducing UI tokens.
+
+## What I should do
+1. Read `GENASIS.md` first.
+2. If this skill is about an external system (Plane, Mattermost, DB),
+   check the corresponding section of the per-role overlay fence in my
+   own agent file.
+3. Use the **direct API helpers** (or `genasis` CLI subcommands) rather
+   than re-implementing protocol logic.
+4. On any state change, post to the Mattermost issue thread; on any
+   destructive op, refuse without explicit confirmation.
+
+## Anti-patterns
+- Restating the lifecycle locally (drifts from GENASIS.md).
+- Using admin tokens when a role-scoped PAT is available.
+- Issuing schema-modifying SQL outside of `genasis db migrate`.
