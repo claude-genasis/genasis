@@ -32,6 +32,26 @@ exclude:
   - rust-toolchain.toml
   - rustfmt.toml
   - clippy.toml
+  # Sample design-system reference contains JSX-style "{{ ... }}" that
+  # Jekyll's Liquid parser tries (and fails) to interpret.
+  - example-design-system.md
+  - monitor-layout-sketch.mmd
+  - impact-of-multilang-prompts.md
+  - ARCHITECTURE.md
+  - PROVIDERS.md
+  - MIGRATION-FROM-GENESIS.md
+  - TOKEN-ECONOMICS.md
+  - MONITOR.md
+  - i18n/
+  - ADR/
+  - ko/ADR/
+  - ko/i18n/
+  - ko/impact-of-multilang-prompts.md
+  - ko/ARCHITECTURE.md
+  - ko/PROVIDERS.md
+  - ko/MIGRATION-FROM-GENESIS.md
+  - ko/TOKEN-ECONOMICS.md
+  - ko/MONITOR.md
 
 defaults:
   - scope:
