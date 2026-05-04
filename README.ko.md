@@ -1,31 +1,33 @@
+<div align="center">
+
 # Genasis
 
-<p align="center">
-  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue?style=flat-square" alt="English"></a>
-  <a href="README.ko.md"><img src="https://img.shields.io/badge/%EC%96%B8%EC%96%B4-%ED%95%9C%EA%B5%AD%EC%96%B4-red?style=flat-square" alt="한국어"></a>
-  <a href="docs/ko/i18n/CONTRIBUTE-LANG.md"><img src="https://img.shields.io/badge/+-add%20language-lightgrey?style=flat-square" alt="Add a language"></a>
-</p>
+**Claude Code 용 bolt-on 에이전트 팀 레이어.**
+Plane × Mattermost × TDD × Design hot-swap × Schema-as-code × Monitor — 어떤 기존 에이전트 팀에든 비파괴적으로 부착.
 
-> 🇰🇷 **한국어** | [🇺🇸 English](README.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
+[![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
+[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
 
-> **Plane × Mattermost × TDD × Design × DB × Monitor — 어떤 Claude Code 에이전트 팀에든 overlay 방식(재작성 X)으로 부착.** curl 한 줄로 설치. 한국어·영어 동시 지원이지만 동시 설치 X — 모델 drift 회피.
->
-> 태그: `claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `클로드` · `claude-skills`
+[**한국어**](README.ko.md)&nbsp;·&nbsp;[**English**](README.md)&nbsp;·&nbsp;[새 언어 추가](docs/ko/i18n/CONTRIBUTE-LANG.md)
 
-<p align="center">
-  <a href="https://github.com/claude-genasis/genasis/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square" alt="License"></a>
-  <a href="https://github.com/claude-genasis/genasis/releases"><img src="https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&label=release" alt="Release"></a>
-  <a href="https://github.com/claude-genasis/genasis/stargazers"><img src="https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square" alt="Stars"></a>
-</p>
+</div>
+
+---
+
+`claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `클로드` · `claude-skills`
 
 ---
 
 ## 왜 Genasis 인가
 
-- **팀을 다시 짜지 마세요.** Genasis 는 기존 `.claude/agents/*.md` 에 **비파괴 overlay** 를 부착합니다 — marker fence 외부는 한 줄도 건드리지 않습니다.
-- **단 하나의 명령으로 Plane + Mattermost + TDD + Design hot-swap + Schema-as-code + Monitor.** 이 레이어들을 직접 짜깁기하는 데 지친 팀을 위한 도구.
-- **단일 Rust 바이너리, 설치 시점에 단일 active 언어.** Hot path 에 Python/Node 의존성 없음. 한/영 혼재 컨텍스트 drift 도 없음.
+Claude Code 로 팀을 운영하다 보면 같은 6개 레이어를 손으로 짜깁기하게 됩니다 — 이슈 트래킹, 채팅 기반 스크럼, TDD 강제, 디자인 핸드오프, DB 스키마 규율, "지금 팀이 뭐 하고 있나" 대시보드. 각 레이어마다 자기만의 glue 가 필요하고, 대부분은 아무도 유지보수하기 싫어하는 bash 입니다.
+
+Genasis 는 그 6개 레이어를 **단일 Rust 바이너리**로 묶어 기존 `.claude/agents/*.md` 위에 비파괴 overlay 로 부착합니다. marker fence 안만 Genasis 가 관리하고, fence 밖은 작성 그대로 유지됩니다. `genasis detach` 한 번으로 깨끗이 제거 — 완전히 가역적이고 멱등합니다.
+
+그리고 다국어 — **영어 또는 한국어**로 설치하고, `genasis lang switch` 로 atomic 교체할 수 있습니다. 두 언어를 한 에이전트 컨텍스트에 동시에 두는 것은 거부합니다 (Claude Code 가 응답 도중 언어를 섞기 시작하기 때문 — [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) 참조).
 
 ## 빠른 시작
 
@@ -33,107 +35,122 @@
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-설치기는 `$LANG` 으로 자동 감지하고 한국어/영어 중 선택을 묻습니다. `--lang` 으로 prompt 건너뛰기:
+설치기는 locale 을 자동 감지하고 한국어/영어 중 하나만 한 번 묻고, 현재 프로젝트에 overlay 를 부착합니다.
 
 ```bash
-curl -fsSL .../install.sh | sh -s -- --lang ko        # 한국어
-curl -fsSL .../install.sh | sh -s -- --lang en        # 영어
-curl -fsSL .../install.sh | sh -s -- --lang both      # 거부됨 — 이유는 아래 ↓
+# 명시적 선택
+sh install.sh --lang ko
+sh install.sh --lang en
+
+# 거부됨 — docs/ko/impact-of-multilang-prompts.md 참조
+sh install.sh --lang both
 ```
 
-`--lang both` 는 의도적으로 거부됩니다. 두 언어를 동시에 overlay 하면 Claude Code 가 응답 중간에 언어를 섞기 시작합니다 ([docs/ko/impact-of-multilang-prompts.md](docs/ko/impact-of-multilang-prompts.md) 참조). 나중에 `genasis lang switch <lang>` 로 atomic 교체하세요.
-
-## 기능
+## 한눈에 보기
 
 | | |
 |---|---|
-| 🔗 **Plane 연동** | 직접 REST (MCP 안 씀). upstream vs agent-aware flavor 자동 감지. [문서](docs/ko/PROVIDERS.md) |
-| 💬 **Mattermost 봇** | role 별 봇 1개, Plane 이슈별 스레드. |
-| 🧪 **TDD 강제** | In Review → Done 전환 전제로 `unit: pass` + `integration: pass` 필수. |
-| 🎨 **Design hot-swap** | `genasis design swap <ref-url>` 로 `docs/design-system.md` 재생성 + 영향 영역 Plane 이슈 자동 발행. |
-| 🗄 **Schema-as-code** | 읽기는 SQL guard 통과, 쓰기는 Atlas / Drizzle Kit / DuckDB raw runner. |
-| 📊 **Monitor TUI** | Ratatui 대시보드: sprint, tokens, agents, deploy LED, network, log tail. |
-| 🌐 **i18n** | 영어/한국어 install-time 선택. `--lang both` 거부. `genasis lang switch` 로 atomic 교체. |
-| 💰 **Token economics** | RTK 자동 wrap + Anthropic prompt-cache 친화적 stable prefix + trim hook. |
+| **비파괴 overlay** | `.claude/agents/*.md` 안의 marker fence. `detach` 가 모두 제거. |
+| **Plane 연동** | 직접 REST. upstream vs. agent-aware flavor 자동 감지. |
+| **Mattermost 오케스트레이션** | role 별 봇 1개, Plane 이슈별 스레드 1개. |
+| **TDD 강제** | 모든 In Review → Done 전환 전제로 `unit: pass` + `integration: pass`. |
+| **Design hot-swap** | `genasis design swap <ref-url>` 가 `docs/design-system.md` 재생성 + 영향 영역 Plane 이슈 자동 발행. |
+| **Schema-as-code** | 읽기는 SQL guard, 쓰기는 Atlas / Drizzle Kit / DuckDB raw runner. |
+| **Monitor TUI** | Ratatui 대시보드: sprint, tokens, agents, deploy LED, network, log tail. |
+| **i18n** | 영어/한국어 install-time 선택. atomic `lang switch`. 동시에 한 언어만. |
 
-## 데모
+## 사용법
 
-(`docs/assets/demo.cast` 의 asciinema 영상은 첫 release 후 추가 예정.)
+```bash
+genasis init              # 빈 프로젝트 → ECC 팀 + overlay + Plane/MM 프로비저닝
+genasis attach            # 기존 팀 → overlay 부착
+genasis detach            # overlay 제거 (marker fence 만)
+genasis doctor            # 환경/도구/locale 상태 검증
+genasis upgrade           # overlay 버전 bump (fence 해시 diff)
 
-## 문서
+genasis monitor           # Ratatui TUI
 
-| 문서 | 영어 mirror |
-|---|---|
-| [`blueprint.ko.md`](blueprint.ko.md) | [`blueprint.md`](blueprint.md) |
-| [`progress.ko.md`](progress.ko.md) | [`progress.md`](progress.md) |
-| [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (영어 번역 대기) |
-| [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) | [`docs/PROVIDERS.md`](docs/PROVIDERS.md) (영어 번역 대기) |
-| [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) | [`docs/MIGRATION-FROM-GENESIS.md`](docs/MIGRATION-FROM-GENESIS.md) (영어 번역 대기) |
-| [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) | [`docs/TOKEN-ECONOMICS.md`](docs/TOKEN-ECONOMICS.md) (영어 번역 대기) |
-| [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) | [`docs/MONITOR.md`](docs/MONITOR.md) (영어 번역 대기) |
-| [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) |
-| [ADR-001 ~ ADR-007 (한국어)](docs/ko/ADR/) | [ADR-001 ~ ADR-008 (영어)](docs/ADR/) |
+genasis lang status       # 현재 locale + reference docs
+genasis lang switch <en|ko>
 
-> **번역 상태**: ADR-008 (i18n 결정) 은 영어 source-of-truth. 나머지 영어 mirror 는 stub 상태이며 한국어 canonical 을 가리킵니다. 각 release tag 직전에 release-prep 워크플로가 자동으로 `[i18n] Translation completion for vX.Y.Z` PR 을 엽니다.
+genasis design swap <reference-url>
+genasis db query "SELECT ..."
+genasis db migrate
+```
 
 ## 아키텍처
 
 ```mermaid
 flowchart TB
-  L0["L0 — 기존 사용자 팀<br/>(.claude/agents/*.md, src/, DB)"]
+  L0["L0 — 기존 사용자 팀<br/>(.claude/agents/*.md, src/, 대상 앱 DB)"]
   L1["L1 — Genasis Overlay<br/>(marker fence, GENASIS.md, .claude/genasis/)"]
-  L2["L2 — Genasis Rust 바이너리<br/>(init / attach / db / design / monitor / lang)"]
+  L2["L2 — Genasis 바이너리<br/>(init / attach / db / design / monitor / lang)"]
   L3["L3 — Plane / Mattermost / GitHub"]
   L0 -. 보존 .-> L1
-  L2 -- 생성/병합 --> L1
+  L2 -- 생성·병합 --> L1
   L1 -- 직접 API --> L3
 ```
 
 ## 비교
 
-| 기능 | Genasis | ECC | knowledge-work-plugins | claude-code-templates |
+| | **Genasis** | ECC | knowledge-work-plugins | claude-code-templates |
 |---|---|---|---|---|
 | 비파괴 overlay | ✅ | — | — | — |
-| Plane 연동 | ✅ 직접 API | 수동 | — | — |
-| Mattermost 봇 오케스트레이션 | ✅ agent 별 | — | — | — |
+| Plane (직접 API) | ✅ | 수동 | — | — |
+| role 별 Mattermost 봇 | ✅ | — | — | — |
 | Design hot-swap | ✅ | — | — | — |
-| Schema-as-code | ✅ Atlas/Drizzle/raw | — | — | — |
+| Schema-as-code | ✅ | — | — | — |
 | Monitor TUI | ✅ Ratatui | — | — | — |
-| Install-time i18n (en/ko) | ✅ active singularity | — | — | — |
-| 단일 Rust 바이너리 | ✅ | — (bash) | — (npm) | — (npm) |
+| Install-time i18n | ✅ en / ko | — | — | — |
+| 단일 Rust 바이너리 | ✅ | bash | npm | npm |
 
-## 로드맵
+## 문서
 
-마일스톤별 추적은 [`progress.ko.md`](progress.ko.md) 참조. 현재 **M12 — 다국어 지원** 진행 중.
+| | English | 한국어 |
+|---|---|---|
+| Blueprint | [`blueprint.md`](blueprint.md) | [`blueprint.ko.md`](blueprint.ko.md) |
+| Progress tracker | [`progress.md`](progress.md) | [`progress.ko.md`](progress.ko.md) |
+| Architecture | _번역 대기_ | [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) |
+| Providers | _번역 대기_ | [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) |
+| Genesis 마이그레이션 | _번역 대기_ | [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) |
+| Token economics | _번역 대기_ | [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) |
+| Monitor TUI | _번역 대기_ | [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) |
+| 다국어 prompt 영향 | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
+| ADR | [`docs/ADR/`](docs/ADR/) | [`docs/ko/ADR/`](docs/ko/ADR/) |
 
-주요 마일스톤:
+> **번역 상태.** ADR-008 (i18n 결정) 은 영어 source-of-truth. 나머지 영어 mirror 는 M12.7.b 가 land 할 때까지 한국어 canonical 을 가리키는 stub 입니다. 각 release tag 직전에 release-prep 워크플로가 자동으로 `[i18n] Translation completion for vX.Y.Z` PR 을 엽니다.
 
-- M0–M11 (2026-05-03) — workspace 부트스트랩, provider, DB 커널, design hot-swap, monitor TUI, ADR 1–7
-- **M12 (현재)** — install-time `--lang` selector, rust-i18n 런타임, 듀얼 트리 문서, release-prep 자동화
-- v0.1.0 (예정) — M12.7.b 번역 완성 후 첫 공개 release
+## 상태
+
+Pre-release. M11 까지의 기능은 자리잡았고 M12 (i18n) 마무리 단계. 진행은 [`progress.ko.md`](progress.ko.md) 추적.
 
 ## 기여
 
-새 언어 추가 전 [`docs/ko/i18n/CONTRIBUTE-LANG.md`](docs/ko/i18n/CONTRIBUTE-LANG.md) 를 읽으세요. 그 외에는 추가하고 싶은 항목을 Issue 로 열어 마일스톤 추적에 맞춰드립니다.
+새 언어 추가는 4-surface PR 입니다 ([가이드](docs/ko/i18n/CONTRIBUTE-LANG.md)). 그 외에는 Issue 로 열어 마일스톤 추적에 맞춰드립니다.
 
 PR 컨벤션:
 
 - Conventional Commits (`feat / fix / docs / chore / i18n`).
-- 모든 user-facing 문자열은 `t!()` 를 거쳐 **`en.yml` 과 `ko.yml` 양쪽**에 들어갑니다.
-- 영어 문서 변경은 한국어 mirror 도 같이 갱신하거나 `lint-i18n` warning 을 감수합니다. Release tag 시점엔 drift hard-fail.
+- 새 user-facing 문자열은 `t!()` 를 거쳐 **`en.yml` 과 `ko.yml` 양쪽**에 들어갑니다.
+- 영어 문서 변경은 mirror drift 를 CI 가 warn 하고, release tag 시점엔 hard-fail.
 
 ## Star 추이
 
 <a href="https://star-history.com/#claude-genasis/genasis">
-  <img src="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date" alt="Star History" width="600">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date&theme=dark">
+    <img src="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date" alt="Star 추이" width="640">
+  </picture>
 </a>
 
 ## 라이선스
 
-MIT — [LICENSE](LICENSE) 참조.
+MIT — [`LICENSE`](LICENSE) 참조.
 
----
+<div align="center">
 
-### 다른 언어 / Other languages
-- 🇰🇷 [한국어](README.ko.md)
-- 🇺🇸 [English](README.md)
+기능 출시에 시간을 쓰고 싶지, 에이전트 glue 유지보수에 쓰고 싶지 않은 팀을 위해 만들어졌습니다.
+
+[**한국어**](README.ko.md)&nbsp;·&nbsp;[**English**](README.md)
+
+</div>

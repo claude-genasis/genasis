@@ -1,31 +1,33 @@
+<div align="center">
+
 # Genasis
 
-<p align="center">
-  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue?style=flat-square" alt="English"></a>
-  <a href="README.ko.md"><img src="https://img.shields.io/badge/%EC%96%B8%EC%96%B4-%ED%95%9C%EA%B5%AD%EC%96%B4-red?style=flat-square" alt="한국어"></a>
-  <a href="docs/i18n/CONTRIBUTE-LANG.md"><img src="https://img.shields.io/badge/+-add%20language-lightgrey?style=flat-square" alt="Add a language"></a>
-</p>
+**Bolt-on agentic team layer for Claude Code.**
+Plane × Mattermost × TDD × Design hot-swap × Schema-as-code × Monitor — non-destructively attached to *any* existing agent team.
 
-> 🇺🇸 **English** | [🇰🇷 한국어](README.ko.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
+[![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
+[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
 
-> **Plane × Mattermost × TDD × Design × DB × Monitor — overlay (not rewrite) for any Claude Code agent team.** Install with one curl command. Korean and English supported, single-language at a time, no model drift.
->
-> Tags: `claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `claude-skills`
+[**English**](README.md)&nbsp;·&nbsp;[**한국어**](README.ko.md)&nbsp;·&nbsp;[Add a language](docs/i18n/CONTRIBUTE-LANG.md)
 
-<p align="center">
-  <a href="https://github.com/claude-genasis/genasis/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square" alt="License"></a>
-  <a href="https://github.com/claude-genasis/genasis/releases"><img src="https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&label=release" alt="Release"></a>
-  <a href="https://github.com/claude-genasis/genasis/stargazers"><img src="https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square" alt="Stars"></a>
-</p>
+</div>
+
+---
+
+`claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `claude-skills`
 
 ---
 
 ## Why Genasis
 
-- **Don't rewrite your team.** Genasis attaches a **non-destructive overlay** onto your existing `.claude/agents/*.md`, leaving everything outside marker fences untouched.
-- **One-command Plane + Mattermost + TDD + Design hot-swap + Schema-as-code + Monitor.** Built for teams that are tired of duct-taping these layers themselves.
-- **Single Rust binary, single active language at install time.** No Python, no Node runtime in the hot path; no Korean/English mixed-context model drift.
+Most teams running Claude Code end up duct-taping the same six layers — issue tracking, chat-based scrum, TDD enforcement, design hand-off, database schema discipline, and a "what is the team doing right now" dashboard. They each demand their own glue, and most of the glue is bash that nobody wants to maintain.
+
+Genasis bundles those layers as a **single Rust binary** that attaches a non-destructive overlay onto your existing `.claude/agents/*.md`. Marker fences hold everything Genasis manages; everything outside the fences stays exactly as you wrote it. `genasis detach` removes it cleanly — fully reversible, fully idempotent.
+
+It's localised: install it in **English or Korean**, switch atomically with `genasis lang switch`, and never let two languages share an agent context (Claude Code drifts mid-response when they do — see [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md)).
 
 ## Quickstart
 
@@ -33,107 +35,122 @@
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-The installer auto-detects your locale (`$LANG`) and asks you whether to install English or Korean instructions. Skip the prompt with `--lang`:
+The installer auto-detects your locale, asks once whether you want English or Korean instructions, and bolts the overlay onto your current project.
 
 ```bash
-curl -fsSL .../install.sh | sh -s -- --lang en        # English
-curl -fsSL .../install.sh | sh -s -- --lang ko        # Korean
-curl -fsSL .../install.sh | sh -s -- --lang both      # Rejected — see why ↓
+# explicit
+sh install.sh --lang en
+sh install.sh --lang ko
+
+# rejected — see docs/impact-of-multilang-prompts.md
+sh install.sh --lang both
 ```
 
-`--lang both` is rejected by design. Both-language overlays cause Claude Code to drift mid-response (see [docs/impact-of-multilang-prompts.md](docs/impact-of-multilang-prompts.md)). Use `genasis lang switch <lang>` to swap atomically later.
-
-## Features
+## At a glance
 
 | | |
 |---|---|
-| 🔗 **Plane integration** | Direct REST (no MCP). Auto-detects upstream vs agent-aware flavor. [docs](docs/ko/PROVIDERS.md) |
-| 💬 **Mattermost bot** | One bot per agent role, threaded per Plane issue. |
-| 🧪 **TDD enforcement** | `unit: pass` + `integration: pass` mandatory for In Review → Done. |
-| 🎨 **Design hot-swap** | `genasis design swap <ref-url>` regenerates `docs/design-system.md` and emits Plane issues for impacted areas. |
-| 🗄 **Schema-as-code** | Read via SQL guard, write via Atlas / Drizzle Kit / DuckDB raw runner. |
-| 📊 **Monitor TUI** | Ratatui dashboard: sprint, tokens, agents, deploy LEDs, network, log tail. |
-| 🌐 **i18n** | English / Korean install-time selector. `--lang both` rejected. `genasis lang switch` for atomic swaps. |
-| 💰 **Token economics** | RTK auto-wrap + Anthropic prompt-cache friendly stable prefix + trim hook. |
+| **Non-destructive overlay** | Marker fences inside `.claude/agents/*.md`. `detach` removes everything. |
+| **Plane integration** | Direct REST. Auto-detects upstream vs. agent-aware flavor. |
+| **Mattermost orchestration** | One bot per agent role; one thread per Plane issue. |
+| **TDD enforcement** | `unit: pass` + `integration: pass` gate every In Review → Done. |
+| **Design hot-swap** | `genasis design swap <ref-url>` regenerates `docs/design-system.md` and emits Plane issues for impacted areas. |
+| **Schema-as-code** | Read via SQL guard, write via Atlas / Drizzle Kit / DuckDB raw runner. |
+| **Monitor TUI** | Ratatui dashboard: sprint, tokens, agents, deploy LEDs, network, log tail. |
+| **i18n** | English / Korean install-time selector. Atomic `lang switch`. Single-language at a time. |
 
-## Demo
+## Usage
 
-(asciinema cast lives at `docs/assets/demo.cast` once recorded — wire it after first release.)
+```bash
+genasis init              # blank project → ECC team + overlay + Plane/MM provisioning
+genasis attach            # existing team → bolt overlay on
+genasis detach            # remove overlay (marker fences only)
+genasis doctor            # verify env / tools / locale state
+genasis upgrade           # bump overlay version (fence-hash diff)
 
-## Documentation
+genasis monitor           # Ratatui TUI
 
-| Doc | Korean mirror |
-|---|---|
-| [`blueprint.md`](blueprint.md) | [`blueprint.ko.md`](blueprint.ko.md) |
-| [`progress.md`](progress.md) | [`progress.ko.md`](progress.ko.md) |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (pending) | [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) |
-| [`docs/PROVIDERS.md`](docs/PROVIDERS.md) (pending) | [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) |
-| [`docs/MIGRATION-FROM-GENESIS.md`](docs/MIGRATION-FROM-GENESIS.md) (pending) | [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) |
-| [`docs/TOKEN-ECONOMICS.md`](docs/TOKEN-ECONOMICS.md) (pending) | [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) |
-| [`docs/MONITOR.md`](docs/MONITOR.md) (pending) | [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) |
-| [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
-| [ADR-001 ~ ADR-008](docs/ADR/) | [ADR-001 ~ ADR-007 (ko)](docs/ko/ADR/) |
+genasis lang status       # current locale + reference docs
+genasis lang switch <en|ko>
 
-> **Translation status**: ADR-008 (i18n decision) is canonical English. The remaining English mirrors are stubs that point at the Korean canonical. The release-prep workflow auto-opens a `[i18n] Translation completion for vX.Y.Z` PR before each release tag.
+genasis design swap <reference-url>
+genasis db query "SELECT ..."
+genasis db migrate
+```
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  L0["L0 — Your existing team<br/>(.claude/agents/*.md, src/, DB)"]
+  L0["L0 — Your existing team<br/>(.claude/agents/*.md, src/, target-app DB)"]
   L1["L1 — Genasis Overlay<br/>(marker fences, GENASIS.md, .claude/genasis/)"]
-  L2["L2 — Genasis Rust binary<br/>(init / attach / db / design / monitor / lang)"]
+  L2["L2 — Genasis binary<br/>(init / attach / db / design / monitor / lang)"]
   L3["L3 — Plane / Mattermost / GitHub"]
   L0 -. preserved .-> L1
-  L2 -- generates / merges --> L1
+  L2 -- generates · merges --> L1
   L1 -- direct API --> L3
 ```
 
 ## Comparison
 
-| Feature | Genasis | ECC | knowledge-work-plugins | claude-code-templates |
+| | **Genasis** | ECC | knowledge-work-plugins | claude-code-templates |
 |---|---|---|---|---|
 | Non-destructive overlay | ✅ | — | — | — |
-| Plane integration | ✅ direct API | manual | — | — |
-| Mattermost bot orchestration | ✅ per-agent | — | — | — |
+| Plane (direct API) | ✅ | manual | — | — |
+| Mattermost bot per role | ✅ | — | — | — |
 | Design hot-swap | ✅ | — | — | — |
-| Schema-as-code | ✅ Atlas/Drizzle/raw | — | — | — |
+| Schema-as-code | ✅ | — | — | — |
 | Monitor TUI | ✅ Ratatui | — | — | — |
-| Install-time i18n (en/ko) | ✅ active singularity | — | — | — |
-| Single Rust binary | ✅ | — (bash) | — (npm) | — (npm) |
+| Install-time i18n | ✅ en / ko | — | — | — |
+| Single Rust binary | ✅ | bash | npm | npm |
 
-## Roadmap
+## Documentation
 
-See [`progress.md`](progress.md) for the milestone-by-milestone tracker. Currently in **M12 — Internationalization**.
+| | English | 한국어 |
+|---|---|---|
+| Blueprint | [`blueprint.md`](blueprint.md) | [`blueprint.ko.md`](blueprint.ko.md) |
+| Progress tracker | [`progress.md`](progress.md) | [`progress.ko.md`](progress.ko.md) |
+| Architecture | _pending_ | [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) |
+| Providers | _pending_ | [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) |
+| Migrating from Genesis | _pending_ | [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) |
+| Token economics | _pending_ | [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) |
+| Monitor TUI | _pending_ | [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) |
+| Multilingual prompt impact | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
+| ADRs | [`docs/ADR/`](docs/ADR/) | [`docs/ko/ADR/`](docs/ko/ADR/) |
 
-Major milestones:
+> **Translation status.** ADR-008 (i18n decision) is canonical English. The other English mirrors are stubs that point at the Korean canonical until M12.7.b lands. The release-prep workflow auto-opens an `[i18n] Translation completion for vX.Y.Z` PR before each release tag.
 
-- M0–M11 (2026-05-03) — workspace bootstrap, providers, DB kernel, design hot-swap, monitor TUI, ADRs 1–7
-- **M12 (current)** — install-time `--lang` selector, rust-i18n runtime, dual-tree docs, release-prep automation
-- v0.1.0 (planned) — first public release after M12.7.b translation completion lands
+## Status
+
+Pre-release. Functionality below the M11 line is in place; M12 (i18n) is wrapping up. Track progress in [`progress.md`](progress.md).
 
 ## Contributing
 
-Read [`docs/i18n/CONTRIBUTE-LANG.md`](docs/i18n/CONTRIBUTE-LANG.md) before adding a new language. For everything else, open an Issue describing what you want to add and we'll line it up against the milestone tracker.
+Adding a new language is a four-surface PR ([guide](docs/i18n/CONTRIBUTE-LANG.md)). Everything else: open an Issue, we'll line it up against the milestone tracker.
 
 PR conventions:
 
 - Conventional Commits (`feat / fix / docs / chore / i18n`).
-- All user-facing strings go through `t!()` and land in **both** `en.yml` and `ko.yml`.
-- All English documentation changes either update the Korean mirror or accept the warning from `lint-i18n`. Release tags hard-fail on drift.
+- New user-facing strings go through `t!()` and land in **both** `en.yml` and `ko.yml`.
+- English doc edits warn on mirror drift in CI; release tags hard-fail.
 
 ## Star history
 
 <a href="https://star-history.com/#claude-genasis/genasis">
-  <img src="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date" alt="Star History" width="600">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date&theme=dark">
+    <img src="https://api.star-history.com/svg?repos=claude-genasis/genasis&type=Date" alt="Star history" width="640">
+  </picture>
 </a>
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [`LICENSE`](LICENSE).
 
----
+<div align="center">
 
-### Other languages / 다른 언어
-- 🇺🇸 [English](README.md)
-- 🇰🇷 [한국어](README.ko.md)
+Made for teams that would rather ship features than maintain agent glue.
+
+[**English**](README.md)&nbsp;·&nbsp;[**한국어**](README.ko.md)
+
+</div>

@@ -1,0 +1,46 @@
+title: Genasis
+description: Bolt-on agentic team layer for Claude Code — Plane × Mattermost × TDD × Design × DB × Monitor.
+url: https://claude-genasis.github.io
+baseurl: /genasis
+repository: claude-genasis/genasis
+twitter_username: ""
+github_username: claude-genasis
+
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Skip everything except the explicit landing pages so the GitHub Pages
+# build stays small and predictable.
+include:
+  - index.html
+  - en/
+  - ko/
+  - assets/
+
+exclude:
+  - "**/*.tera"
+  - "**/*.rs"
+  - target/
+  - node_modules/
+  - crates/
+  - tests/
+  - scripts/
+  - install.sh
+  - Cargo.toml
+  - Cargo.lock
+  - rust-toolchain.toml
+  - rustfmt.toml
+  - clippy.toml
+
+defaults:
+  - scope:
+      path: "en"
+    values:
+      lang: en
+      layout: default
+  - scope:
+      path: "ko"
+    values:
+      lang: ko
+      layout: default

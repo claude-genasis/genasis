@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1320"/>
+      <stop offset="100%" stop-color="#1a2335"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7aa2f7"/>
+      <stop offset="100%" stop-color="#bb9af7"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <!-- left rule -->
+  <rect x="80" y="180" width="6" height="280" fill="url(#accent)" rx="3"/>
+  <!-- title -->
+  <text x="120" y="240" fill="#e6eafc" font-size="100" font-weight="700">Genasis</text>
+  <text x="120" y="305" fill="#7aa2f7" font-size="34" font-weight="500">Bolt-on agentic team layer for Claude Code</text>
+  <!-- pillars -->
+  <g font-size="28" fill="#aab4cf" font-weight="500">
+    <text x="120" y="385">Plane × Mattermost × TDD × Design × DB × Monitor</text>
+  </g>
+  <!-- footer chips -->
+  <g font-size="22" fill="#7aa2f7" font-weight="600">
+    <rect x="120" y="510" rx="6" ry="6" width="155" height="42" fill="#1f2940" stroke="#2a3654" stroke-width="1"/>
+    <text x="138" y="538">Rust binary</text>
+    <rect x="290" y="510" rx="6" ry="6" width="138" height="42" fill="#1f2940" stroke="#2a3654" stroke-width="1"/>
+    <text x="308" y="538">en · ko</text>
+    <rect x="442" y="510" rx="6" ry="6" width="200" height="42" fill="#1f2940" stroke="#2a3654" stroke-width="1"/>
+    <text x="460" y="538">Non-destructive</text>
+    <rect x="657" y="510" rx="6" ry="6" width="138" height="42" fill="#1f2940" stroke="#2a3654" stroke-width="1"/>
+    <text x="675" y="538">Reversible</text>
+  </g>
+  <!-- bottom-right URL -->
+  <text x="1160" y="600" fill="#7aa2f7" font-size="20" text-anchor="end" font-weight="500">github.com/claude-genasis/genasis</text>
+</svg>
