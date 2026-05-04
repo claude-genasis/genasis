@@ -7,11 +7,13 @@ mod cmd_design;
 mod cmd_detach;
 mod cmd_doctor;
 mod cmd_init;
+mod cmd_lang;
 mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
 mod cmd_upgrade;
 mod cmd_version;
+mod lang_prompt;
 mod tui_attach;
 
 #[derive(Parser)]
@@ -57,6 +59,8 @@ enum Cmd {
     Monitor(cmd_monitor::Args),
     /// Print version metadata
     Version(cmd_version::Args),
+    /// Inspect or change the active agent-context language
+    Lang(cmd_lang::Args),
 }
 
 #[tokio::main]
@@ -85,6 +89,7 @@ async fn main() -> Result<()> {
         Cmd::Mm(a) => cmd_mm::run(a).await,
         Cmd::Monitor(a) => cmd_monitor::run(a).await,
         Cmd::Version(a) => cmd_version::run(a).await,
+        Cmd::Lang(a) => cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await,
     }
 }
 

@@ -22,6 +22,52 @@ pub struct Config {
     pub db: Option<DbConfig>,
     pub deploy: Option<DeployConfig>,
     pub token_economics: Option<TokenEconomicsConfig>,
+    pub i18n: Option<I18nConfig>,
+}
+
+/// Locale configuration recorded by `genasis init` / `attach` and read by
+/// every subsequent invocation. See blueprint §19.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct I18nConfig {
+    /// Active language of the installed agent context (.claude/agents/*
+    /// fence bodies, .claude/genasis/{skills,commands,hooks}/, GENASIS.md).
+    /// "en" or "ko".
+    pub active: String,
+
+    /// Language used to render marker-fence bodies. Normally equal to
+    /// `active`; carried separately so M12.5 `genasis lang switch` can
+    /// stage a transition atomically.
+    #[serde(default)]
+    pub fence_lang: String,
+
+    /// Language for CLI / TUI runtime output. Distinct from `active` so
+    /// an English-context project can still surface Korean diagnostics
+    /// to its operator.
+    #[serde(default)]
+    pub cli_lang: String,
+
+    /// On-disk reference docs in additional languages. They live under
+    /// `docs/genasis-i18n-reference/<lang>/` and are NEVER `@import`'d
+    /// into agent context.
+    #[serde(default)]
+    pub reference_langs: Vec<String>,
+
+    /// Provenance: how the active language was chosen. Diagnostic only.
+    /// "flag" | "prompt" | "lang_env" | "default".
+    #[serde(default)]
+    pub selected_via: String,
+}
+
+impl Default for I18nConfig {
+    fn default() -> Self {
+        Self {
+            active: "en".into(),
+            fence_lang: "en".into(),
+            cli_lang: "en".into(),
+            reference_langs: Vec::new(),
+            selected_via: "default".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
