@@ -78,14 +78,89 @@ fn resolve_config() -> Result<(String, String, String)> {
 }
 
 fn cmd_browse() -> Result<()> {
-    println!("=== Genasis Agent Marketplace ===\n");
-    println!("Interactive agent browser (TUI).");
-    println!("TODO: implement dialoguer/inquire interactive category → agent selection.");
-    println!("\nFor now, use:");
-    println!("  genasis agents list              # show all available agents");
-    println!("  genasis agents list --category mobile");
-    println!("  genasis agents install <name>    # install a specific agent");
-    println!("  genasis agents install --preset web-app");
+    use dialoguer::{FuzzySelect, MultiSelect, theme::ColorfulTheme};
+
+    let index_path = std::path::Path::new("agents/index.json");
+    let index_content = if index_path.exists() {
+        std::fs::read_to_string(index_path)?
+    } else {
+        anyhow::bail!("agents/index.json not found. Run `genasis agents fetch` first.");
+    };
+    let index: serde_json::Value = serde_json::from_str(&index_content)?;
+
+    let categories = index.get("categories").and_then(|c| c.as_array())
+        .context("invalid index.json")?;
+    let agents = index.get("agents").and_then(|a| a.as_array())
+        .context("invalid index.json")?;
+
+    let theme = ColorfulTheme::default();
+
+    // Step 1: Select category
+    let cat_labels: Vec<String> = categories.iter().map(|c| {
+        let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+        let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("");
+        format!("{name:<24} {desc}")
+    }).collect();
+
+    let mut cat_labels_with_all = vec!["All categories".to_string()];
+    cat_labels_with_all.extend(cat_labels);
+
+    let cat_idx = FuzzySelect::with_theme(&theme)
+        .with_prompt("Select a category (type to filter)")
+        .items(&cat_labels_with_all)
+        .default(0)
+        .interact()?;
+
+    // Step 2: Filter agents by selected category
+    let category_filter: Option<&str> = if cat_idx == 0 {
+        None
+    } else {
+        categories.get(cat_idx - 1)
+            .and_then(|c| c.get("id"))
+            .and_then(|id| id.as_str())
+    };
+
+    let filtered_agents: Vec<&serde_json::Value> = agents.iter().filter(|a| {
+        if let Some(cat) = category_filter {
+            a.get("category").and_then(|c| c.as_str()) == Some(cat)
+        } else {
+            true
+        }
+    }).collect();
+
+    if filtered_agents.is_empty() {
+        println!("No agents in this category.");
+        return Ok(());
+    }
+
+    // Step 3: Multi-select agents to install
+    let agent_labels: Vec<String> = filtered_agents.iter().map(|a| {
+        let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+        let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("");
+        format!("{name:<24} {desc}")
+    }).collect();
+
+    let selections = MultiSelect::with_theme(&theme)
+        .with_prompt("Select agents to install (Space to toggle, Enter to confirm)")
+        .items(&agent_labels)
+        .interact()?;
+
+    if selections.is_empty() {
+        println!("No agents selected.");
+        return Ok(());
+    }
+
+    // Step 4: Install selected agents
+    let (version, registry_url, _cache) = resolve_config()?;
+    for idx in selections {
+        let agent = filtered_agents[idx];
+        let name = agent.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+        println!("\nInstalling {name}...");
+        if let Err(e) = cmd_install(Some(name.to_string()), None) {
+            eprintln!("  ✗ Failed to install {name}: {e}");
+        }
+    }
+
     Ok(())
 }
 

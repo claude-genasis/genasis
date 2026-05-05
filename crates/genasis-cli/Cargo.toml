@@ -32,6 +32,8 @@ genasis-monitor.workspace = true
 genasis-templates.workspace = true
 genasis-i18n.workspace = true
 thiserror.workspace = true
+dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+console = "0.15"
 
 [dev-dependencies]
 tempfile.workspace = true
