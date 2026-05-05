@@ -167,57 +167,99 @@ fn cmd_browse() -> Result<()> {
 fn cmd_install(name: Option<String>, preset: Option<String>) -> Result<()> {
     let (version, registry_url, cache_override) = resolve_config()?;
 
+    // Ensure catalog is cached (fetch if needed)
+    ensure_catalog_cached(&version, &registry_url, &cache_override)?;
+
     if let Some(preset_name) = preset {
-        println!("Installing preset: {preset_name}");
-        // TODO: read index.json presets, resolve agent list, install each
-        println!("TODO: implement preset install (read index.json → batch install)");
-        return Ok(());
+        return install_preset(&preset_name, &version, &cache_override);
     }
 
     let agent_name = name.context(
         "specify an agent name or --preset. Run `genasis agents list` to see available agents."
     )?;
 
-    println!("Installing agent: {agent_name}...");
+    install_single_agent(&agent_name, &version, &cache_override)
+}
 
-    // Fetch individual agent .md from release assets
-    let download_url = format!(
-        "{}/download/agents-v{}/{}.md",
-        registry_url.trim_end_matches('/'),
-        version,
-        agent_name
-    );
+fn ensure_catalog_cached(version: &str, registry_url: &str, cache_override: &str) -> Result<()> {
+    if cache::is_cached(version, cache_override)? {
+        return Ok(());
+    }
+    println!("Fetching agents catalog v{version}...");
+    let tarball = registry::fetch_tarball(registry_url, version)
+        .context("failed to fetch agents catalog — check network and version")?;
+    cache::store_tarball(version, cache_override, &tarball)?;
+    println!("  ✓ Cached agents catalog v{version}");
+    Ok(())
+}
 
-    let client = reqwest::blocking::Client::builder()
-        .user_agent("genasis-cli")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
+fn install_single_agent(agent_name: &str, version: &str, cache_override: &str) -> Result<()> {
+    let dir = cache::cache_dir(version, cache_override)?;
+    let source = dir.join("base").join(format!("{agent_name}.md"));
 
-    let resp = client.get(&download_url).send()
-        .with_context(|| format!("failed to fetch agent {agent_name}"))?;
-
-    if !resp.status().is_success() {
+    if !source.exists() {
         anyhow::bail!(
-            "agent '{}' not found in registry (status {}). Run `genasis agents list` to see available.",
-            agent_name, resp.status()
+            "agent '{agent_name}' not found in catalog v{version}. Run `genasis agents list` to see available."
         );
     }
 
-    let body = resp.text()?;
-
-    // Write to .claude/agents/<name>.md
     let agents_dir = std::path::Path::new(".claude/agents");
     std::fs::create_dir_all(agents_dir)?;
     let target = agents_dir.join(format!("{agent_name}.md"));
 
     if target.exists() {
-        println!("  ⚠ {agent_name}.md already exists. Skipping (use --force to overwrite).");
+        println!("  ⚠ {agent_name}.md already exists. Skipping (use `remove` first to replace).");
         return Ok(());
     }
 
-    std::fs::write(&target, &body)?;
+    std::fs::copy(&source, &target)?;
     println!("  ✓ Installed {agent_name} → {}", target.display());
     println!("  ℹ Run `genasis attach` to inject the Plane/MM overlay protocol.");
+    Ok(())
+}
+
+fn install_preset(preset_name: &str, version: &str, cache_override: &str) -> Result<()> {
+    // Read index.json from cache to get preset definition
+    let dir = cache::cache_dir(version, cache_override)?;
+    let index_path = dir.join("manifest.json");
+    let index_content = std::fs::read_to_string(&index_path)
+        .context("catalog manifest not found in cache")?;
+    let index: serde_json::Value = serde_json::from_str(&index_content)?;
+
+    // Also check local agents/index.json for preset definitions
+    let local_index_path = std::path::Path::new("agents/index.json");
+    let presets_source = if local_index_path.exists() {
+        std::fs::read_to_string(local_index_path)?
+    } else {
+        index_content.clone()
+    };
+    let presets_json: serde_json::Value = serde_json::from_str(&presets_source)?;
+
+    let presets = presets_json.get("presets").and_then(|p| p.as_object())
+        .context("no presets defined in index")?;
+
+    let preset = presets.get(preset_name)
+        .context(format!("preset '{preset_name}' not found. Available: {}",
+            presets.keys().cloned().collect::<Vec<_>>().join(", ")))?;
+
+    let agents = preset.get("agents").and_then(|a| a.as_array())
+        .context("preset has no agents list")?;
+
+    let desc = preset.get("description").and_then(|d| d.as_str()).unwrap_or("");
+    println!("Installing preset '{preset_name}': {desc}");
+    println!("  Agents: {}\n", agents.len());
+
+    let mut installed = 0;
+    for agent_val in agents {
+        let name = agent_val.as_str().unwrap_or("");
+        if name.is_empty() { continue; }
+        match install_single_agent(name, version, cache_override) {
+            Ok(()) => installed += 1,
+            Err(e) => eprintln!("  ✗ {name}: {e}"),
+        }
+    }
+    println!("\n  ✓ Installed {installed}/{} agents from preset '{preset_name}'", agents.len());
+    println!("  ℹ Run `genasis attach` to inject overlays.");
     Ok(())
 }
 
@@ -307,14 +349,23 @@ fn cmd_fetch(version_override: Option<String>) -> Result<()> {
 
     if cache::is_cached(&version, &cache_override)? {
         println!("agents catalog v{version} already cached.");
+        let dir = cache::cache_dir(&version, &cache_override)?;
+        let count = std::fs::read_dir(dir.join("base"))
+            .map(|rd| rd.filter_map(|e| e.ok()).count())
+            .unwrap_or(0);
+        println!("  {count} agents available. Run `genasis agents browse` to install.");
         return Ok(());
     }
 
-    println!("Fetching agents catalog v{version} from registry...");
+    println!("Fetching agents catalog v{version}...");
     let tarball = registry::fetch_tarball(&registry_url, &version)
-        .context("failed to fetch agents catalog")?;
+        .context("failed to fetch agents catalog — check network and version")?;
     let dir = cache::store_tarball(&version, &cache_override, &tarball)?;
-    println!("Cached at: {}", dir.display());
+    let count = std::fs::read_dir(dir.join("base"))
+        .map(|rd| rd.filter_map(|e| e.ok()).count())
+        .unwrap_or(0);
+    println!("  ✓ Cached {count} agents at {}", dir.display());
+    println!("  Run `genasis agents browse` to install.");
     Ok(())
 }
 
