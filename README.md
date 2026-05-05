@@ -2,128 +2,75 @@
 
 # Genasis
 
-**Make AI agents first-class team members — alongside humans.**
-One command to install a full agentic team that collaborates through Plane and Mattermost, the same tools your human team already uses.
+**AI Agent Orchestration for Real Team Collaboration**
+
+Install a full agentic development team that works alongside humans — picking up tickets in Plane, discussing in Mattermost threads, running sprints, and shipping code through the same workflow your team already uses.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
 [![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
-[![Coverage](https://img.shields.io/codecov/c/github/claude-genasis/genasis?style=flat-square&logo=codecov)](https://codecov.io/gh/claude-genasis/genasis)
 [![Rust](https://img.shields.io/badge/rust-stable-orange?style=flat-square&logo=rust)](rust-toolchain.toml)
 
-[**English**](README.md)&nbsp;·&nbsp;[**한국어**](README.ko.md)&nbsp;·&nbsp;[Add a language](docs/i18n/CONTRIBUTE-LANG.md)
+[**English**](README.md)&nbsp;&nbsp;|&nbsp;&nbsp;[**한국어**](README.ko.md)
 
 </div>
 
 ---
 
-`claude-code` · `agentic-team` · `agent-orchestration` · `plane-issues` · `mattermost-bot` · `tdd` · `rust-cli` · `multi-agent` · `ratatui` · `i18n` · `한국어` · `에이전트` · `claude-skills`
+`claude-code` · `claude-code-plugins` · `claude-code-subagents` · `agentic-ai` · `ai-agent-orchestration` · `multi-agent-system` · `agentic-team` · `plane-project-management` · `mattermost-bot` · `sprint-automation` · `tdd` · `scrum-automation` · `developer-productivity` · `coding-agents` · `rust-cli` · `self-hosted-ai` · `ai-software-development`
 
 ---
 
 ## The Problem
 
-AI agents today live in a silo. They read code and write code, but they don't participate in the team's daily workflow — they don't pick up tickets, update status in the issue tracker, ask questions in the team chat, or coordinate with each other through the same channels humans use.
+AI coding agents today are **isolated tools**. They generate code when asked, but they don't:
+- Pick up tickets from your issue tracker
+- Update task status as they work
+- Ask clarifying questions in your team chat
+- Coordinate with other agents through human-visible channels
+- Run through sprint ceremonies alongside your human developers
 
-Meanwhile, every team running Claude Code ends up duct-taping the same six layers: issue tracking, chat-based scrum, TDD enforcement, design hand-off, DB schema discipline, and an agent dashboard. Most of that glue is bash that nobody wants to maintain.
+Meanwhile, every engineering team running **Claude Code** ends up building the same glue: connecting agents to Plane/Linear/Jira, wiring up Mattermost/Slack bots, enforcing TDD gates, managing design hand-offs. Most of that integration is fragile bash scripts that nobody wants to maintain.
 
 ## What Genasis Does
 
-Genasis solves both problems with a **single Rust binary**:
+Genasis turns AI agents into **real team members** with a single Rust binary:
 
-1. **Installs a curated agentic team** — 20+ best-of-breed agents (from ECC, wshobson, VoltAgent, dl-ezo) with pre-configured roles, skills, and commands. Browse by category, install individually or as presets (web-app / full-stack / mobile).
+| Capability | How it works |
+|---|---|
+| **Curated Agent Marketplace** | 20+ best-of-breed agents from [ECC](https://github.com/affaan-m/everything-claude-code), [wshobson/agents](https://github.com/wshobson/agents), [VoltAgent](https://github.com/VoltAgent/awesome-claude-code-subagents), [dl-ezo](https://github.com/dl-ezo/claude-code-sub-agents). Browse by category, install individually or as presets. |
+| **Issue Tracker Integration** | Direct Plane REST API. Agents own tickets, transition lifecycle (Todo → In Progress → In Review → Done), create sub-issues. |
+| **Team Chat Integration** | One Mattermost bot per agent role. One thread per ticket. Agents discuss, escalate, coordinate — in the same channels humans read. |
+| **Non-destructive Overlay** | Marker fences inside `.claude/agents/*.md`. Your existing agent definitions stay untouched. `genasis detach` removes everything cleanly. |
+| **Sprint Automation** | 13 slash commands + 5 hooks pre-wired: `/sprint-start`, `/issue-done`, `/db-migrate`, session hooks, QA gates. |
+| **Design System Management** | `genasis design swap` hot-swaps design tokens + auto-generates Plane issues for impacted UI areas. |
+| **Database Schema Discipline** | SQL guard (read-only), Atlas/Drizzle Kit migrations, DuckDB raw runner. |
+| **Real-time Monitor** | Ratatui TUI dashboard: sprint progress, token usage, agent activity, deploy status. |
+| **Fully Reversible** | `genasis detach` removes all genasis-managed content. Zero residue. |
 
-2. **Wires them into human collaboration tools** — Every agent gets its own Plane PAT and Mattermost bot. Agents pick up tickets, post status updates, ask questions in threads, and transition issues through the lifecycle (Todo → In Progress → In Review → Done) — all in the same boards and channels your human team reads.
+## Try It Now
 
-3. **Works for any starting point**:
-   - **No agentic team yet?** `genasis init --bootstrap` scaffolds the full team + Plane/Mattermost provisioning from scratch.
-   - **Already running agents?** `genasis attach` non-destructively overlays Plane/Mattermost integration onto your existing `.claude/agents/*.md` via marker fences. Your agent definitions stay untouched outside the fence.
-
-4. **Fully reversible** — `genasis detach` removes everything Genasis added. Marker fences only. Zero residue.
-
-## Try It Now (no server setup required)
-
-> **Don't have Plane or Mattermost?** Apply for a free trial environment at
-> [**trial.realstory.blog**](https://trial.realstory.blog) — get pre-provisioned
-> credentials to our hosted Plane + Mattermost in minutes, then skip straight
-> to step 3 below.
+> **No Plane or Mattermost server?** Get a free trial environment at
+> [**trial.realstory.blog**](https://trial.realstory.blog) — pre-provisioned
+> credentials in minutes. Skip straight to step 3.
 
 ## Quickstart
 
 ```bash
-# 1. Install genasis
+# 1. Install
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 
-# 2. Browse and install agents (interactive TUI)
-genasis agents browse
+# 2. Browse and install agents
+genasis agents browse          # interactive TUI — pick your team
 
-# 3. Connect to Plane + Mattermost (paste keys from trial or self-hosted)
-genasis init
+# 3. Connect to Plane + Mattermost
+genasis init                   # paste your API keys → done
 
-# Done! Your agentic team is running. Open Plane to see agents picking up tickets.
+# Your agentic team is live. Open Plane — agents are picking up tickets.
 ```
 
-<details>
-<summary>Language options</summary>
-
-```bash
-sh install.sh --lang en        # English agent instructions
-sh install.sh --lang ko        # Korean agent instructions
-sh install.sh --lang both      # rejected — see docs/impact-of-multilang-prompts.md
-```
-</details>
-
-## At a Glance
-
-| | |
-|---|---|
-| **Agents Catalog** | 20+ curated agents across 6 categories. Presets: web-app (9), full-stack (11), mobile (9). Fetched at runtime, not baked into the binary. |
-| **Non-destructive overlay** | Marker fences inside `.claude/agents/*.md`. `detach` removes everything. |
-| **Plane integration** | Direct REST API. Agents own tickets, transition lifecycle, create sub-issues. Auto-detects upstream vs. agent-aware Plane. |
-| **Mattermost orchestration** | One bot per agent role. One thread per Plane issue. Agents discuss, escalate, and coordinate in real-time — alongside humans. |
-| **Skills & Commands** | 13 sprint/issue commands (`/sprint-start`, `/issue-done`, `/db-migrate`, ...) + 5 hooks (session-start, branch guard, MM sync, ...) pre-wired per role. |
-| **TDD enforcement** | `unit: pass` + `integration: pass` gates every In Review → Done transition. |
-| **Design hot-swap** | `genasis design swap <ref-url>` regenerates `docs/design-system.md` and emits Plane issues for impacted areas. |
-| **Schema-as-code** | Read via SQL guard, write via Atlas / Drizzle Kit / DuckDB raw runner. |
-| **Monitor TUI** | Ratatui dashboard: sprint, tokens, agents, deploy LEDs, network, log tail. |
-| **Debug History** | Always-on drift detection. Your field modifications feed back into genasis improvement via `genasis debug submit`. |
-| **i18n** | English / Korean install-time selector. Atomic `lang switch`. Single-language at a time. |
-
-## Usage
-
-```bash
-# Team setup
-genasis init                   # blank project → bootstrap team + overlay + Plane/MM provisioning
-genasis init --bootstrap       # scaffold all 10 default agent roles from scratch
-genasis attach                 # existing team → bolt overlay on (Plane/MM integration)
-genasis detach                 # remove overlay (marker fences only)
-genasis doctor                 # verify env / tools / locale state
-genasis upgrade                # bump overlay version (fence-hash diff)
-
-# Agents catalog
-genasis agents browse          # TUI: browse agents by category, preview, install
-genasis agents install <name>  # install a single agent (e.g., frontend-developer)
-genasis agents install --preset web-app  # install preset team (9 roles)
-genasis agents list            # list available agents
-genasis agents installed       # show what's installed in this project
-genasis agents fetch           # download/update agents catalog
-
-# Operations
-genasis monitor                # Ratatui TUI dashboard
-genasis lang status            # current locale
-genasis lang switch <en|ko>    # switch agent language atomically
-genasis design swap <ref-url>  # hot-swap design system
-genasis db query "SELECT ..."  # read-only SQL
-genasis db migrate             # schema migration
-
-# Debug history (field feedback)
-genasis debug status           # drift summary for current project
-genasis debug collect          # generate anonymised patch from local modifications
-genasis debug submit           # opt-in: contribute patch to genasis improvement
-```
-
-## How Agents Collaborate with Humans
+## How Agents Work Alongside Humans
 
 ```mermaid
 sequenceDiagram
@@ -137,7 +84,7 @@ sequenceDiagram
     Plane-->>FE: Assigned (webhook)
     FE->>Plane: Todo → In Progress
     FE->>MM: "Starting work on #142"
-    FE->>FE: Write code + run tests
+    FE->>FE: Write code + tests
     FE->>Plane: In Progress → In Review
     FE->>MM: "PR #87 ready for review"
     Human->>MM: "Looks good, minor nit on L42"
@@ -149,135 +96,119 @@ sequenceDiagram
     Human->>Plane: Sees Done on board
 ```
 
-A human reviewing the Plane board or Mattermost channel cannot — and need not — distinguish whether an update came from a human or an agent.
+A human reviewing the Plane board or Mattermost channel **cannot — and need not — distinguish** whether an update came from a human or an agent.
 
-## How Genasis Gets Installed
+## Use Cases
 
-```mermaid
-flowchart LR
-    subgraph starting["Your Project"]
-        A0["No agents yet<br/>(blank project)"]
-        A1["Existing agents<br/>(.claude/agents/*.md)"]
-    end
+| Team type | How genasis helps |
+|---|---|
+| **Startup (2-5 devs)** | Multiply your small team with AI agents handling reviews, testing, security scans. Agents join your existing Plane + Mattermost. |
+| **Agency / Consultancy** | Spin up a full agentic team per client project. Preset install → immediate delivery capacity. |
+| **Enterprise squad** | Bolt genasis onto existing `.claude/agents/` without disrupting current workflows. Non-destructive overlay = zero migration risk. |
+| **Solo developer** | Full PM + architect + QA + security team for the price of one Claude Code subscription. Agents handle the process; you handle the vision. |
+| **Open-source maintainer** | Automate PR reviews, security scanning, test enforcement. Community contributors see agent feedback in the same issue threads. |
 
-    subgraph genasis["Genasis CLI"]
-        B0["genasis init<br/>--bootstrap"]
-        B1["genasis attach"]
-        B2["genasis agents<br/>browse / install"]
-    end
-
-    subgraph result["Agentic Team Running"]
-        C1["Agent .md files<br/>+ overlay fences"]
-        C2["Plane integration<br/>(tickets, lifecycle)"]
-        C3["Mattermost bots<br/>(thread per issue)"]
-        C4["Skills & Commands<br/>(13 cmds + 5 hooks)"]
-    end
-
-    A0 --> B0
-    A0 --> B2
-    A1 --> B1
-    B0 --> C1
-    B1 --> C1
-    B2 --> C1
-    C1 --> C2
-    C1 --> C3
-    C1 --> C4
-```
-
-## Contributing — Debug History Model
-
-Genasis uses a unique contribution model for continuous improvement:
-
-**You don't need to fork or clone the genasis repo.** Just use genasis in your project:
+## CLI Reference
 
 ```bash
-# 1. Install genasis and run your agentic team as usual
-genasis attach
+# Team lifecycle
+genasis init                   # provision Plane project + MM channel + attach agents
+genasis attach                 # overlay onto existing agents (non-destructive)
+genasis detach                 # remove overlay (fully reversible)
+genasis doctor                 # verify environment + connectivity
+genasis upgrade                # update overlay to latest protocol version
 
-# 2. Modify overlay files to fix bugs or adapt to your workflow
-#    (genasis tracks all changes automatically — always-on, zero-config)
+# Agent marketplace
+genasis agents browse          # interactive category → select → install
+genasis agents install <name>  # install one agent
+genasis agents install --preset web-app  # install preset team (9 roles)
+genasis agents list            # available agents in catalog
+genasis agents installed       # what's in this project
+genasis agents remove <name>   # uninstall an agent
 
-# 3. When ready, generate an anonymised patch
-genasis debug collect
+# Operations
+genasis monitor                # real-time TUI dashboard
+genasis design swap <ref>      # hot-swap design system
+genasis db query "SELECT ..."  # read-only SQL (DDL/DML blocked)
+genasis db migrate             # run schema migration
+genasis lang switch <en|ko>    # switch agent language atomically
 
-# 4. Submit to genasis improvement (opt-in, preview before sending)
-genasis debug submit
-#    → creates a GitHub Issue with structured patch data
-#    → your source code is NEVER included (overlay diffs only)
+# Continuous improvement
+genasis debug status           # local drift summary
+genasis debug collect          # generate anonymised patch
+genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
-
-The maintainer collects submitted patches and processes them via local Claude Code (`/debug-review` skill) to propose template improvements. Contributors provide signal (what changed and why); the maintainer turns that signal into code.
-
-For traditional code contributions (new features, docs), standard fork + PR applies — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-## Quality Assurance
-
-The genasis team periodically tests all curated agent definitions to ensure they produce good development outcomes. Testing covers:
-
-- **Structural validation** — frontmatter, tool declarations, overlay compatibility
-- **Integration** — Plane lifecycle transitions, Mattermost thread creation, cross-agent handoff
-- **Regression** — updated definitions don't break existing behaviors
-- **Benchmarks** — review accuracy, task completion rate, false positive tracking
-
-See `agents-pool/agents-test-method.md` for the full testing methodology.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  L0["L0 — Your existing team<br/>(.claude/agents/*.md, src/, target-app DB)"]
-  L1["L1 — Genasis Overlay<br/>(marker fences, GENASIS.md, .claude/genasis/)"]
-  L2["L2 — Genasis binary<br/>(init / attach / agents / db / design / monitor / debug)"]
-  L3["L3 — Plane / Mattermost / GitHub"]
-  L0 -. preserved .-> L1
-  L2 -- generates · merges --> L1
-  L1 -- direct API --> L3
+  L0["L0 — Your existing team<br/>.claude/agents/*.md · src/ · DB"]
+  L1["L1 — Genasis Overlay<br/>marker fences · GENASIS.md · .claude/genasis/"]
+  L2["L2 — Genasis CLI<br/>init · attach · agents · db · design · monitor"]
+  L3["L3 — Plane · Mattermost · GitHub"]
+  L0 -. "preserved (non-destructive)" .-> L1
+  L2 -- "generates + merges" --> L1
+  L1 -- "direct REST API" --> L3
 ```
 
-## Comparison
+## Comparison with Alternatives
 
-| | **Genasis** | ECC | knowledge-work-plugins | claude-code-templates |
+| Feature | **Genasis** | [ECC](https://github.com/affaan-m/everything-claude-code) | [wshobson/agents](https://github.com/wshobson/agents) | [VoltAgent](https://github.com/VoltAgent/awesome-claude-code-subagents) |
 |---|---|---|---|---|
-| Non-destructive overlay | ✅ | — | — | — |
-| Plane (direct API) | ✅ | manual | — | — |
-| Mattermost bot per role | ✅ | — | — | — |
-| Curated agents catalog (20+) | ✅ browse/install | — | — | — |
-| Sprint commands + hooks | ✅ 13 cmds + 5 hooks | — | — | — |
-| Design hot-swap | ✅ | — | — | — |
+| Issue tracker integration (Plane) | ✅ direct API | manual | — | — |
+| Team chat integration (Mattermost) | ✅ bot per role | — | — | — |
+| Non-destructive overlay | ✅ marker fences | — | — | — |
+| Agent marketplace (browse/install) | ✅ 20+ agents | 48 agents (all-or-nothing) | 185 agents (plugin model) | 131 agents (copy) |
+| Sprint automation (commands + hooks) | ✅ 13 + 5 | — | — | — |
+| Design system hot-swap | ✅ | — | — | — |
 | Schema-as-code | ✅ | — | — | — |
-| Monitor TUI | ✅ Ratatui | — | — | — |
-| Debug history feedback | ✅ | — | — | — |
-| Install-time i18n | ✅ en / ko | — | — | — |
-| Single Rust binary | ✅ | bash | npm | npm |
+| Real-time monitor TUI | ✅ Ratatui | — | — | — |
+| Reversible (clean detach) | ✅ | — | — | — |
+| Single binary (no Node/Python) | ✅ Rust | bash | npm | shell |
+| i18n (English + Korean) | ✅ | — | — | — |
 
 ## Guides
 
-| Guide | What it covers |
+| Guide | Description |
 |---|---|
-| [**Server Setup**](servers/README.md) | Self-host Plane + Mattermost with one docker-compose. Key extraction walkthrough. |
-| [**Design Swap**](docs/DESIGN-SWAP-GUIDE.md) | Replace your design system, restore, override, EPIC mode. |
-| [**Agents Marketplace**](docs/AGENTS-MARKETPLACE.md) | Browse categories, install presets, use `/install-agent` in Claude Code. |
-| [**Full Quickstart**](docs/QUICKSTART.md) | Detailed install + first attach + verify walkthrough. |
+| [**Quickstart (detailed)**](docs/QUICKSTART.md) | Full walkthrough: install → configure → first sprint |
+| [**Server Setup**](servers/README.md) | Self-host Plane + Mattermost with one `docker-compose up` |
+| [**Agents Marketplace**](docs/AGENTS-MARKETPLACE.md) | Browse categories, presets, `/install-agent` command |
+| [**Design Swap**](docs/DESIGN-SWAP-GUIDE.md) | Replace design system, override tokens, EPIC mode |
+| [**Credits & OSS Sources**](docs/CREDITS.md) | Open-source projects genasis builds upon |
 
-## Documentation (reference)
+## Acknowledgments
+
+Genasis curates and integrates agents from the open-source community.
+Full attribution with links: [**docs/CREDITS.md**](docs/CREDITS.md).
+
+| Project | What we use | License |
+|---|---|---|
+| [everything-claude-code (ECC)](https://github.com/affaan-m/everything-claude-code) | code-reviewer, architect, security-reviewer agents | MIT |
+| [wshobson/agents](https://github.com/wshobson/agents) | frontend-developer, backend-developer agents | MIT |
+| [VoltAgent](https://github.com/VoltAgent/awesome-claude-code-subagents) | qa-tester, DevOps agents | MIT |
+| [dl-ezo](https://github.com/dl-ezo/claude-code-sub-agents) | planner, requirements lifecycle agents | MIT |
+| [Plane](https://github.com/makeplane/plane) | Issue tracking + project management platform | AGPL-3.0 |
+| [Mattermost](https://github.com/mattermost/mattermost) | Team messaging + bot platform | Various |
+| [Ratatui](https://github.com/ratatui/ratatui) | Terminal UI framework (monitor dashboard) | MIT |
+
+## Documentation
 
 | | English | 한국어 |
 |---|---|---|
-| Blueprint | [`blueprint.md`](blueprint.md) | [`blueprint.ko.md`](blueprint.ko.md) |
-| Progress tracker | [`progress.md`](progress.md) | [`progress.ko.md`](progress.ko.md) |
-| Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | [`docs/ko/ARCHITECTURE.md`](docs/ko/ARCHITECTURE.md) |
-| Providers | [`docs/PROVIDERS.md`](docs/PROVIDERS.md) | [`docs/ko/PROVIDERS.md`](docs/ko/PROVIDERS.md) |
-| Migrating from Genesis | [`docs/MIGRATION-FROM-GENESIS.md`](docs/MIGRATION-FROM-GENESIS.md) | [`docs/ko/MIGRATION-FROM-GENESIS.md`](docs/ko/MIGRATION-FROM-GENESIS.md) |
-| Token economics | [`docs/TOKEN-ECONOMICS.md`](docs/TOKEN-ECONOMICS.md) | [`docs/ko/TOKEN-ECONOMICS.md`](docs/ko/TOKEN-ECONOMICS.md) |
-| Monitor TUI | [`docs/MONITOR.md`](docs/MONITOR.md) | [`docs/ko/MONITOR.md`](docs/ko/MONITOR.md) |
-| Multilingual prompt impact | [`docs/impact-of-multilang-prompts.md`](docs/impact-of-multilang-prompts.md) | [`docs/ko/impact-of-multilang-prompts.md`](docs/ko/impact-of-multilang-prompts.md) |
-| ADRs | [`docs/ADR/`](docs/ADR/) | [`docs/ko/ADR/`](docs/ko/ADR/) |
+| Blueprint | [blueprint.md](blueprint.md) | [blueprint.ko.md](blueprint.ko.md) |
+| Progress | [progress.md](progress.md) | [progress.ko.md](progress.ko.md) |
+| Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | [docs/ko/ARCHITECTURE.md](docs/ko/ARCHITECTURE.md) |
+| Providers | [docs/PROVIDERS.md](docs/PROVIDERS.md) | [docs/ko/PROVIDERS.md](docs/ko/PROVIDERS.md) |
+| Token Economics | [docs/TOKEN-ECONOMICS.md](docs/TOKEN-ECONOMICS.md) | [docs/ko/TOKEN-ECONOMICS.md](docs/ko/TOKEN-ECONOMICS.md) |
+| ADRs | [docs/ADR/](docs/ADR/) | [docs/ko/ADR/](docs/ko/ADR/) |
 
-## Status
+## Contributing
 
-Pre-release. M0–M12 + Phase D (design catalog) complete. **Phase E** (Dynamic Agents Catalog — ADR-011) in progress. **Phase F** (Debug History — ADR-012) designed. Track progress in [`progress.md`](progress.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Genasis also accepts **debug-history patches** — field modifications that feed back into improvement without requiring fork + PR. Run `genasis debug submit` from your project.
 
-## Star history
+## Star History
 
 <a href="https://star-history.com/#claude-genasis/genasis">
   <picture>
@@ -292,8 +223,8 @@ MIT — see [`LICENSE`](LICENSE).
 
 <div align="center">
 
-Made for teams that want AI agents to be real team members, not just code generators.
+Made for engineering teams that want AI agents to be real team members, not isolated code generators.
 
-[**English**](README.md)&nbsp;·&nbsp;[**한국어**](README.ko.md)
+[**English**](README.md)&nbsp;&nbsp;|&nbsp;&nbsp;[**한국어**](README.ko.md)
 
 </div>
