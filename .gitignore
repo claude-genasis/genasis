@@ -38,10 +38,9 @@ Thumbs.db
 # Node sub-process (Plane provisioning) deps
 crates/genasis-cli/scripts/node_modules/
 
-# agents-pool private submodule (not tracked in public repo)
-# The submodule itself is registered in .gitmodules (private URL),
-# but its contents should never leak into genasis commits.
-agents-pool/
+# agents-pool is a private submodule (registered in .gitmodules).
+# Users without access simply get an empty directory on clone.
+# Do NOT add agents-pool/ to .gitignore — submodules need index tracking.
 
 # agents/base/ does NOT belong in public repo — base agents are
 # distributed only via release tarballs built by agents-pool.

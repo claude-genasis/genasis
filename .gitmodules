@@ -1,0 +1,3 @@
+[submodule "agents-pool"]
+	path = agents-pool
+	url = https://github.com/claude-genasis/agents-pool.git

@@ -322,25 +322,27 @@ debug-history through a strict separation of concerns:
 - No executable content (reject if diff contains shebang, backticks in non-diff context, etc.)
 - Auto-label: [debug-history]
 - Auto-assign: maintainer
+# NO API keys, NO secrets — pure data validation only
 ```
 
 #### Maintainer's automated development flow
 
-The maintainer (repo owner) uses Claude Code with the `/debug-review`
-skill to process accumulated patches:
+The maintainer (repo owner) uses **local Claude Code** (not CI, not API)
+with the `/debug-review` skill to process accumulated patches:
 
-1. **Trigger**: manually or on schedule (e.g., weekly)
+1. **Trigger**: maintainer opens Claude Code locally in the genasis repo
 2. **Input**: all unresolved patches in `debug-history/patches/`
-3. **Output**: auto-generated branch with template fixes + PR
-4. **Review**: maintainer reviews the auto-PR, approves or iterates
-5. **Close loop**: merged fixes → tag patches as resolved → next release
-   includes improvements
+3. **Process**: `/debug-review` skill reads patches, proposes template Edits
+4. **Review**: maintainer reviews changes in-session, accepts or iterates
+5. **Commit**: maintainer commits and pushes the fix
+6. **Close loop**: merged fixes → tag patches as resolved → next release
 
-This means:
+**No API keys used. No cloud automation.** The maintainer's Claude Code
+Pro subscription is the only resource needed. This ensures:
 - **Zero risk from contributors** — they can only add data
+- **Zero API cost** — Claude Code Pro covers all analysis
+- **Full maintainer control** — every change reviewed in-session
 - **Maximum signal extraction** — all patches are machine-analysed
-- **Minimal maintainer effort** — Claude Code does the heavy lifting;
-  maintainer only approves/rejects auto-PRs
 - **Audit trail** — every fix links back to the patches that motivated it
 
 ## CLI Surface Addition
