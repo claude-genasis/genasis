@@ -57,6 +57,21 @@ design:
     post_swap_2: "  • Preview the active design: %{preview_url}"
     post_swap_3: "  • Browse alternatives: %{gallery_url}"
     post_swap_4: "  • Restore the pristine body anytime: `genasis design restore`"
+    mattermost_template_header: "Mattermost announcement (post via your provider client):"
+    mattermost_template_body: "  🚨 DESIGN CHANGE: %{from} → %{to} | preview: %{preview_url} | issues planned: %{issue_count}"
+  plan:
+    per_area_header: "Planned issues — per-area mode (%{count}):"
+    full_rewrite_header: "Planned issues — full-rewrite mode (areas=%{areas} ≥ threshold=%{threshold}):"
+  verify:
+    pristine_skip: "design is in pristine mode — nothing to verify"
+    ok: "design verify: OK (hash %{hash_short}…)"
+    tampered: "design verify: TAMPERED — recorded %{expected}…, actual %{actual}…"
+  override:
+    added: "→ override added: %{id} (at %{applied_at})"
+    list_header: "user overrides (%{count}):"
+    list_empty: "no user overrides recorded"
+    removed: "→ override removed: %{id}"
+    not_found: "no override with id: %{id}"
   status:
     file_size: "design-system.md: %{bytes} bytes"
     missing: "design-system.md: missing — run `genasis attach` first."
@@ -84,6 +99,17 @@ init:
 
 doctor:
   header: "Genasis doctor"
+  design:
+    section: "[design]"
+    mode_pristine: "mode: pristine (docs/design-system.md is the local truth)"
+    mode_external: "mode: external (slug=%{slug})"
+    npx_missing_optional: "npx (optional for slug swap): MISSING — install Node ≥18 if you plan to use `genasis design swap <slug>`"
+    npx_missing_required: "npx (required): ✗ MISSING — `genasis design swap <slug>` will fail. Install Node ≥18."
+    verify_ok: "verify: OK (sha256 %{hash_short}…)"
+    verify_tampered: "verify: TAMPERED — recorded %{expected}…, actual %{actual}…. Run `genasis design verify` for details."
+    verify_error: "verify: ERROR — %{reason}"
+    pointer_missing: "docs/design-system.md missing — pointer body was never written. Run `genasis attach`."
+    extdir_missing: "external dir missing: %{path}"
   i18n:
     section: "[i18n]"
     runtime_locale: "CLI/TUI runtime locale: %{lang} (source: %{source})"
@@ -143,9 +169,10 @@ monitor:
     deploy: "Deploy"
     network: "Network"
     log_tail: "Log"
+    design: "Design"
   status:
     idle: idle
     in_progress: "In Progress"
     in_review: "In Review"
     done: Done
-  key_hint: "[1-5] focus  [o] open  [b] build  [d] deploy  [r] rollback  [v] visited  [q] quit"
+  key_hint: "[1-7] focus  [o] open  [b] build  [d] deploy  [r] rollback  [v] visited  [Enter] open URL  [q] quit"

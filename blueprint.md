@@ -50,9 +50,12 @@ Claude Code agent team. The overlay covers:
 - §16 ADR index
 - §17 Risks & mitigations
 - §18 Next steps
-- **§19 Internationalization (M12)** — this is the most current addition;
-  read it together with `docs/impact-of-multilang-prompts.md` and
+- §19 Internationalization (M12) — read together with
+  `docs/impact-of-multilang-prompts.md` and
   `docs/ADR/ADR-008-i18n-install-time-selector.md`.
+- **§20 Default agentic team bootstrap (M14)** — green-field install
+  path; introduces base + patch 2-layer structure. Read together with
+  `docs/ADR/ADR-010-default-team-bootstrap.md` (planning).
 
 ## i18n decision (M12)
 

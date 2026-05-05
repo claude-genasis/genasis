@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use genasis_core::config::{Config, DesignConfig, CONFIG_FILE_NAME};
 use genasis_design::{
-    run_legacy_swap, run_restore, run_swap, swap::SwapInput, Locale, Mode, State, SwapSource,
+    auto_plan, override_add, override_list, override_remove, run_legacy_swap, run_restore,
+    run_swap, run_verify, swap::SwapInput, Locale, Mode, Plan, PlanMode, State, SwapSource,
+    DEFAULT_FULL_REWRITE_THRESHOLD,
 };
 use genasis_i18n::{tr, tr_args};
 
@@ -19,11 +21,28 @@ pub struct Args {
     pub op: DesignOp,
 }
 
+#[derive(ValueEnum, Clone, Copy, Debug)]
+pub enum CliPlanMode {
+    Auto,
+    PerArea,
+    FullRewrite,
+}
+
+impl From<CliPlanMode> for PlanMode {
+    fn from(m: CliPlanMode) -> Self {
+        match m {
+            CliPlanMode::Auto => PlanMode::Auto,
+            CliPlanMode::PerArea => PlanMode::PerArea,
+            CliPlanMode::FullRewrite => PlanMode::FullRewrite,
+        }
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub enum DesignOp {
-    /// Swap to an external design system. Two shapes:
-    /// `swap <slug>`         — fetch via `[design].add_command` (default: npx getdesign).
-    /// `swap --from <path>`  — copy a local spec file (no network).
+    /// Swap to an external design system. Three shapes:
+    /// `swap <slug>`              — fetch via `[design].add_command` (default: npx getdesign).
+    /// `swap --from <path>`       — copy a local spec file (no network).
     /// `swap <url> --body <path>` — legacy M7 path (extractor wrote the new body).
     Swap {
         /// Slug or reference URL. Mutually exclusive with --from.
@@ -39,12 +58,41 @@ pub enum DesignOp {
         /// Force telemetry on for this invocation (overrides genasis.toml).
         #[arg(long)]
         telemetry: bool,
+        /// EPIC vs per-area planning mode. Auto picks based on the
+        /// `>= threshold of 7` heuristic (default 4).
+        #[arg(long, value_enum, default_value_t = CliPlanMode::Auto)]
+        plan: CliPlanMode,
     },
     /// Print the current design status (mode, slug, overrides, preview URL).
     Status,
     /// Restore the project from external mode back to its pristine
     /// `docs/design-system.md` body.
     Restore,
+    /// Re-hash the active external DESIGN.md and compare to the recorded
+    /// `template_hash`. Reports OK or "tampered".
+    Verify,
+    /// Manage user-override entries accumulated under §B.2.
+    Override {
+        #[command(subcommand)]
+        op: OverrideOp,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum OverrideOp {
+    /// Append a new override entry. Pre-condition: the agent has already
+    /// surfaced any §A conflict and the user said yes.
+    Add {
+        /// Body of the override (single string).
+        text: String,
+    },
+    /// List override entries currently in §B.2.
+    List,
+    /// Remove an override entry by id (e.g. `override-2`).
+    Remove {
+        /// Override id.
+        id: String,
+    },
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -59,6 +107,7 @@ pub async fn run(args: Args) -> Result<()> {
             from,
             body,
             telemetry,
+            plan,
         } => {
             run_swap_op(
                 &project_root,
@@ -68,11 +117,14 @@ pub async fn run(args: Args) -> Result<()> {
                 from,
                 body,
                 telemetry,
+                plan.into(),
             )
             .await
         }
         DesignOp::Status => run_status(&project_root, &design_cfg).await,
         DesignOp::Restore => run_restore_op(&project_root, &design_cfg).await,
+        DesignOp::Verify => run_verify_op(&project_root, &design_cfg).await,
+        DesignOp::Override { op } => run_override_op(&project_root, op).await,
     }
 }
 
@@ -84,6 +136,7 @@ async fn run_swap_op(
     from: Option<PathBuf>,
     body: Option<PathBuf>,
     telemetry: bool,
+    plan_mode: PlanMode,
 ) -> Result<()> {
     // Legacy M7 path: `swap <url> --body <path>` — extractor produced the
     // body, we run the 5-phase change_protocol.
@@ -151,22 +204,23 @@ async fn run_swap_op(
 
     match &source {
         SwapSource::Slug { slug, add_command } => {
-            let cmd = add_command
-                .replace("{slug}", slug)
-                .replace(
-                    "{out}",
-                    &project_root
-                        .join(&design_cfg.external_dir)
-                        .join("DESIGN.md")
-                        .display()
-                        .to_string(),
-                );
+            let cmd = add_command.replace("{slug}", slug).replace(
+                "{out}",
+                &project_root
+                    .join(&design_cfg.external_dir)
+                    .join("DESIGN.md")
+                    .display()
+                    .to_string(),
+            );
             println!("{}", tr_args("design.swap.delegating", &[("cmd", &cmd)]));
         }
         SwapSource::File(path) => {
             println!(
                 "{}",
-                tr_args("design.swap.from_local", &[("path", &path.display().to_string())])
+                tr_args(
+                    "design.swap.from_local",
+                    &[("path", &path.display().to_string())],
+                )
             );
         }
     }
@@ -182,7 +236,8 @@ async fn run_swap_op(
             )
         );
     }
-    let hash_short = &outcome.new_state.template_hash[..outcome.new_state.template_hash.len().min(12)];
+    let hash_short =
+        &outcome.new_state.template_hash[..outcome.new_state.template_hash.len().min(12)];
     println!(
         "{}",
         tr_args(
@@ -209,6 +264,54 @@ async fn run_swap_op(
         )
     );
 
+    // Plan EPIC vs per-area issues. Diff the *previous external body* (or
+    // pristine body) against the new external body to compute changed areas.
+    let prev_body = if outcome.previous_state.mode == Mode::External {
+        let prev_design_md = project_root
+            .join(&design_cfg.external_dir)
+            .join("DESIGN.md");
+        std::fs::read_to_string(&prev_design_md).unwrap_or_default()
+    } else if let Some(bak) = &outcome.pristine_backup_path {
+        std::fs::read_to_string(bak).unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let new_body = std::fs::read_to_string(&outcome.design_md_path).unwrap_or_default();
+    // For accurate diff after the swap (DESIGN.md is now the new body), we
+    // approximate "changed areas" by diffing prev vs new directly.
+    let areas = genasis_design::changed_areas(&prev_body, &new_body);
+    let reference_url = outcome.new_state.gallery_preview.clone();
+    let plan = auto_plan(
+        plan_mode,
+        &areas,
+        &reference_url,
+        &outcome.new_state.slug,
+        &outcome.new_state.gallery_preview,
+        DEFAULT_FULL_REWRITE_THRESHOLD,
+    );
+    print_plan(&plan, areas.len());
+
+    // Mattermost announcement template (caller is responsible for posting —
+    // typically via `cmd_init`'s provider client; we emit the canned body).
+    println!("\n{}", tr("design.swap.mattermost_template_header"));
+    let prev_label = if outcome.previous_state.mode == Mode::External {
+        outcome.previous_state.slug.clone()
+    } else {
+        "pristine".to_string()
+    };
+    println!(
+        "{}",
+        tr_args(
+            "design.swap.mattermost_template_body",
+            &[
+                ("from", &prev_label),
+                ("to", &outcome.new_state.slug),
+                ("preview_url", &outcome.new_state.gallery_preview),
+                ("issue_count", &plan.issue_count().to_string()),
+            ],
+        )
+    );
+
     println!("\n{}", tr("design.swap.post_swap_header"));
     println!("{}", tr("design.swap.post_swap_1"));
     println!(
@@ -228,6 +331,39 @@ async fn run_swap_op(
     println!("{}", tr("design.swap.post_swap_4"));
 
     Ok(())
+}
+
+fn print_plan(plan: &Plan, area_count: usize) {
+    match plan {
+        Plan::PerArea(items) => {
+            println!(
+                "\n{}",
+                tr_args(
+                    "design.plan.per_area_header",
+                    &[("count", &items.len().to_string())],
+                )
+            );
+            for it in items {
+                println!("    - [{}] {}", it.label, it.title);
+            }
+        }
+        Plan::FullRewrite { epic, children } => {
+            println!(
+                "\n{}",
+                tr_args(
+                    "design.plan.full_rewrite_header",
+                    &[
+                        ("areas", &area_count.to_string()),
+                        ("threshold", &DEFAULT_FULL_REWRITE_THRESHOLD.to_string()),
+                    ],
+                )
+            );
+            println!("    [{}] {}", epic.label, epic.title);
+            for c in children {
+                println!("      ├─ [{}] {}", c.label, c.title);
+            }
+        }
+    }
 }
 
 async fn run_status(project_root: &std::path::Path, _design_cfg: &DesignConfig) -> Result<()> {
@@ -253,10 +389,7 @@ async fn run_status(project_root: &std::path::Path, _design_cfg: &DesignConfig) 
                 "{}",
                 tr_args(
                     "design.status.mode_external",
-                    &[
-                        ("slug", &state.slug),
-                        ("applied_at", &state.applied_at),
-                    ],
+                    &[("slug", &state.slug), ("applied_at", &state.applied_at)],
                 )
             );
             println!(
@@ -272,17 +405,11 @@ async fn run_status(project_root: &std::path::Path, _design_cfg: &DesignConfig) 
             );
             println!(
                 "{}",
-                tr_args(
-                    "design.status.preview",
-                    &[("url", &state.gallery_preview)],
-                )
+                tr_args("design.status.preview", &[("url", &state.gallery_preview)])
             );
             println!(
                 "{}",
-                tr_args(
-                    "design.status.gallery",
-                    &[("url", &state.gallery_index)],
-                )
+                tr_args("design.status.gallery", &[("url", &state.gallery_index)])
             );
         }
     }
@@ -308,6 +435,100 @@ async fn run_restore_op(
         println!("{}", tr("design.restore.no_backup"));
     }
     println!("{}", tr("design.restore.state_cleared"));
+    Ok(())
+}
+
+async fn run_verify_op(
+    project_root: &std::path::Path,
+    design_cfg: &DesignConfig,
+) -> Result<()> {
+    let outcome =
+        run_verify(project_root, &design_cfg.external_dir).context("design verify failed")?;
+    match outcome.mode {
+        Mode::Pristine => {
+            println!("{}", tr("design.verify.pristine_skip"));
+        }
+        Mode::External => {
+            if outcome.matches {
+                println!(
+                    "{}",
+                    tr_args(
+                        "design.verify.ok",
+                        &[(
+                            "hash_short",
+                            &outcome.actual_hash[..outcome.actual_hash.len().min(12)],
+                        )],
+                    )
+                );
+            } else {
+                eprintln!(
+                    "{}",
+                    tr_args(
+                        "design.verify.tampered",
+                        &[
+                            (
+                                "expected",
+                                &outcome.recorded_hash[..outcome.recorded_hash.len().min(12)],
+                            ),
+                            (
+                                "actual",
+                                &outcome.actual_hash[..outcome.actual_hash.len().min(12)],
+                            ),
+                        ],
+                    )
+                );
+                anyhow::bail!("design verify: hash mismatch");
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn run_override_op(project_root: &std::path::Path, op: OverrideOp) -> Result<()> {
+    match op {
+        OverrideOp::Add { text } => {
+            let entry = override_add(project_root, &text).context("override add failed")?;
+            println!(
+                "{}",
+                tr_args(
+                    "design.override.added",
+                    &[
+                        ("id", &entry.id),
+                        ("applied_at", &entry.applied_at),
+                    ],
+                )
+            );
+            println!("    {}", entry.body);
+        }
+        OverrideOp::List => {
+            let entries = override_list(project_root).context("override list failed")?;
+            if entries.is_empty() {
+                println!("{}", tr("design.override.list_empty"));
+            } else {
+                println!(
+                    "{}",
+                    tr_args(
+                        "design.override.list_header",
+                        &[("count", &entries.len().to_string())],
+                    )
+                );
+                for e in entries {
+                    println!("  {} @ {}", e.id, e.applied_at);
+                    for line in e.body.lines() {
+                        println!("      {line}");
+                    }
+                }
+            }
+        }
+        OverrideOp::Remove { id } => {
+            let removed = override_remove(project_root, &id).context("override remove failed")?;
+            if removed {
+                println!("{}", tr_args("design.override.removed", &[("id", &id)]));
+            } else {
+                println!("{}", tr_args("design.override.not_found", &[("id", &id)]));
+            }
+        }
+    }
     Ok(())
 }
 

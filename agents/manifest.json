@@ -1,0 +1,107 @@
+{
+  "version": "1.0.0",
+  "description": "Genasis Agents Catalog — curated best-of-breed agent definitions + Plane/MM protocol overlays",
+  "roles": [
+    {
+      "slug": "pm",
+      "base": "base/pm.md",
+      "overlay_en": "overlays/en/pm.patch.md.tera",
+      "overlay_ko": "overlays/ko/pm.patch.md.tera",
+      "source": "genasis + dl-ezo reference",
+      "category": "core"
+    },
+    {
+      "slug": "architect",
+      "base": "base/architect.md",
+      "overlay_en": "overlays/en/architect.patch.md.tera",
+      "overlay_ko": "overlays/ko/architect.patch.md.tera",
+      "source": "ECC",
+      "category": "core"
+    },
+    {
+      "slug": "frontend-developer",
+      "base": "base/frontend-developer.md",
+      "overlay_en": "overlays/en/frontend-developer.patch.md.tera",
+      "overlay_ko": "overlays/ko/frontend-developer.patch.md.tera",
+      "source": "wshobson/agents",
+      "category": "core"
+    },
+    {
+      "slug": "backend-developer",
+      "base": "base/backend-developer.md",
+      "overlay_en": "overlays/en/backend-developer.patch.md.tera",
+      "overlay_ko": "overlays/ko/backend-developer.patch.md.tera",
+      "source": "wshobson/agents",
+      "category": "core"
+    },
+    {
+      "slug": "code-reviewer",
+      "base": "base/code-reviewer.md",
+      "overlay_en": "overlays/en/code-reviewer.patch.md.tera",
+      "overlay_ko": "overlays/ko/code-reviewer.patch.md.tera",
+      "source": "ECC",
+      "category": "core"
+    },
+    {
+      "slug": "qa-tester",
+      "base": "base/qa-tester.md",
+      "overlay_en": "overlays/en/qa-tester.patch.md.tera",
+      "overlay_ko": "overlays/ko/qa-tester.patch.md.tera",
+      "source": "VoltAgent",
+      "category": "core"
+    },
+    {
+      "slug": "security-reviewer",
+      "base": "base/security-reviewer.md",
+      "overlay_en": "overlays/en/security-reviewer.patch.md.tera",
+      "overlay_ko": "overlays/ko/security-reviewer.patch.md.tera",
+      "source": "ECC",
+      "category": "core"
+    },
+    {
+      "slug": "planner",
+      "base": "base/planner.md",
+      "overlay_en": "overlays/en/planner.patch.md.tera",
+      "overlay_ko": "overlays/ko/planner.patch.md.tera",
+      "source": "dl-ezo",
+      "category": "core"
+    },
+    {
+      "slug": "designer",
+      "base": "base/designer.md",
+      "overlay_en": "overlays/en/designer.patch.md.tera",
+      "overlay_ko": "overlays/ko/designer.patch.md.tera",
+      "source": "genasis",
+      "category": "core"
+    }
+  ],
+  "extensions": [
+    {
+      "slug": "devops",
+      "base": "base/devops.md",
+      "source": "VoltAgent sre-engineer",
+      "category": "extension"
+    },
+    {
+      "slug": "mobile-ios",
+      "base": "base/mobile-ios.md",
+      "source": "0xfurai ios-expert + swiftui-expert",
+      "category": "extension"
+    },
+    {
+      "slug": "mobile-android",
+      "base": "base/mobile-android.md",
+      "source": "0xfurai android-expert + kotlin-expert",
+      "category": "extension"
+    },
+    {
+      "slug": "refactor",
+      "base": "base/refactor.md",
+      "source": "ECC refactor-cleaner",
+      "category": "extension"
+    }
+  ],
+  "overlays_require_tera": true,
+  "base_format": "plain_md",
+  "min_genasis_version": "0.1.0"
+}

@@ -21,3 +21,4 @@ genasis-core.workspace = true
 genasis-tui.workspace = true
 genasis-providers.workspace = true
 genasis-i18n.workspace = true
+genasis-design.workspace = true

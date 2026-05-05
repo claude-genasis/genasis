@@ -85,6 +85,98 @@ pub async fn run(args: Args) -> Result<()> {
         println!("  {k}: {}", if present { "set ✓" } else { "unset" });
     }
 
+    section(&tr("doctor.design.section"));
+    let cfg_path_design = project_root.join(CONFIG_FILE_NAME);
+    let design_cfg = Config::load(&cfg_path_design)
+        .ok()
+        .and_then(|c| c.design)
+        .unwrap_or_default();
+    let state = genasis_design::State::load(&project_root).ok().unwrap_or_default();
+    match state.mode {
+        genasis_design::Mode::Pristine => {
+            println!("  {}", tr("doctor.design.mode_pristine"));
+            // npx is needed only when transitioning to external mode.
+            match which::which("npx") {
+                Ok(p) => println!("  npx (optional for slug swap): {} ✓", p.display()),
+                Err(_) => println!("  {}", tr("doctor.design.npx_missing_optional")),
+            }
+        }
+        genasis_design::Mode::External => {
+            println!(
+                "  {}",
+                tr_args(
+                    "doctor.design.mode_external",
+                    &[("slug", &state.slug)],
+                )
+            );
+            // npx is required when external mode is in use (so subsequent
+            // swaps can fetch new slugs).
+            match which::which("npx") {
+                Ok(p) => println!("  npx (required): {} ✓", p.display()),
+                Err(_) => println!("  {}", tr("doctor.design.npx_missing_required")),
+            }
+            // Hash check: re-run verify and emit a single-line result.
+            match genasis_design::run_verify(&project_root, &design_cfg.external_dir) {
+                Ok(v) => {
+                    if v.matches {
+                        println!(
+                            "  {}",
+                            tr_args(
+                                "doctor.design.verify_ok",
+                                &[(
+                                    "hash_short",
+                                    &v.actual_hash[..v.actual_hash.len().min(12)],
+                                )],
+                            )
+                        );
+                    } else {
+                        println!(
+                            "  {}",
+                            tr_args(
+                                "doctor.design.verify_tampered",
+                                &[
+                                    (
+                                        "expected",
+                                        &v.recorded_hash[..v.recorded_hash.len().min(12)],
+                                    ),
+                                    (
+                                        "actual",
+                                        &v.actual_hash[..v.actual_hash.len().min(12)],
+                                    ),
+                                ],
+                            )
+                        );
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "  {}",
+                        tr_args("doctor.design.verify_error", &[("reason", &e.to_string())])
+                    );
+                }
+            }
+            // Coherence: the pointer body must exist, and design-system/ dir must exist.
+            let pointer = project_root.join("docs").join("design-system.md");
+            let extdir = project_root.join(&design_cfg.external_dir);
+            if !pointer.is_file() {
+                println!("  {}", tr("doctor.design.pointer_missing"));
+            }
+            if !extdir.is_dir() {
+                println!(
+                    "  {}",
+                    tr_args(
+                        "doctor.design.extdir_missing",
+                        &[("path", &extdir.display().to_string())],
+                    )
+                );
+            }
+            println!(
+                "  overrides: {} | preview: {}",
+                state.override_count, state.gallery_preview
+            );
+        }
+    }
+
     section(&tr("doctor.i18n.section"));
     let resolved = genasis_i18n::resolve(None, None);
     println!(

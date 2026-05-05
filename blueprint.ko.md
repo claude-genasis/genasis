@@ -716,6 +716,9 @@ genasis/                                  # GitHub repo root (소스 본체)
 | ADR-005 | Provider Flavor 시스템 | upstream + custom + auto |
 | ADR-006 | Token Economics 단계화 | RTK + Anthropic cache + trim hook (proxy 미포함) |
 | ADR-007 | Monitor = Ratatui 1차 포함 | TUI 단일 binary 컴포넌트 |
+| ADR-008 | i18n install-time selector | active context = single language |
+| ADR-009 | Design catalog delegation | `npx getdesign` 위임, vendor 안 함 |
+| ADR-010 | Default team bootstrap (M14) | base + patch 2-layer, default OFF, ECC vendor 안 함 |
 
 ---
 
@@ -1473,3 +1476,112 @@ genasis 본체와 동일 — 컨트리뷰터가 `templates/<lang>/`, `i18n/<lang
 - ✅ Open Graph 이미지 영/한 2버전 (`docs/assets/og-image.{png,ko.png}`)
 - ✅ `docs/i18n/CONTRIBUTE-LANG.md` 컨트리뷰터 가이드
 - ✅ (옵션) GitHub Pages 활성화 + `Accept-Language` 라우팅 (M12.13 별도)
+
+---
+
+## 20. Default agentic team bootstrap — M14
+
+### 20.1 배경
+
+ADR-001 (marker fence) + M2 (overlay merger) + M6 (10 patch overlay
+템플릿) 까지 진행한 결과, genasis 는 **사용자 `.claude/agents/*.md`
+파일이 이미 존재한다** 는 전제 위에서 동작한다. `attach` 는 기존 파일에
+fence 만 주입하고, `detach` 는 fence 만 제거하며, custom 역할은 skip
+된다. 이 모델은 ECC / knowledge-work-plugins / 자체 작성 팀을 가진
+사용자에게 정확히 맞다.
+
+그러나 **agent 팀이 전혀 없는 빈 프로젝트** — 즉 `genasis init` 의 첫
+대상 — 에서는 scaffold 경로가 비어있다. `init` 은 Plane/Mattermost
+provisioning 만 수행하고, `.claude/agents/` 디렉토리는 사용자가 직접
+만들어야 한다. blueprint §15 의 1차 릴리즈 범위가 ECC 를 사실상
+reference 사용자로 간주해 "agent 파일은 이미 있다" 가 암묵적 전제였기
+때문에 발생한 갭. 2026-05-05 사용자 제기로 M14 신설.
+
+### 20.2 결정 — 2-layer (base + patch)
+
+| Layer | 파일 | 소유권 | 갱신 트리거 |
+|---|---|---|---|
+| **Base** | `.claude/agents/<role>.md` 의 fence **밖** (frontmatter + 역할 헤더) | 사용자 | bootstrap 1회 emit, 이후 사용자 자유 편집 |
+| **Patch** | 같은 파일의 marker fence **안** (Plane/MM 프로토콜) | genasis | `attach` / `upgrade` 가 hash diff 로 갱신 |
+
+ADR-001 의 fence-internal-only 갱신 정책이 그대로 유지된다 — bootstrap
+은 단지 "fence 가 들어갈 file 자체가 없을 때 빈 base 를 떨어뜨린다" 는
+얇은 추가 stage.
+
+### 20.3 트리거 정책 — default OFF
+
+`genasis attach` 는 빈 `.claude/agents/` 를 만나도 **자동 scaffold 하지
+않는다**. 기존 사용자 (이미 작업 중인 팀이 있는 프로젝트에 처음 attach
+하는 경우) 가 silent file 생성을 당하는 것을 막기 위함.
+
+대신:
+- 빈 디렉토리 감지 → stderr 안내: "no agents detected — run `genasis
+  init --bootstrap` (or `genasis bootstrap`) to scaffold the default
+  team"
+- 명시적 opt-in: `--bootstrap` flag 로만 scaffold
+
+진입점 위치 (`init --bootstrap` vs `attach --bootstrap` vs 별도
+`bootstrap` 서브커맨드) 는 ADR-010 에서 결정.
+
+### 20.4 Base 템플릿 contract
+
+각 `templates/{en,ko}/agents/<role>.md.tera` 는 다음 5 키 frontmatter +
+5~10줄 역할 헤더만 포함:
+
+```yaml
+---
+name: <role-slug>          # role-inference 가 즉시 Known(_) 로 매칭
+description: <한 줄>
+tools: Bash, Read, Write, Edit, Glob, Grep, Task   # ECC default
+model: sonnet
+color: <ECC 색상 컨벤션>
+---
+
+# <Role> Agent
+
+<역할 한두 단락 — 사용자가 자유 편집>
+```
+
+ECC content vendor 안 함 — patch overlay 가 이후 단계에서 Plane/MM 프로토콜,
+DB guard, token economics, 금지 행동 등 protocol 본문을 fence 안에 채운다.
+base 는 의도적으로 얇게 유지.
+
+### 20.5 i18n
+
+`templates/en/agents/` + `templates/ko/agents/` 2 트리. `lang switch` 는
+이미 `templates/<lang>/` 트리 swap 메커니즘을 갖추고 있어 base 트리도
+자동으로 따라온다. 단, 사용자가 base (fence 밖) 를 편집했다면 swap 시
+보존 — 기존 `lang switch` 의 fence-internal-only 갱신 정책 그대로.
+
+### 20.6 골든 픽스처
+
+`tests/golden/blank/` 가 M0 부터 README 만 있고 input/expected 가
+비어있는 stub 상태. M14.4 에서 `genasis init --bootstrap --lang en`
+산출물을 `expected/` 에 채워 round-trip (bootstrap → attach → detach)
+회귀 검증 활성화.
+
+### 20.7 ADR-010 — base + patch 소유권 경계
+
+신규 ADR (한국어 SSOT `docs/ko/ADR/ADR-010-default-team-bootstrap.md`,
+영어 mirror `docs/ADR/ADR-010-...`) 에서:
+
+- **Context**: ECC 가정의 갭, 사용자 보호 (silent file 생성 회피)
+- **Alternatives**: (a) auto-bootstrap default ON, (b) skip 채택 default
+  OFF, (c) `init` 하위 기능 vs 별도 `bootstrap` 서브커맨드
+- **Decision**: (b) + (c-별도) 후보, 사용자 ratify 게이트
+- **Consequences**: ADR-001 invariant 유지, blank 골든 활성화, README
+  Comparison 표에 "Bootstrap" 차원 추가
+- **References**: ADR-001 (marker fence), §3 (fence 사양), §15 (1차
+  릴리즈 범위)
+
+### 20.8 DoD (M14)
+
+- ☐ ADR-010 (KO + EN) 머지
+- ☐ `templates/{en,ko}/agents/<role>.md.tera` 10 × 2 = 20 파일
+- ☐ `genasis-overlay::bootstrap` 모듈 + plan/apply + 단위 테스트
+- ☐ CLI `--bootstrap` 진입점 + i18n 키 4개 (`bootstrap.*`)
+- ☐ `tests/golden/blank/` input + expected + round-trip 통합 테스트
+- ☐ `cmd_doctor [bootstrap]` 섹션
+- ☐ README Comparison 표에 "Bootstrap" 행 추가
+- ☐ `cargo test --workspace` green, `lint-i18n` green, golden blank
+  round-trip green

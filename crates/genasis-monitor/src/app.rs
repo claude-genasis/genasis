@@ -22,6 +22,7 @@ use crate::widgets;
 pub async fn run() -> Result<()> {
     let mut state = AppState::default();
     state.sprint_name = "(no sprint loaded)".into();
+    state.design = load_design_state();
 
     enable_raw_mode().map_err(io_err)?;
     let mut stdout = io::stdout();
@@ -56,6 +57,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
                         Constraint::Length(6), // Sprint + Tokens row
                         Constraint::Length(8), // Agents
                         Constraint::Length(7), // Deploy + Network
+                        Constraint::Length(7), // Design + (spare)
                         Constraint::Min(3),    // Log tail
                     ])
                     .split(area);
@@ -76,7 +78,13 @@ async fn run_loop<B: ratatui::backend::Backend>(
                 widgets::deploy::render(frame, mid_row[0], state);
                 widgets::network::render(frame, mid_row[1], state);
 
-                widgets::log_tail::render(frame, chunks[3], state);
+                let design_row = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(100)])
+                    .split(chunks[3]);
+                widgets::design::render(frame, design_row[0], state);
+
+                widgets::log_tail::render(frame, chunks[4], state);
             })
             .map_err(io_err)?;
 
@@ -93,6 +101,17 @@ async fn run_loop<B: ratatui::backend::Backend>(
                     KeyCode::Char('4') => state.focus = WidgetFocus::Deploy,
                     KeyCode::Char('5') => state.focus = WidgetFocus::Network,
                     KeyCode::Char('6') => state.focus = WidgetFocus::Log,
+                    KeyCode::Char('7') => state.focus = WidgetFocus::Design,
+                    KeyCode::Enter if state.focus == WidgetFocus::Design => {
+                        let url = if !state.design.preview_url.is_empty() {
+                            state.design.preview_url.clone()
+                        } else {
+                            state.design.gallery_url.clone()
+                        };
+                        if !url.is_empty() {
+                            open_in_browser(&url);
+                        }
+                    }
                     KeyCode::Char('v') => {
                         state.deploy.dev_refreshed = false;
                         state.deploy.prod_refreshed = false;
@@ -106,4 +125,50 @@ async fn run_loop<B: ratatui::backend::Backend>(
 
 fn io_err(e: io::Error) -> genasis_core::Error {
     genasis_core::Error::Io(e)
+}
+
+/// Read `docs/.design-state.toml` from the working dir's project root and
+/// project it into the widget state. Failures degrade silently to
+/// pristine-with-empty-fields — the monitor must never crash on a missing
+/// or malformed state file.
+fn load_design_state() -> crate::state::DesignWidgetState {
+    use crate::state::DesignWidgetState;
+    let cwd = match std::env::current_dir() {
+        Ok(p) => p,
+        Err(_) => return DesignWidgetState::default(),
+    };
+    let state = match genasis_design::State::load(&cwd) {
+        Ok(s) => s,
+        Err(_) => return DesignWidgetState::default(),
+    };
+    DesignWidgetState {
+        mode: match state.mode {
+            genasis_design::Mode::Pristine => "pristine".into(),
+            genasis_design::Mode::External => "external".into(),
+        },
+        slug: state.slug,
+        applied_at: state.applied_at,
+        override_count: state.override_count,
+        preview_url: state.gallery_preview,
+        gallery_url: state.gallery_index,
+    }
+}
+
+/// Best-effort: open `url` in the OS default browser. Silent on failure —
+/// the TUI keeps running.
+fn open_in_browser(url: &str) {
+    let cmd = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "cmd"
+    } else {
+        "xdg-open"
+    };
+    let mut command = std::process::Command::new(cmd);
+    if cfg!(target_os = "windows") {
+        command.args(["/C", "start", url]);
+    } else {
+        command.arg(url);
+    }
+    let _ = command.spawn();
 }

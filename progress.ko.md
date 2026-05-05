@@ -1,4 +1,9 @@
 > English: [progress.md](progress.md)
+>
+> **Mirror sync policy**: 이 파일과 `progress.md` 는 구조·내용 동기
+> mirror 입니다. 한쪽을 수정하면 **같은 commit** (또는 직후 commit) 에
+> 반드시 다른 쪽도 동일 구조·내용으로 갱신하세요. 정책 상세:
+> [`CLAUDE.md` §Bilingual Mirror Policy](CLAUDE.md).
 
 # Genasis — Progress Tracker
 
@@ -7,8 +12,8 @@
 
 **Started**: 2026-05-03
 **Target 1차 릴리즈**: v0.1.0 (M12 종료 후 git tag)
-**현재 마일스톤**: **M12 완료** (Internationalization, install-time selector + active singularity).
-M0–M12 전 마일스톤 코드/문서/CI 자리잡음. 다음: v0.1.0 release tag.
+**현재 마일스톤**: **M14 planning** (Default agentic team bootstrap, 2026-05-05 사용자 제기).
+M0–M12 + Phase D 모두 완료, v0.1.0 release tag 는 M14.0 (ADR-010 ratify) 후 cut.
 
 ---
 
@@ -549,47 +554,201 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - **텔레메트리 default OFF**: `genasis design swap` 호출 시 자동으로 `GETDESIGN_DISABLE_TELEMETRY=1` 환경 변수 set. 사용자가 `[design].disable_telemetry = false` 또는 `--telemetry on` 으로 켤 수 있음. genasis 자체 수집 서버는 운영하지 않음.
 - **갤러리 추상화**: `genasis.toml [design]` 의 `add_command` 템플릿(`{slug}`, `{out}` 치환)을 통해 getdesign 외 자체 갤러리로 교체 가능.
 
-### M-D1 — Pristine/External 모드 + swap/restore + skill (in progress)
-- [ ] `genasis-core` 의 `Config` 에 `[design] DesignConfig` 추가 (`gallery_index_url`, `gallery_url_template`, `add_command`, `disable_telemetry`, `external_dir`)
-- [ ] `genasis-design` 크레이트 재구성:
-  - [ ] `mode.rs` — `Mode::Pristine | Mode::External`, `.design-state.toml` R/W
-  - [ ] `swap.rs` — slug 모드(npx invoke) + `--from <path>` 모드(파일 복사) 통합 entry
-  - [ ] `restore.rs` — external→pristine 복원 (archive 이동 + pristine.bak → design-system.md)
-  - [ ] `pointer.rs` — design-system.md 포인터 본문 렌더(§A/§B/§C 골격) — Tera 사용
-  - [ ] 기존 `extractor.rs` / `change_protocol.rs` / `diff.rs` / `ticket_emitter.rs` 는 보존 (M-D2 에서 EPIC 분기 추가)
-- [ ] CLI [`cmd_design.rs`] 확장:
-  - [ ] `swap <slug>` (기존 `swap <url> --body` 와 호환 — `--body` 는 deprecated 경로로 유지)
-  - [ ] `swap --from <path>`
-  - [ ] `restore`
-  - [ ] `status` 출력에 mode/slug/applied_at/override_count/preview URL 포함
-- [ ] 템플릿:
-  - [ ] `templates/{en,ko}/design-system.md.tera` 를 두 변종으로 분리: `design-system.pristine.md.tera`(현재 placeholder), `design-system.external.md.tera`(§A/§B/§C 포인터)
-  - [ ] `templates/{en,ko}/skills/design-aware/SKILL.md.tera` 강화: 참조 순서(pristine → external §A → §B), 사용자 요구 충돌 처리 절차, 외부 DESIGN.md 직접 편집 금지 규칙, 사후 가이드
-- [ ] i18n keys: `design.swap.delegating`, `design.swap.from_local`, `design.restore.archived`, `design.restore.complete`, `design.status.mode_pristine`, `design.status.mode_external` 등 ko/en
-- [ ] e2e (`tests/e2e/design_modes.rs`): pristine → swap slug → swap slug 2 → restore 라운드트립 + sha256 검증
-- [ ] cargo test green
+### M-D1 — Pristine/External 모드 + swap/restore + skill (완료 2026-05-04)
+- [x] `genasis-core` 의 `Config` 에 `[design] DesignConfig` 추가 (`gallery_index_url`, `gallery_url_template`, `add_command`, `disable_telemetry`, `external_dir`)
+- [x] `genasis-design` 크레이트 재구성:
+  - [x] `mode.rs` — `Mode::Pristine | Mode::External`, `.design-state.toml` R/W
+  - [x] `swap.rs` — slug 모드(npx invoke) + `--from <path>` 모드(파일 복사) 통합 entry
+  - [x] `restore.rs` — external→pristine 복원 (archive 이동 + pristine.bak → design-system.md)
+  - [x] `pointer.rs` — design-system.md 포인터 본문 렌더(§A/§B/§C 골격) — locale 분기 (en/ko 인-소스 템플릿)
+  - [x] 기존 `extractor.rs` / `change_protocol.rs` / `diff.rs` / `ticket_emitter.rs` 보존, 레거시 진입점은 `run_legacy_swap` 으로 alias
+- [x] CLI [`cmd_design.rs`] 확장:
+  - [x] `swap <slug>` (기존 `swap <url> --body` 와 호환 — `--body` 레거시 경로 유지)
+  - [x] `swap --from <path>`
+  - [x] `restore`
+  - [x] `status` 출력에 mode/slug/applied_at/override_count/preview URL 포함
+- [x] 템플릿:
+  - [s] `design-system.md.tera` 두 변종 분리는 보류 — 포인터 본문은 `pointer.rs::render` 가 코드 측에서 생성하므로 Tera 분리 불필요. attach 시 placeholder 가 그대로 들어가고 swap 이 외부 모드 진입 시 덮어쓴다.
+  - [x] `templates/{en,ko}/skills/design-aware/SKILL.md.tera` 강화: 참조 순서(pristine → external §A → §B), 사용자 요구 충돌 처리 절차, 외부 DESIGN.md 직접 편집 금지 규칙, 사후 가이드
+- [x] i18n keys: `design.swap.delegating`, `design.swap.from_local`, `design.swap.pristine_backed_up`, `design.swap.design_md_written`, `design.swap.pointer_written`, `design.swap.state_updated`, `design.swap.post_swap_*`, `design.status.mode_pristine`, `design.status.mode_external`, `design.restore.*` 등 ko/en (14 키 × 2)
+- [x] e2e (`crates/genasis-design/tests/swap_restore_round_trip.rs`): pristine → swap slug → swap slug 2 → restore 라운드트립 + sha256 검증
+- [x] cargo test green (132 → 145 passed)
 
-### M-D2 — EPIC plan + Mattermost + 사용자 오버라이드 누적
-- [ ] `ticket_emitter` 에 `Plan::FullRewrite { epic, children }` 추가, `--per-area` / `--full-rewrite` / 자동 임계치(N=4) 분기
-- [ ] Plane 어댑터: EPIC 라벨 + 자식 description 에 부모 ID 명시
-- [ ] Mattermost root post: "🚨 DESIGN CHANGE: <old> → <new>" + EPIC 링크 + preview URL
-- [ ] `genasis design verify` — `.design-state.toml.template_hash` 와 실제 `DESIGN.md` sha256 비교
-- [ ] `genasis design override add "<text>"` — 대화형 충돌 검토:
-  - [ ] §A 관련 항목 grep + 인용 출력
-  - [ ] 사용자 [y/N] 후 §B.2 에 `### override-<id> @ <iso>` 로 append
-  - [ ] `.design-state.toml.override_count` 증가
-- [ ] `genasis design override list` / `remove <id>`
-- [ ] e2e: 7-area swap → EPIC 1 + 자식 N, override 3개 누적 후 swap 시 보존 검증
+### M-D2 — EPIC plan + Mattermost + 사용자 오버라이드 누적 (완료 2026-05-04)
+- [x] `ticket_emitter` 에 `Plan::FullRewrite { epic, children }` + `PlanMode::{Auto, PerArea, FullRewrite}` 추가, 자동 임계치 `DEFAULT_FULL_REWRITE_THRESHOLD = 4` (영역 7 중 과반)
+- [x] 자식 description 에 EPIC title 명시 — Plane upstream(native parent_id 없음) 에서도 보드 묶음 가시성 확보
+- [x] Mattermost 공지 템플릿 (CLI 가 본문을 emit; 실제 게시는 caller/provider 호출): `🚨 DESIGN CHANGE: <from> → <to> | preview: <url> | issues planned: <n>`
+- [x] `genasis design verify` (`crates/genasis-design/src/verify.rs`) — `.design-state.toml.template_hash` 와 실제 `DESIGN.md` sha256 비교, 변조 감지
+- [x] `genasis design override add "<text>"` (`crates/genasis-design/src/override_log.rs`):
+  - [x] `<!-- genasis design override add appends here. Do not edit by hand. -->` (en) / `... 자동 append. 직접 편집 금지. -->` (ko) 두 sentinel 인지
+  - [x] `#### override-<id> @ <iso>` 블록 append, `override_count` 증가
+  - [s] §A grep+인용은 design-aware SKILL 의 에이전트 책임 — CLI 는 본문만 받아 기록
+- [x] `genasis design override list` / `remove <id>`
+- [x] e2e (`crates/genasis-design/tests/epic_plan_and_overrides.rs`): full-rewrite EPIC 검증, 오버라이드 3개 누적 후 swap 시 §B.2 초기화(의도된 동작 — 사용자가 새 §A 기준으로 재검토) + 변조 검증
 
-### M-D3 — Monitor 위젯 + attach 프롬프트 + doctor + ADR
-- [ ] `AppState.design: DesignWidgetState`(mode/slug/applied_at/override_count/preview_url/gallery_url)
-- [ ] `widgets/design.rs` — pristine/external 분기 렌더, 키 7 포커스, Enter 시 preview URL `open`/`xdg-open`
-- [ ] `app.rs` 레이아웃에 Design 패널 추가 (Deploy 옆)
-- [ ] `cmd_attach.rs` 의 interactive 프롬프트에 `[design]` 키 묻기 (default = getdesign 표준값, skip 시 default)
-- [ ] `cmd_doctor.rs` 검사 추가: (a) `npx --version` 가용성(미설치 시 안내), (b) external 모드에서 `.design-state.toml.template_hash` 와 `DESIGN.md` sha256 일치, (c) mode 와 디스크 상태 일관성(pristine 인데 `docs/design-system/DESIGN.md` 가 있으면 경고)
-- [ ] `docs/ADR/ADR-009-design-catalog-delegation.md` (en) + `docs/ko/ADR/ADR-009-...` (ko) — 왜 vendor 안 하는가 / 두 모드 정당화 / 갤러리 URL 추상화 결정 근거
-- [ ] manual smoke: TUI 에서 mode 표시 + Enter 동작
-- [ ] cargo test + lang drift 통과
+### M-D3 — Monitor 위젯 + attach 프롬프트 + doctor + ADR (완료 2026-05-04)
+- [x] `AppState.design: DesignWidgetState`(mode/slug/applied_at/override_count/preview_url/gallery_url)
+- [x] `widgets/design.rs` — pristine/external 분기 렌더, 키 `7` 포커스, `Enter` 시 preview URL → `open`/`xdg-open`/`cmd /C start`
+- [x] `app.rs` 레이아웃에 Design 패널 추가 (Deploy 행 아래 7-line 슬롯)
+- [x] `cmd_attach.rs` 가 첫 attach 시 `[design]` 기본값을 `genasis.toml` 에 자동 시드 (`gallery_index_url`, `gallery_url_template`, `add_command`, `disable_telemetry=true`, `external_dir`). 이미 있으면 보존(idempotent). 인터랙티브 프롬프트는 i18n / non-interactive 일관성을 위해 시드만 — 사용자는 추후 `genasis.toml` 직접 편집으로 갤러리 교체 가능
+- [x] `cmd_doctor.rs` `[design]` 섹션 추가:
+  - [x] mode 출력 (pristine / external + slug)
+  - [x] `npx` 가용성 — pristine 일 땐 optional, external 일 땐 required-missing 경고
+  - [x] external 모드에서 `run_verify` 재호출하여 hash 일치 확인
+  - [x] mode 와 디스크 상태 일관성 — 포인터 / 외부 디렉터리 누락 감지
+- [x] `docs/ADR/ADR-009-design-catalog-delegation.md` (en) + `docs/ko/ADR/ADR-009-...` (ko) — vendor 안 함 결정 근거 / 두 모드 정당화 / 갤러리 URL 추상화 / 텔레메트리 default off / 충돌 해결 정책 / 대안 검토 3가지
+- [x] doctor i18n keys 추가 (en/ko): `doctor.design.section`, `mode_pristine`, `mode_external`, `npx_missing_optional`, `npx_missing_required`, `verify_ok`, `verify_tampered`, `verify_error`, `pointer_missing`, `extdir_missing`. monitor key hint 갱신 (`[1-7] focus`, `[Enter] open URL`)
+- [s] manual TUI smoke — 코드 경로 단위 검증 + state load fallback 까지 정합. 실제 키 입력 검증은 첫 v0.1.0 cross-compile 후
+- [x] cargo test + lang drift 통과
+
+---
+
+## M14 — Default agentic team bootstrap (green-field install)
+
+> 2026-05-05 사용자 제기. 현재 overlay 엔진은 `.claude/agents/*.md` 를
+> **이미 존재하는 파일** 로 가정한다 — `attach` 는 사용자가 직접 작성한
+> agent 파일에 fence 만 주입한다. 프로젝트에 agent 팀이 전혀 없을 때,
+> ECC canonical 10 역할을 scaffold 하는 경로가 없으므로 "비파괴 overlay"
+> 약속에 green-field 진입점이 비어 있다. M14 가 이 갭을 메운다 — **base
+> agent template** (역할 파일 부재 시 렌더) 위에 기존 **patch overlay**
+> (marker fence 안쪽에 렌더) 가 얹히는 2-layer 구조.
+
+### 핵심 설계 결정 (ADR-010 후보)
+
+- **default OFF**: bootstrap 은 opt-in (`--bootstrap`). `attach` 를 빈
+  `.claude/agents/` 에 돌리는 기존 사용자는 silent file 생성이 아니라
+  경고를 받음. ADR-001 의 비파괴 invariant 보호.
+- **base + patch 소유권 분리**: base 파일 전체는 emit 후 사용자 소유
+  (자유 편집). 그 안의 marker fence 만 genasis 소유 (upgrade 가 갱신).
+  ADR-001 의 "fence 밖은 사용자 영역" 약속 일관 유지.
+- **ECC vendor 안 함**: base 템플릿은 역할별 짧은 스텁 — `claude-code-templates`
+  / ECC 역할 정의 fork 가 아니라 frontmatter (`name/description/tools/model/color`)
+  + 5~10줄 헤더만. patch fence 가 이후 단계에서 프로토콜 살을 붙임.
+- **i18n 분리 트리**: `templates/en/agents/<role>.md.tera` +
+  `templates/ko/agents/<role>.md.tera` 2 트리. `lang switch` 시 base 도
+  같이 swap (단, 사용자가 fence 밖을 편집했다면 보존 — 기존 `lang switch`
+  의 fence-internal-only 정책 그대로).
+- **role set**: pm / planner / architect / frontend / backend / qa /
+  designer / security / devops / code-reviewer (M2 의 `Role::ALL` 과
+  동일 10개).
+
+### M14.0 — Decision gate + ADR-010
+- [x] `docs/ko/ADR/ADR-010-default-team-bootstrap.md` (한국어 SSOT) 작성:
+  context, alternatives (a~f), decision (b+d, e-rejected), consequences,
+  references (ADR-001 marker fence + ADR-008 lang precedence)
+- [x] `docs/ADR/ADR-010-default-team-bootstrap.md` 영어 mirror
+- [x] `blueprint.ko.md §20` 신설 (M14 섹션, ADR-010 인용) + `blueprint.md`
+  section index 갱신
+- [x] `blueprint.ko.md §16` ADR 표에 ADR-008/009/010 행 추가
+- [ ] 사용자 ratify 게이트 — ADR-010 머지 후 M14.3 진입 (M14.1/M14.2 는
+  ratify 와 독립적으로 선행 가능 — base 템플릿 + 모듈은 코드만 추가,
+  진입점 노출은 M14.3)
+
+### M14.1 — Base agent templates (`templates/{en,ko}/agents/<role>.md.tera`)  — ✅ pending build verification
+- [x] `crates/genasis-templates/templates/en/agents/` 디렉토리 신설
+  - [x] `pm.md.tera` (frontmatter + 5~10줄 역할 헤더)
+  - [x] `planner.md.tera`
+  - [x] `architect.md.tera`
+  - [x] `frontend.md.tera`
+  - [x] `backend.md.tera`
+  - [x] `qa.md.tera`
+  - [x] `designer.md.tera`
+  - [x] `security.md.tera`
+  - [x] `devops.md.tera`
+  - [x] `code-reviewer.md.tera`
+  - [x] `README.md` — base vs patch 경계 설명, 사용자 편집 영역 명시
+- [x] `crates/genasis-templates/templates/ko/agents/` — 위와 동일 11 파일
+  (10 base + README, 한국어 본문 + 동일 frontmatter, `description:` 만 ko)
+- [x] `genasis-templates::lib.rs` 의 `include_dir!()` 가 새 디렉토리를
+  자동 임베드 (디렉토리 추가만으로 OK — 매니페스트 갱신 불요)
+- [x] `agent_base_subtrees_have_same_roles` 테스트 — 양 locale 모두에 10
+  required role tera 가 존재함을 검증
+- [s] frontmatter contract 단위 테스트는 `bootstrap.rs::tests::rendered_base_carries_required_frontmatter_keys`
+  에서 통합 검증 (base 렌더 결과가 5 키를 모두 보유 + `name:` 이 stem
+  과 매칭)
+
+### M14.2 — `genasis-overlay::bootstrap` 모듈  — ✅ pending build verification
+- [x] `crates/genasis-overlay/src/bootstrap.rs` 신규 모듈
+  - [x] `BootstrapOptions { lang, roles, context }` + `Default` + builder
+    setters (`new`, `with_roles`, `with_context`)
+  - [x] `pub fn plan_bootstrap(project_root: &Path, opts: &BootstrapOptions) -> Result<BootstrapPlan>`
+    — `.claude/agents/<role>.md` 부재 → `Create { body }`, 존재 → `Skip { reason: "exists" }`
+  - [x] `BootstrapPlan` (`creates()` / `skips()` iterator) + `BootstrapAction::{Create, Skip}`
+  - [x] `pub fn apply_bootstrap(plan: &BootstrapPlan) -> Result<BootstrapReport>`
+    — `gfs::atomic_write` 로 새 파일 생성 (`atomic_write` 가 자동으로
+    부모 디렉토리 `create_dir_all`)
+- [x] `lib.rs` 에 `pub mod bootstrap;` + re-export (`apply_bootstrap`,
+  `plan_bootstrap`, `BootstrapAction`, `BootstrapChange`, `BootstrapOptions`,
+  `BootstrapPlan`, `BootstrapReport`)
+- [x] 단위 테스트 (`crates/genasis-overlay/src/bootstrap.rs::tests`):
+  - [x] `empty_project_creates_all_ten_roles` — 빈 프로젝트 → 10 `Create`
+  - [x] `existing_files_are_skipped` — 일부 역할 존재 → 부재 역할만 `Create`,
+    존재 역할은 `Skip("exists")` + role enum 검증
+  - [x] `apply_writes_only_create_actions` — `apply_bootstrap` 후 10 파일
+    실제 디스크 존재
+  - [x] `rendered_base_carries_required_frontmatter_keys` — frontmatter
+    contract (5 키 + `name: <slug>` 매칭)
+  - [x] `korean_locale_subtree_loads` — `--lang ko` 도 동일하게 동작
+  - [x] `unknown_locale_errors` — 미지 locale 은 `Error::Overlay` 반환
+  - [x] `role_subset_only_plans_chosen_roles` — `with_roles(vec![...])` 로
+    부분 scaffold
+  - [x] `idempotent_second_apply_is_a_noop` — bootstrap 두 번 호출 시
+    두 번째는 모두 Skip
+- [x] 통합 테스트 (`crates/genasis-overlay/tests/bootstrap_then_attach.rs`):
+  - [x] `bootstrap_then_attach_injects_into_every_role` — bootstrap → scan
+    → 10 모두 `Known(_)` → plan_attach → 10 `Inject`
+  - [x] `bootstrap_ko_then_attach_ko_injects_korean_overlay` — `--lang ko`
+    chain 검증, backend.md 의 attach 결과에 한국어 프로토콜 헤더
+    "Plane / Mattermost 프로토콜" 포함 확인
+  - [x] `bootstrap_partial_then_attach_handles_mix` — 사용자 author 한
+    frontend.md 가 bootstrap 에 의해 byte-identical 보존됨
+
+### M14.3 — CLI wire-up
+- [ ] `crates/genasis-cli/src/cmd_init.rs` 에 `--bootstrap` flag 추가:
+  - [ ] flag set 시 `plan_bootstrap` → `apply_bootstrap` → 자동 후속
+    `cmd_attach` 호출 (또는 사용자에게 다음 step 안내)
+  - [ ] flag unset + 빈 `.claude/agents/` → 기존 동작 유지하되 stderr 에
+    "no agents detected — run `genasis init --bootstrap` to scaffold the
+    default team" 안내 (i18n key)
+- [ ] 또는 (대안) `cmd_attach.rs` 에 `--bootstrap` 추가 — ADR-010 에서 결정
+- [ ] `genasis-i18n/locales/{en,ko}.yml` 에 키 추가:
+  - `bootstrap.no_agents_hint`
+  - `bootstrap.scaffolded_summary` (`{count} default agents created`)
+  - `bootstrap.skipped_existing` (`{name} already exists, skipped`)
+  - `bootstrap.next_step` (다음 `attach` 호출 안내)
+- [ ] `--lang` 우선순위가 base + patch 양쪽에 동일하게 적용되는지 확인
+  (base 트리도 `templates/<lang>/agents/` 에서 픽업)
+
+### M14.4 — `tests/golden/blank/` 활성화
+- [ ] `tests/golden/blank/input/` — 비어있는 mock project (Cargo.toml
+  대신 README.md 정도만, `.claude/` 자체 없음)
+- [ ] `tests/golden/blank/expected/` — `genasis init --bootstrap --lang en`
+  실행 후 산출물 (10 base agent 파일 + GENASIS.md + .claude/genasis/* 등)
+- [ ] `crates/genasis-overlay/tests/golden_blank.rs` 신규 — round-trip
+  (bootstrap → attach → detach → 비교)
+- [ ] `tests/golden/SHARED.md` 표에 blank 시나리오 행 갱신 (M2 의 stub
+  → M14 active)
+- [ ] (옵션) `tests/golden/blank-ko/` — `--lang ko` 변종
+
+### M14.5 — Doctor + 회고
+- [ ] `cmd_doctor.rs` `[bootstrap]` 섹션 추가:
+  - [ ] `.claude/agents/` 존재 여부 + 파일 수 보고
+  - [ ] 빈 디렉토리 + bootstrap 미실행 → suggestion 출력 (i18n)
+  - [ ] base 파일들의 frontmatter `name:` 키가 모두 canonical role 인지 검증
+- [ ] `progress.ko.md` 회고 슬롯 추가 (M14 시작/완료/학습한 것)
+- [ ] DoD: `cargo test --workspace` green, `lint-i18n` green, golden blank
+  round-trip green
+
+### 리스크 / 미정
+- **(a)** `init --bootstrap` vs `attach --bootstrap` 위치: ADR-010 에서
+  결정 — `init` 은 Plane/MM provisioning 까지 묶여있어 무거움. 별도
+  `genasis bootstrap` 서브커맨드 진입점 검토.
+- **(b)** ECC `claude-code-templates` 와 차별화 문구: README.md (Comparison
+  표) 의 "Non-destructive overlay" vs "Bootstrap" 두 차원으로 분리해야
+  시각적 혼동 회피.
+- **(c)** base 템플릿이 `tools:` 항목을 어디까지 specify 할지 — 너무 협소
+  하면 사용자 자유도 침해, 너무 넓으면 무의미. 우선 ECC default
+  (`Bash, Read, Write, Edit, Glob, Grep, Task`) 기준 + comment 로 안내.
 
 ---
 
@@ -607,6 +766,8 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - 2026-05-04: **M12 v3 미세조정** — 사용자 피드백 2건 반영. (1) drift 게이트를 2-tier 에서 **3-tier (PR warn / release-prep strict / 자동 translation-completion PR)** 로 확장 → "배포 전 빠진 번역 맞추기" 운영 모델 명시. (2) 런타임 i18n 라이브러리 **fluent-rs → rust-i18n** 전환 — 메시지 ~50개 / 한국어 복수형 변화 없음 / binary 150KB 절감 / 토큰 효율. ADR-008 대안 검토 ④ ⑤ 추가. blueprint §19.4 §19.9 §19.10 §19.12, progress M12.1 M12.2 M12.10 M12.11 M12.12 갱신.
 - 2026-05-04: **M12 v4 — interactive language prompt 추가, 사용자 최종 승인 완료**. 명령행 `--lang` 인자가 default 우선순위(인자 > TTY prompt > `$LANG` fallback). 설치 시 `.claude/agents/`, `genasis/{skills,commands,hooks}/`, `GENASIS.md` 가 선택 언어로 설치된다는 내용 + drift 위험 + `lang switch` 안내를 양언어 병기 prompt 로 표시. install.sh(Bash)와 `genasis attach`(Rust) 가 텍스트·배치 동일. `--non-interactive`/`--yes` 로 CI 우회. blueprint §19.3 4 sub-section(.1~.4)로 확장, progress M12.4 / M12.6 prompt + 통합 테스트 7+5건 추가.
 - 2026-05-04: **M12 v5 — README SEO + 다국어 토글 고도화 추가, 최종 승인 완료**. blueprint §19.13 8 sub-section 신설: 3-단계 토글 fallback (badge row + cross-link + bottom nav), 18-절 SEO 구조, GitHub Topics 18~20개, Open Graph 영/한 2버전, shields/Star History/Codecov badges, GitHub Pages 자동 라우팅(옵션) — `Accept-Language` 헤더 → `/ko/` `/en/` 분기, JSON-LD SoftwareApplication schema, Jekyll sitemap. progress M12.13 9 sub-step (.a~.i) 추가, M12.12 DoD 4항목 보강. **승인 완료 — M12.0 부터 순차 착수**.
+- 2026-05-04: **Phase D (Design Catalog Integration) 완료** — M-D1/M-D2/M-D3 일괄 진행. 사용자 결정 7개 모두 반영(pristine/external 두 모드, 외부 DESIGN.md read-only 강제, restore 명령, swap 후 사후 가이드, 충돌 시 사용자 의사결정→§B 누적, `--from <path>` 비-npx 진입점, EPIC 자동 임계치 4). awesome-design-md vendor 거부 → `npx getdesign` 위임 (manifest sha256 + 71 슬러그). 텔레메트리 default OFF. 신규 코드: `genasis-design/{mode,pointer,swap,restore,verify,override_log,ticket_emitter}.rs` + `genasis-monitor/widgets/design.rs` + `cmd_design` 5 서브커맨드. ADR-009 (en+ko). i18n 126 → 144 키. 누적 cargo test 145 passed (16 design + 1 swap_restore_round_trip + 3 epic_plan_and_overrides 신규). 결정 사항: §B 가 swap 시 초기화되는 동작은 의도된 것 — 새 §A 위에서 사용자가 재검토하도록 design-aware SKILL 이 안내.
+- 2026-05-05: **M14 (Default agentic team bootstrap) 사용자 제기 + 계획 반영**. 사용자 질의 — 빈 프로젝트에서 default agentic team scaffold 가 가능한지. 코드 audit 결과 `genasis-overlay` 는 attach/detach (기존 파일에 fence 주입/회수) 만 지원, base agent 생성 경로 부재. `templates/{en,ko}/agent-overlays/*.patch.md.tera` 도 patch 본문만 (frontmatter / 역할 헤더 없음). 의도적 누락이 아니라 마일스톤 순서가 닿지 않은 영역. blueprint §15 가 ECC 사실상 reference 사용자로 가정해 "agent 파일 이미 있음" 이 암묵적 전제였음. M14 신설로 base + patch 2-layer 구조 + ADR-010 (소유권 경계) + green-field 골든 픽스처 활성화 계획. v0.1.0 release tag 는 M14.0 (ADR-010 ratify) 이후로 이동.
 - 2026-05-04: **M12 v6 audit + 잔여 항목 정리**. progress.ko.md 의 154개 unchecked 가 stale 인지 audit. 결과: M12.3~M12.13 의 거의 모든 작업이 commit 됐지만 per-sub-step 체크박스만 안 닫혀 있었음. 진짜 missing artifacts 채우기 (`logo.svg`, `architecture.svg`, `tests/install_lang_e2e.rs` 6 tests, `cmd_attach.rs --lang` clap conflict 해결 — global `--lang` 만 유지). 모든 M12.3~M12.12 sub-step `[x]` 또는 `[s]` (사유 명시) 로 closure. 누적 cargo test 120 passed. `/work/secusy/genasis/progress.md` (계획 시점 stale 사본) 도 live state 로 sync.
 - TODO: GitHub `<OWNER>` 결정 필요 (install.sh placeholder)
 - TODO: monitor 의 manifest 해시 비교 — Next.js 외 빌드 시스템(Vite, Turbo, plain) 호환 확인

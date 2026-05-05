@@ -4,7 +4,7 @@
 |---|---|
 | `ecc-only/` | A repo with `.claude/agents/{planner,architect,frontend,backend,qa,...}.md` matching ECC defaults; no Plane/MM yet. |
 | `kw-plugins/` | A repo using Anthropic knowledge-work-plugins instead of ECC. |
-| `blank/` | Empty repo — `genasis init` should produce an end-to-end attached team. |
+| `blank/` | Empty repo — `genasis bootstrap` (M14) scaffolds 10 base agents, then `attach` injects fences. Stub until M14.4. |
 | `legacy-bash-genesis/` | Mimics a project bootstrapped via the original `create-agentic-team.sh` bash script. Tests `migrate-from-genesis`. |
 | `with-drizzle/` | Has `drizzle-orm` in `package.json` and `drizzle.config.ts`. `genasis db migrate` should pick `drizzle-kit`. |
 | `with-duckdb/` | Has `genasis.toml [db] driver = "duckdb"`. `genasis db migrate` should fall back to the raw SQL runner. |

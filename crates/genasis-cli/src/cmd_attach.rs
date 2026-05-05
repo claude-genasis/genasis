@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use genasis_core::config::{Config, I18nConfig, CONFIG_FILE_NAME};
+use genasis_core::config::{Config, DesignConfig, I18nConfig, CONFIG_FILE_NAME};
 use genasis_i18n::tr_args;
 use genasis_overlay::{plan_attach, scan, summary, unified_diff, AttachOptions};
 
@@ -64,6 +64,9 @@ pub async fn pub_run(
 
     // Persist the locale choice into genasis.toml [i18n].
     persist_i18n_choice(&project_root, decision, &args.reference_docs)?;
+    // Seed `[design]` with default getdesign URLs the first time we attach.
+    // Phase D — the gallery is replaceable later via genasis.toml edits.
+    seed_design_defaults(&project_root)?;
     write_reference_docs(&project_root, &args.reference_docs, decision.lang)?;
 
     let report = scan(&project_root)?;
@@ -155,6 +158,24 @@ fn persist_i18n_choice(
     } else {
         // Scaffold-only write — leaves the rest of the config defaulted.
         // Real provisioning (`genasis init`) will populate the rest.
+        cfg.save(&cfg_path)?;
+    }
+    Ok(())
+}
+
+/// Write `[design]` defaults to `genasis.toml` if absent. Phase D —
+/// non-interactive: the user can edit `gallery_index_url`, `add_command`,
+/// or any other field after the fact to point at a self-hosted gallery.
+/// Existing `[design]` config is preserved (idempotent).
+fn seed_design_defaults(project_root: &std::path::Path) -> Result<()> {
+    let cfg_path = project_root.join(CONFIG_FILE_NAME);
+    let mut cfg = if cfg_path.is_file() {
+        Config::load(&cfg_path)?
+    } else {
+        Config::default()
+    };
+    if cfg.design.is_none() {
+        cfg.design = Some(DesignConfig::default());
         cfg.save(&cfg_path)?;
     }
     Ok(())

@@ -58,6 +58,21 @@ design:
     post_swap_2: "  • 활성 디자인 미리보기: %{preview_url}"
     post_swap_3: "  • 다른 디자인 둘러보기: %{gallery_url}"
     post_swap_4: "  • 언제든 본 모드 복원: `genasis design restore`"
+    mattermost_template_header: "Mattermost 공지 메시지 (provider 클라이언트로 직접 게시):"
+    mattermost_template_body: "  🚨 DESIGN CHANGE: %{from} → %{to} | 미리보기: %{preview_url} | 생성 예정 이슈: %{issue_count}개"
+  plan:
+    per_area_header: "생성 예정 이슈 — per-area 모드 (%{count}개):"
+    full_rewrite_header: "생성 예정 이슈 — full-rewrite 모드 (영역=%{areas} ≥ 임계치=%{threshold}):"
+  verify:
+    pristine_skip: "pristine 모드 — 검증할 외부 본문이 없습니다"
+    ok: "design verify: OK (hash %{hash_short}…)"
+    tampered: "design verify: 변조됨 — 기록 %{expected}…, 실제 %{actual}…"
+  override:
+    added: "→ 오버라이드 추가됨: %{id} (시각 %{applied_at})"
+    list_header: "사용자 오버라이드 (%{count}개):"
+    list_empty: "기록된 사용자 오버라이드가 없습니다"
+    removed: "→ 오버라이드 제거됨: %{id}"
+    not_found: "해당 id 의 오버라이드 없음: %{id}"
   status:
     file_size: "design-system.md: %{bytes}바이트"
     missing: "design-system.md: 없음 — `genasis attach` 먼저 실행하세요."
@@ -85,6 +100,17 @@ init:
 
 doctor:
   header: "Genasis doctor"
+  design:
+    section: "[디자인]"
+    mode_pristine: "모드: pristine (docs/design-system.md 가 로컬 진실)"
+    mode_external: "모드: external (slug=%{slug})"
+    npx_missing_optional: "npx (slug swap 시 필요): 미설치 — `genasis design swap <slug>` 사용 예정이면 Node ≥18 설치"
+    npx_missing_required: "npx (필수): ✗ 미설치 — `genasis design swap <slug>` 실패. Node ≥18 설치."
+    verify_ok: "verify: OK (sha256 %{hash_short}…)"
+    verify_tampered: "verify: 변조됨 — 기록 %{expected}…, 실제 %{actual}…. 자세히는 `genasis design verify`."
+    verify_error: "verify: 오류 — %{reason}"
+    pointer_missing: "docs/design-system.md 없음 — 포인터 본문이 없습니다. `genasis attach` 실행."
+    extdir_missing: "외부 디렉터리 없음: %{path}"
   i18n:
     section: "[다국어]"
     runtime_locale: "CLI/TUI 실행 언어: %{lang} (출처: %{source})"
@@ -144,9 +170,10 @@ monitor:
     deploy: "배포"
     network: "네트워크"
     log_tail: "로그"
+    design: "디자인"
   status:
     idle: 대기
     in_progress: "진행중"
     in_review: "리뷰중"
     done: 완료
-  key_hint: "[1-5] 포커스  [o] 열기  [b] 빌드  [d] 배포  [r] 롤백  [v] 방문표시  [q] 종료"
+  key_hint: "[1-7] 포커스  [o] 열기  [b] 빌드  [d] 배포  [r] 롤백  [v] 방문표시  [Enter] URL 열기  [q] 종료"

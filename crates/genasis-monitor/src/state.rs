@@ -20,8 +20,24 @@ pub struct AppState {
     pub gh_calls: u64,
     pub agents: Vec<AgentActivity>,
     pub deploy: DeployState,
+    pub design: DesignWidgetState,
     pub log_tail: Vec<String>,
     pub focus: WidgetFocus,
+}
+
+/// Snapshot of the active design system. Populated from
+/// `docs/.design-state.toml` at app boot and refreshed after Enter on the
+/// Design widget. The widget renders pristine and external modes
+/// differently — empty fields mean pristine.
+#[derive(Debug, Default, Clone)]
+pub struct DesignWidgetState {
+    /// "pristine" | "external".
+    pub mode: String,
+    pub slug: String,
+    pub applied_at: String,
+    pub override_count: u32,
+    pub preview_url: String,
+    pub gallery_url: String,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +49,7 @@ pub enum WidgetFocus {
     Network,
     Deploy,
     Log,
+    Design,
 }
 
 #[derive(Debug, Default, Clone)]

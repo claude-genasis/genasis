@@ -75,4 +75,40 @@ mod tests {
             .collect();
         assert_eq!(en, ko, "top-level filename parity required");
     }
+
+    /// M14.1 — the bootstrap stage relies on a `templates/<lang>/agents/`
+    /// subtree carrying one `<role>.md.tera` per canonical role in both
+    /// locales.
+    #[test]
+    fn agent_base_subtrees_have_same_roles() {
+        const REQUIRED_ROLES: &[&str] = &[
+            "pm",
+            "planner",
+            "architect",
+            "frontend",
+            "backend",
+            "qa",
+            "designer",
+            "security",
+            "devops",
+            "code-reviewer",
+        ];
+        for lang in SUPPORTED_LANGS {
+            let dir = TEMPLATES
+                .get_dir(format!("{lang}/agents"))
+                .unwrap_or_else(|| panic!("{lang}/agents subtree missing"));
+            for role in REQUIRED_ROLES {
+                let template = format!("{role}.md.tera");
+                assert!(
+                    dir.files().any(|f| f
+                        .path()
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .map(|n| n == template)
+                        .unwrap_or(false)),
+                    "{lang}/agents/{template} missing"
+                );
+            }
+        }
+    }
 }
