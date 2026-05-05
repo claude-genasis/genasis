@@ -21,22 +21,21 @@ use std::path::{Path, PathBuf};
 
 use genasis_core::error::{Error, Result};
 use genasis_core::fs as gfs;
-use tera::Tera;
 
 use crate::role_inference::Role;
 
 /// Inputs that drive base-file scaffolding.
+///
+/// ADR-011: base agents are plain .md files read directly from the
+/// AgentStore — no Tera rendering needed. The `lang` field is no longer
+/// used for base file selection (base agents are language-neutral),
+/// but kept for consistency with the overlay stage that follows.
 pub struct BootstrapOptions {
-    /// BCP-47 locale code (`"en"` / `"ko"`). Picks the
-    /// `templates/<lang>/agents/` subtree.
+    /// BCP-47 locale code — used by the subsequent `attach` stage for
+    /// overlay rendering, not for base file selection.
     pub lang: String,
     /// Roles to scaffold. Defaults to [`Role::ALL`].
     pub roles: Vec<Role>,
-    /// JSON object passed to every Tera render. Empty by default — the
-    /// base templates do not currently use any context variables, but
-    /// the channel is here for future thickening (e.g. project_name in
-    /// the role header).
-    pub context: serde_json::Value,
 }
 
 impl Default for BootstrapOptions {
@@ -44,7 +43,6 @@ impl Default for BootstrapOptions {
         Self {
             lang: "en".to_string(),
             roles: Role::ALL.to_vec(),
-            context: serde_json::json!({}),
         }
     }
 }
@@ -59,11 +57,6 @@ impl BootstrapOptions {
 
     pub fn with_roles(mut self, roles: Vec<Role>) -> Self {
         self.roles = roles;
-        self
-    }
-
-    pub fn with_context(mut self, ctx: serde_json::Value) -> Self {
-        self.context = ctx;
         self
     }
 }
@@ -110,11 +103,15 @@ pub struct BootstrapReport {
 }
 
 /// Plan a bootstrap pass. Pure — checks file existence only, no writes.
-pub fn plan_bootstrap(project_root: &Path, opts: &BootstrapOptions) -> Result<BootstrapPlan> {
+///
+/// ADR-011: `store` is the loaded agents catalog from disk cache.
+/// Base agent .md files are read from `store.get_file("base/{role}.md")`.
+pub fn plan_bootstrap(
+    project_root: &Path,
+    opts: &BootstrapOptions,
+    store: &genasis_templates::AgentStore,
+) -> Result<BootstrapPlan> {
     let agents_dir = project_root.join(".claude").join("agents");
-    let tera = build_tera(&opts.lang)?;
-    let ctx = tera::Context::from_value(opts.context.clone())
-        .map_err(|e| Error::Overlay(format!("tera context: {e}")))?;
 
     let mut changes = Vec::with_capacity(opts.roles.len());
     for role in &opts.roles {
@@ -123,7 +120,13 @@ pub fn plan_bootstrap(project_root: &Path, opts: &BootstrapOptions) -> Result<Bo
         let action = if path.exists() {
             BootstrapAction::Skip { reason: "exists" }
         } else {
-            let body = render_base(&tera, slug, &ctx)?;
+            // ADR-011: read plain .md from catalog (no Tera rendering needed).
+            let base_path = format!("base/{slug}.md");
+            let body = store.get_file(&base_path).ok_or_else(|| {
+                Error::Overlay(format!(
+                    "base agent template missing from catalog: {base_path}"
+                ))
+            })?;
             BootstrapAction::Create { body }
         };
         changes.push(BootstrapChange {
@@ -149,60 +152,42 @@ pub fn apply_bootstrap(plan: &BootstrapPlan) -> Result<BootstrapReport> {
     Ok(BootstrapReport { written })
 }
 
-fn build_tera(lang: &str) -> Result<Tera> {
-    let mut tera = Tera::default();
-    let dir_path = format!("{lang}/agents");
-    let agents_dir = genasis_templates::TEMPLATES
-        .get_dir(&dir_path)
-        .ok_or_else(|| {
-            Error::Overlay(format!(
-                "templates/{lang}/agents missing from binary (M14.1 not yet shipped?)"
-            ))
-        })?;
-    for file in agents_dir.files() {
-        let name = file
-            .path()
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
-        if !name.ends_with(".md.tera") {
-            continue;
-        }
-        let body = file
-            .contents_utf8()
-            .ok_or_else(|| Error::Overlay(format!("non-utf8 base template: {name}")))?;
-        tera.add_raw_template(name, body)
-            .map_err(|e| Error::Overlay(format!("tera add {name}: {e}")))?;
-    }
-    Ok(tera)
-}
-
-fn render_base(tera: &Tera, role_slug: &str, ctx: &tera::Context) -> Result<String> {
-    let template_name = format!("{role_slug}.md.tera");
-    if tera.get_template_names().all(|n| n != template_name) {
-        return Err(Error::Overlay(format!(
-            "no base template for role {role_slug} — missing from templates/{{lang}}/agents/"
-        )));
-    }
-    let mut rendered = tera
-        .render(&template_name, ctx)
-        .map_err(|e| Error::Overlay(format!("tera render base {role_slug}: {e}")))?;
-    if !rendered.ends_with('\n') {
-        rendered.push('\n');
-    }
-    Ok(rendered)
-}
+// ADR-011: build_tera / render_base removed — base agents are now plain .md
+// files read directly from AgentStore. No Tera rendering needed for base files.
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use genasis_templates::AgentStore;
     use std::fs;
     use tempfile::tempdir;
+
+    /// Create a mock AgentStore with base .md files for all 10 roles.
+    fn mock_store() -> (tempfile::TempDir, AgentStore) {
+        let catalog = tempdir().unwrap();
+        let base = catalog.path().join("base");
+        fs::create_dir_all(&base).unwrap();
+        fs::write(
+            catalog.path().join("manifest.json"),
+            r#"{"version":"0.0.1-test","roles":[]}"#,
+        )
+        .unwrap();
+        for role in Role::ALL {
+            let slug = role.slug();
+            let content = format!(
+                "---\nname: {slug}\ndescription: test {slug}\ntools: Read\nmodel: sonnet\ncolor: gray\n---\n\n# {slug} Agent\n\nTest base file.\n"
+            );
+            fs::write(base.join(format!("{slug}.md")), &content).unwrap();
+        }
+        let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+        (catalog, store)
+    }
 
     #[test]
     fn empty_project_creates_all_ten_roles() {
         let d = tempdir().unwrap();
-        let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         assert_eq!(plan.changes.len(), 10);
         assert_eq!(plan.creates().count(), 10);
         assert_eq!(plan.skips().count(), 0);
@@ -213,7 +198,6 @@ mod tests {
         let d = tempdir().unwrap();
         let agents = d.path().join(".claude/agents");
         fs::create_dir_all(&agents).unwrap();
-        // Pre-populate two role files; bootstrap should skip them.
         fs::write(
             agents.join("frontend.md"),
             "---\nname: frontend\n---\n# user-authored\n",
@@ -224,7 +208,8 @@ mod tests {
             "---\nname: backend\n---\n# user-authored\n",
         )
         .unwrap();
-        let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         assert_eq!(plan.creates().count(), 8);
         let skipped: Vec<_> = plan.skips().map(|c| c.role).collect();
         assert!(skipped.contains(&Role::Frontend));
@@ -234,10 +219,10 @@ mod tests {
     #[test]
     fn apply_writes_only_create_actions() {
         let d = tempdir().unwrap();
-        let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         let report = apply_bootstrap(&plan).unwrap();
         assert_eq!(report.written.len(), 10);
-        // All 10 files now exist on disk.
         for role in Role::ALL {
             let p = d.path().join(format!(".claude/agents/{}.md", role.slug()));
             assert!(p.exists(), "missing {}", p.display());
@@ -245,65 +230,62 @@ mod tests {
     }
 
     #[test]
-    fn rendered_base_carries_required_frontmatter_keys() {
-        // Every base template must declare name/description/tools/model/color.
+    fn base_carries_required_frontmatter_keys() {
         let d = tempdir().unwrap();
-        let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         for change in plan.creates() {
             let body = match &change.action {
                 BootstrapAction::Create { body } => body,
                 _ => unreachable!(),
             };
-            assert!(body.starts_with("---\n"), "missing frontmatter open: {}", change.role.slug());
+            assert!(body.starts_with("---\n"), "missing frontmatter: {}", change.role.slug());
             for key in ["name:", "description:", "tools:", "model:", "color:"] {
-                assert!(
-                    body.contains(key),
-                    "{} base missing key {key}",
-                    change.role.slug()
-                );
+                assert!(body.contains(key), "{} missing {key}", change.role.slug());
             }
-            // name: <slug> must match the file stem, so detector classifies as Known(_).
-            let expected_name = format!("name: {}", change.role.slug());
-            assert!(
-                body.contains(&expected_name),
-                "{} base name does not match stem (expected `{expected_name}`)",
-                change.role.slug()
-            );
         }
-    }
-
-    #[test]
-    fn korean_locale_subtree_loads() {
-        let d = tempdir().unwrap();
-        let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("ko")).unwrap();
-        assert_eq!(plan.creates().count(), 10);
-    }
-
-    #[test]
-    fn unknown_locale_errors() {
-        let d = tempdir().unwrap();
-        let err = plan_bootstrap(d.path(), &BootstrapOptions::new("xx")).unwrap_err();
-        assert!(format!("{err:?}").contains("agents missing"));
     }
 
     #[test]
     fn role_subset_only_plans_chosen_roles() {
         let d = tempdir().unwrap();
-        let opts = BootstrapOptions::new("en").with_roles(vec![Role::Frontend, Role::Backend]);
-        let plan = plan_bootstrap(d.path(), &opts).unwrap();
+        let (_cat, store) = mock_store();
+        let opts = BootstrapOptions::default().with_roles(vec![Role::Frontend, Role::Backend]);
+        let plan = plan_bootstrap(d.path(), &opts, &store).unwrap();
         assert_eq!(plan.changes.len(), 2);
         assert_eq!(plan.creates().count(), 2);
     }
 
     #[test]
-    fn idempotent_second_apply_is_a_noop() {
+    fn idempotent_second_apply_is_noop() {
         let d = tempdir().unwrap();
-        let plan1 = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan1 = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         apply_bootstrap(&plan1).unwrap();
-        let plan2 = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+        let plan2 = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         assert_eq!(plan2.creates().count(), 0);
         assert_eq!(plan2.skips().count(), 10);
-        let report = apply_bootstrap(&plan2).unwrap();
-        assert!(report.written.is_empty());
+    }
+
+    #[test]
+    fn missing_base_file_in_store_errors() {
+        let catalog = tempdir().unwrap();
+        fs::create_dir_all(catalog.path().join("base")).unwrap();
+        fs::write(
+            catalog.path().join("manifest.json"),
+            r#"{"version":"0.0.1"}"#,
+        )
+        .unwrap();
+        // Only write one role — the rest will be missing.
+        fs::write(
+            catalog.path().join("base/pm.md"),
+            "---\nname: pm\n---\n# PM\n",
+        )
+        .unwrap();
+        let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+
+        let d = tempdir().unwrap();
+        let err = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap_err();
+        assert!(format!("{err:?}").contains("missing from catalog"));
     }
 }

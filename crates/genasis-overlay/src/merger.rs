@@ -85,10 +85,9 @@ impl MergePlan {
 
 /// Inputs that drive overlay rendering.
 ///
-/// Templates are looked up in [`genasis_templates::TEMPLATES`] under
-/// `agent-overlays/<role-slug>.patch.md.tera`. The Tera context comes from
-/// `context_json` so callers can inject project-specific values without this
-/// crate knowing the schema.
+/// ADR-011: overlay templates are loaded from the `AgentStore` (disk-cached
+/// catalog). The Tera context comes from `context_json` so callers can inject
+/// project-specific values without this crate knowing the schema.
 pub struct AttachOptions {
     pub fence_version: String,
     /// JSON object of values made available to every template (e.g.
@@ -96,7 +95,7 @@ pub struct AttachOptions {
     pub context: serde_json::Value,
     /// `--force` overrides Tampered / RoleMismatch refusals.
     pub force: bool,
-    /// BCP-47 locale code for the template subtree (`templates/<lang>/`).
+    /// BCP-47 locale code for the overlay subtree (`overlays/<lang>/`).
     /// Defaults to `"en"` for backward compatibility.
     pub lang: String,
 }
@@ -120,9 +119,15 @@ impl AttachOptions {
 
 /// Build a plan for `genasis attach`. Pure — no IO beyond what the detector
 /// has already done.
-pub fn plan_attach(agents: &[DetectedAgent], opts: &AttachOptions) -> Result<MergePlan> {
+///
+/// ADR-011: `store` is the loaded agents catalog from disk cache.
+pub fn plan_attach(
+    agents: &[DetectedAgent],
+    opts: &AttachOptions,
+    store: &genasis_templates::AgentStore,
+) -> Result<MergePlan> {
     let mut changes = Vec::with_capacity(agents.len());
-    let tera = build_tera_lang(&opts.lang)?;
+    let tera = build_tera_from_store(store, &opts.lang)?;
 
     for agent in agents {
         let role_slug = match &agent.classification {
@@ -236,39 +241,33 @@ pub struct AppliedReport {
     pub backups: Vec<PathBuf>,
 }
 
-fn build_tera() -> Result<Tera> {
-    build_tera_lang("en")
-}
-
-/// Build a Tera bundle from `templates/<lang>/agent-overlays/`. Falls back to
-/// the legacy flat path for compatibility with older callers.
-pub fn build_tera_lang(lang: &str) -> Result<Tera> {
+/// Build a Tera bundle from the AgentStore's `overlays/<lang>/` directory.
+///
+/// ADR-011: loads overlay .tera files from the disk-cached agents catalog.
+pub fn build_tera_from_store(
+    store: &genasis_templates::AgentStore,
+    lang: &str,
+) -> Result<Tera> {
     let mut tera = Tera::default();
-    let dir_path = format!("{lang}/agent-overlays");
-    let overlays_dir = genasis_templates::TEMPLATES
-        .get_dir(&dir_path)
-        .or_else(|| genasis_templates::TEMPLATES.get_dir("agent-overlays"))
-        .ok_or_else(|| {
-            Error::Overlay(format!(
-                "templates/{lang}/agent-overlays missing from binary"
-            ))
-        })?;
-    for file in overlays_dir.files() {
-        let name = file
-            .path()
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
-        if !name.ends_with(".patch.md.tera") {
-            continue;
-        }
-        let body = file
-            .contents_utf8()
-            .ok_or_else(|| Error::Overlay(format!("non-utf8 template: {name}")))?;
+    let subdir = format!("overlays/{lang}");
+    let files = store.get_dir_files(&subdir, ".patch.md.tera").map_err(|e| {
+        Error::Overlay(format!("overlays/{lang}/ load from catalog: {e}"))
+    })?;
+    if files.is_empty() {
+        return Err(Error::Overlay(format!(
+            "no overlay templates in catalog overlays/{lang}/ — run `genasis agents fetch`"
+        )));
+    }
+    for (name, body) in &files {
         tera.add_raw_template(name, body)
             .map_err(|e| Error::Overlay(format!("tera add {name}: {e}")))?;
     }
     Ok(tera)
+}
+
+/// Convenience wrapper that builds Tera for "en" locale from a store.
+pub fn build_tera_from_store_default(store: &genasis_templates::AgentStore) -> Result<Tera> {
+    build_tera_from_store(store, "en")
 }
 
 fn render_overlay(tera: &Tera, role_slug: &str, ctx: &serde_json::Value) -> Result<String> {
