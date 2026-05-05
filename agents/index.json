@@ -1,0 +1,205 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Genasis Agents Registry — browse and install individual agents",
+  "registry_url": "https://github.com/claude-genasis/genasis/releases",
+  "presets": {
+    "web-app": {
+      "description": "Minimal web application development team (9 roles)",
+      "agents": ["pm", "architect", "frontend-developer", "backend-developer", "code-reviewer", "qa-tester", "security-reviewer", "planner", "designer"]
+    },
+    "full-stack": {
+      "description": "Full-stack team with DevOps (11 roles)",
+      "agents": ["pm", "architect", "frontend-developer", "backend-developer", "code-reviewer", "qa-tester", "security-reviewer", "planner", "designer", "sre-engineer", "devops-engineer"]
+    },
+    "mobile": {
+      "description": "Mobile app team (iOS + Android + cross-platform)",
+      "agents": ["pm", "architect", "ios-expert", "android-expert", "react-native-expert", "code-reviewer", "qa-tester", "security-reviewer", "designer"]
+    }
+  },
+  "categories": [
+    {
+      "id": "core",
+      "name": "Core Development",
+      "description": "Essential roles for any software team"
+    },
+    {
+      "id": "review",
+      "name": "Review & Quality",
+      "description": "Code review, security, testing"
+    },
+    {
+      "id": "planning",
+      "name": "Planning & Management",
+      "description": "Sprint planning, PM, requirements"
+    },
+    {
+      "id": "infra",
+      "name": "Infrastructure & DevOps",
+      "description": "Cloud, K8s, CI/CD, SRE"
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile Development",
+      "description": "iOS, Android, React Native, Flutter"
+    },
+    {
+      "id": "specialist",
+      "name": "Language & Framework Specialists",
+      "description": "Deep expertise in specific technologies"
+    }
+  ],
+  "agents": [
+    {
+      "name": "pm",
+      "description": "Sprint coordinator — issue routing, backlog management, velocity tracking via Plane + Mattermost",
+      "category": "planning",
+      "tags": ["scrum", "sprint", "plane", "mattermost", "coordination"],
+      "preset": "web-app"
+    },
+    {
+      "name": "architect",
+      "description": "System architect — ADRs, schema/API review gate, cross-cutting design decisions",
+      "category": "core",
+      "tags": ["architecture", "adr", "api", "schema", "design"],
+      "preset": "web-app"
+    },
+    {
+      "name": "frontend-developer",
+      "description": "Frontend engineer — React 19, Next.js 15, App Router, RSC, Tailwind, accessibility",
+      "category": "core",
+      "tags": ["react", "nextjs", "tailwind", "frontend", "ui", "rsc"],
+      "preset": "web-app"
+    },
+    {
+      "name": "backend-developer",
+      "description": "Backend engineer — API endpoints, services, DB migrations, event-driven, TDD",
+      "category": "core",
+      "tags": ["api", "database", "backend", "tdd", "microservices"],
+      "preset": "web-app"
+    },
+    {
+      "name": "code-reviewer",
+      "description": "Code reviewer — 80% confidence filtering, security-first ordering, auto-consolidation (ECC gold standard)",
+      "category": "review",
+      "tags": ["review", "quality", "security", "pr"],
+      "preset": "web-app"
+    },
+    {
+      "name": "qa-tester",
+      "description": "QA engineer — test automation, accessibility verification, Done transition gate authority",
+      "category": "review",
+      "tags": ["testing", "qa", "e2e", "accessibility", "gate"],
+      "preset": "web-app"
+    },
+    {
+      "name": "security-reviewer",
+      "description": "Security engineer — OWASP top 10, secrets audit, dependency scanning, threat modelling",
+      "category": "review",
+      "tags": ["security", "owasp", "secrets", "vulnerability", "audit"],
+      "preset": "web-app"
+    },
+    {
+      "name": "planner",
+      "description": "Sprint planner — issue decomposition, acceptance criteria, dependency mapping, user stories",
+      "category": "planning",
+      "tags": ["planning", "issues", "requirements", "user-stories"],
+      "preset": "web-app"
+    },
+    {
+      "name": "designer",
+      "description": "Designer — design-system curator, design swap orchestrator, DESIGN CHANGE notification",
+      "category": "core",
+      "tags": ["design", "design-system", "ui", "tokens", "figma"],
+      "preset": "web-app"
+    },
+    {
+      "name": "sre-engineer",
+      "description": "SRE — Kubernetes, Terraform, incident response, reliability engineering",
+      "category": "infra",
+      "tags": ["kubernetes", "terraform", "sre", "reliability", "monitoring"],
+      "preset": "full-stack"
+    },
+    {
+      "name": "devops-engineer",
+      "description": "DevOps — CI/CD pipelines, deployment automation, infrastructure as code",
+      "category": "infra",
+      "tags": ["cicd", "deployment", "docker", "github-actions", "automation"],
+      "preset": "full-stack"
+    },
+    {
+      "name": "ios-expert",
+      "description": "iOS native — Swift 6, SwiftUI, UIKit, XcodeBuildMCP, App Store guidelines",
+      "category": "mobile",
+      "tags": ["ios", "swift", "swiftui", "uikit", "xcode"],
+      "preset": "mobile"
+    },
+    {
+      "name": "android-expert",
+      "description": "Android native — Kotlin, Jetpack Compose, Material 3, Play Store guidelines",
+      "category": "mobile",
+      "tags": ["android", "kotlin", "compose", "jetpack", "material"],
+      "preset": "mobile"
+    },
+    {
+      "name": "react-native-expert",
+      "description": "React Native + Expo — cross-platform mobile with accessibility + perf budget",
+      "category": "mobile",
+      "tags": ["react-native", "expo", "mobile", "cross-platform"],
+      "preset": "mobile"
+    },
+    {
+      "name": "flutter-expert",
+      "description": "Flutter + Dart — cross-platform mobile/desktop/web with Material/Cupertino",
+      "category": "mobile",
+      "tags": ["flutter", "dart", "cross-platform", "material"]
+    },
+    {
+      "name": "typescript-reviewer",
+      "description": "TypeScript specialist reviewer — type safety, generics, strict mode patterns",
+      "category": "specialist",
+      "tags": ["typescript", "types", "generics", "review"]
+    },
+    {
+      "name": "python-reviewer",
+      "description": "Python specialist reviewer — typing, async patterns, Django/FastAPI conventions",
+      "category": "specialist",
+      "tags": ["python", "django", "fastapi", "typing"]
+    },
+    {
+      "name": "rust-reviewer",
+      "description": "Rust specialist reviewer — ownership, lifetimes, unsafe audit, performance",
+      "category": "specialist",
+      "tags": ["rust", "ownership", "lifetimes", "performance"]
+    },
+    {
+      "name": "go-reviewer",
+      "description": "Go specialist reviewer — concurrency, interfaces, error handling patterns",
+      "category": "specialist",
+      "tags": ["go", "golang", "concurrency", "interfaces"]
+    },
+    {
+      "name": "nextjs-developer",
+      "description": "Next.js specialist — App Router, RSC, middleware, ISR, edge runtime",
+      "category": "specialist",
+      "tags": ["nextjs", "react", "rsc", "middleware", "edge"]
+    },
+    {
+      "name": "refactor-cleaner",
+      "description": "Refactoring specialist — code simplification, dead code removal, DRY enforcement",
+      "category": "review",
+      "tags": ["refactor", "cleanup", "simplify", "dry"]
+    },
+    {
+      "name": "doc-updater",
+      "description": "Documentation agent — auto-sync docs after code changes, API doc generation",
+      "category": "core",
+      "tags": ["documentation", "readme", "api-docs", "sync"]
+    },
+    {
+      "name": "silent-failure-hunter",
+      "description": "Silent failure detector — finds swallowed errors, missing error handling, dead code paths",
+      "category": "review",
+      "tags": ["errors", "debugging", "silent-failures", "dead-code"]
+    }
+  ]
+}

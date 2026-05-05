@@ -12,8 +12,9 @@
 
 **Started**: 2026-05-03
 **Target 1차 릴리즈**: v0.1.0 (M12 종료 후 git tag)
-**현재 마일스톤**: **M14 planning** (Default agentic team bootstrap, 2026-05-05 사용자 제기).
-M0–M12 + Phase D 모두 완료, v0.1.0 release tag 는 M14.0 (ADR-010 ratify) 후 cut.
+**현재 마일스톤**: **M14 planning** + **Phase F 설계** (Debug History 피드백 루프, ADR-012).
+M0–M12 + Phase D 모두 완료. Phase F (M15–M17) 2026-05-05 설계.
+v0.1.0 release tag 는 M14.0 (ADR-010 ratify) 후 cut.
 
 ---
 
@@ -749,6 +750,96 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - **(c)** base 템플릿이 `tools:` 항목을 어디까지 specify 할지 — 너무 협소
   하면 사용자 자유도 침해, 너무 넓으면 무의미. 우선 ECC default
   (`Bash, Read, Write, Edit, Glob, Grep, Task`) 기준 + comment 로 안내.
+
+---
+
+## Phase F — Debug History 피드백 루프 (ADR-012)
+
+> 2026-05-05 사용자 설계. Genasis는 메타 도구로서 overlay 파일을 생성하며 사용자는
+> 필연적으로 이를 수정한다. 이 수정사항은 genasis 개선을 위한 최고 가치의 신호다.
+> 이 Phase는 안전한 상시 드리프트 감지 + 옵트인 제출 파이프라인을 구현하여
+> 필드 패치를 Claude Code 자동 분석으로 genasis 개발에 피드백한다.
+>
+> 거버넌스: 기여자는 데이터만 제출(`debug-history/patches/*.patch.json`);
+> 메인테이너가 Claude Code `/debug-review` 스킬로 패치를 처리해 자동개발.
+> ADR-012 §8 참조.
+
+### M15 — 매니페스트 + 드리프트 감지 + 로컬 디버그 명령
+
+- [ ] `genasis-core` 매니페스트 모듈:
+  - [ ] `.manifest.json` 스키마 (genasis_version, agents_catalog_version, attached_at, lang, files 맵 with sha256/template_source/fence_sha256)
+  - [ ] `manifest::generate(project_root)` — `.claude/genasis/` + marker fence 스캔, 매니페스트 생산
+  - [ ] `manifest::compare(manifest, live_state)` → `Vec<DriftEntry>`
+  - [ ] `DriftEntry { file, drift_type, old_hash, new_hash, diff_lines }`
+- [ ] 매니페스트 생성을 `cmd_attach.rs`와 `cmd_init.rs`에 연결 (apply 후)
+- [ ] 매 CLI 호출 시 수동적 드리프트 감지:
+  - [ ] `app_preamble()` 또는 동등 hook이 manifest compare 실행
+  - [ ] `.claude/genasis/.drift-log/current.jsonl`에 append
+  - [ ] < 1ms 오버헤드 목표 (관리 파일당 SHA-256만)
+- [ ] `genasis debug` 서브커맨드 트리:
+  - [ ] `genasis debug status` — 드리프트 요약 (변경 파일 수, 마지막 collect 시점)
+  - [ ] `genasis debug log` — `.drift-log/current.jsonl` 내용 표시
+  - [ ] `genasis debug collect` — 익명화 + `patch.json` 생성:
+    - [ ] 시크릿 제거 (TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL 정규식)
+    - [ ] 경로 익명화 (절대 경로 → `<PROJECT_ROOT>/...`)
+    - [ ] 프로젝트 식별자는 단방향 해시
+    - [ ] `~/.genasis/debug-history/<project-hash>/<timestamp>.patch.json`에 출력
+  - [ ] `genasis debug reset` — 매니페스트를 현재 상태로 갱신, drift log 초기화
+- [ ] i18n 키: `debug.status.*`, `debug.collect.*`, `debug.log.*`, `debug.reset.*` (en/ko)
+- [ ] 단위 테스트: manifest generate/compare, 드리프트 감지, 시크릿 제거, 경로 익명화
+- [ ] 통합 테스트: attach → 파일 수동 편집 → 드리프트 감지 → collect → patch.json 유효
+
+### M16 — Submit + 리포 구조 + `/debug-review` 스킬
+
+- [ ] `genasis debug submit` 명령:
+  - [ ] `--all | --latest | --file <path>` 선택
+  - [ ] 확인 전 전체 페이로드 미리보기
+  - [ ] 인터랙티브 확인 프롬프트 (i18n)
+  - [ ] 선택적 `user_comment` 필드
+  - [ ] `gh issue create`로 제출 (라벨: `debug-history`, 구조화된 JSON 본문)
+  - [ ] 속도 제한: 프로젝트당 하루 최대 1회
+- [ ] genasis 리포 내 `debug-history/` 디렉토리 구조:
+  - [ ] `debug-history/index.jsonl` (패치 레지스트리: id, submitted_at, project_hash, status)
+  - [ ] `debug-history/patches/` (제출된 patch.json 파일)
+  - [ ] `debug-history/analysis/` (자동 생성: clusters.md, proposed-fixes.md)
+  - [ ] `debug-history/schema.json` (patch.json 검증용 JSON Schema)
+- [ ] `.github/workflows/debug-history-pr.yml`:
+  - [ ] `debug-history/patches/*.patch.json` 변경만 허용
+  - [ ] JSON 스키마 검증
+  - [ ] 실행 가능 콘텐츠 거부 (shebang, 의심스러운 패턴)
+  - [ ] 자동 라벨 `[debug-history]` + 자동 할당 메인테이너
+- [ ] `.claude/skills/debug-review.md` 스킬:
+  - [ ] `debug-history/patches/`에서 미해결 패치 모두 읽기
+  - [ ] 영향받은 템플릿/파일별 클러스터링
+  - [ ] 반복 패턴 식별 (임계값: ≥2 패치)
+  - [ ] 템플릿 변경을 Edit으로 제안
+  - [ ] `debug-history/analysis/clusters.md` 업데이트
+  - [ ] `index.jsonl`에서 해결된 패치 태그
+- [ ] i18n 키: `debug.submit.*`, `debug.submit.confirm`, `debug.submit.rate_limited` (en/ko)
+
+### M17 — 분석 자동화 + 통합
+
+- [ ] `/debug-review` 스킬 트리거:
+  - [ ] 수동: 메인테이너가 `/debug-review` 호출
+  - [ ] 스케줄: 주간 자동 실행 (GitHub Actions + Claude Code)
+- [ ] `debug-history/analysis/clusters.md` 자동 생성:
+  - [ ] 템플릿 소스별 패치 그룹화
+  - [ ] 분류: bug_fix / workflow_extension / project_specific
+  - [ ] 빈도 수 + 예시 발췌
+- [ ] `debug-history/analysis/proposed-fixes.md` 자동 생성:
+  - [ ] ≥2회 발생 클러스터에 대해: 템플릿 Edit 초안
+  - [ ] 소스 패치 ID 링크
+  - [ ] 신뢰도 점수 (패턴 일관성 기반)
+- [ ] 감사 추적:
+  - [ ] 모든 머지된 템플릿 수정이 커밋 메시지에 동기 패치 ID 참조
+  - [ ] 해결된 패치를 `index.jsonl`에 수정 커밋 SHA로 태그
+- [ ] 아카이빙 정책:
+  - [ ] 6개월 이상 패치 → `debug-history/archive/YYYY-MM/`
+  - [ ] 아카이빙된 패치는 활성 분석에서 제외
+- [ ] 문서:
+  - [ ] `CONTRIBUTING.md`에 debug-history 제출 섹션
+  - [ ] `genasis debug --help` 종합 사용 가이드
+  - [ ] GENASIS.md 템플릿에 debug history 섹션 추가
 
 ---
 

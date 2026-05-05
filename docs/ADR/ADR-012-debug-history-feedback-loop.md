@@ -269,6 +269,80 @@ For each patch:
 This requires **zero new tools** — just file reads and edits that Claude
 Code already does.
 
+### 8. Contribution Governance — Data-Only PR Model
+
+External contributors (fork users and collaborators) interact with
+debug-history through a strict separation of concerns:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  CONTRIBUTORS (humans)                                         │
+│                                                                │
+│  ALLOWED:                                                      │
+│    • PR to debug-history/patches/ (submit patch.json only)     │
+│    • Add user_comment to their patch explaining context        │
+│    • Open Issues tagged [debug-history] with context           │
+│                                                                │
+│  NOT ALLOWED:                                                  │
+│    • Modify templates (.tera) based on debug data              │
+│    • Modify overlay source files based on debug data           │
+│    • Modify analysis/ or clusters.md                           │
+│    • Directly act on debug patches to change genasis code      │
+└────────────────────────────────────────────────────────────────┘
+          │
+          │  patch.json accumulates
+          ▼
+┌────────────────────────────────────────────────────────────────┐
+│  MAINTAINER (automated development via Claude Code)            │
+│                                                                │
+│  1. /debug-review reads accumulated patches                    │
+│  2. Claude Code clusters, analyses, proposes fixes             │
+│  3. Maintainer reviews auto-generated PRs                      │
+│  4. Merged fixes ship in next genasis release                  │
+│  5. Resolved patches tagged in index.jsonl                     │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### Why this separation is critical
+
+| Risk if contributors modify code directly | Mitigation via data-only model |
+|---|---|
+| Malicious template injection (e.g., injecting commands into overlay hooks that run on all genasis users) | Contributors never touch executable templates — they only submit inert JSON describing what changed |
+| Inconsistent fix quality (contributor fixes their case but breaks others) | Maintainer's Claude Code sees ALL patches, can validate a fix doesn't contradict other users' drift |
+| Review burden explosion (reviewing template logic PRs from many contributors) | Reviewing a `patch.json` is trivial — it's structured data with a known schema |
+| Supply chain attack surface | debug-history/patches/ is pure data; CI can validate schema without executing anything |
+
+#### CI enforcement
+
+```yaml
+# .github/workflows/debug-history-pr.yml
+# Validates PRs that touch debug-history/
+- Only files matching debug-history/patches/*.patch.json are allowed
+- JSON schema validation (schema_version, required fields)
+- No executable content (reject if diff contains shebang, backticks in non-diff context, etc.)
+- Auto-label: [debug-history]
+- Auto-assign: maintainer
+```
+
+#### Maintainer's automated development flow
+
+The maintainer (repo owner) uses Claude Code with the `/debug-review`
+skill to process accumulated patches:
+
+1. **Trigger**: manually or on schedule (e.g., weekly)
+2. **Input**: all unresolved patches in `debug-history/patches/`
+3. **Output**: auto-generated branch with template fixes + PR
+4. **Review**: maintainer reviews the auto-PR, approves or iterates
+5. **Close loop**: merged fixes → tag patches as resolved → next release
+   includes improvements
+
+This means:
+- **Zero risk from contributors** — they can only add data
+- **Maximum signal extraction** — all patches are machine-analysed
+- **Minimal maintainer effort** — Claude Code does the heavy lifting;
+  maintainer only approves/rejects auto-PRs
+- **Audit trail** — every fix links back to the patches that motivated it
+
 ## CLI Surface Addition
 
 ```

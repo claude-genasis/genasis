@@ -1,0 +1,43 @@
+# /install-agent — Browse and install agents from the genasis catalog
+
+When the user runs `/install-agent` (with or without a query), help them find and install the right agent(s) for their needs.
+
+## How to use this command
+
+1. Read the agents index at `agents/index.json` (or fetch from the registry if not locally available).
+2. If the user provided a query (e.g., `/install-agent mobile`), filter agents by matching name, description, category, or tags.
+3. If no query, show all categories with agent counts.
+4. Present matching agents with their name + one-line description.
+5. Ask the user which agent(s) to install.
+6. For each selected agent, run: `genasis agents install <name>`
+
+## Behavior
+
+- **With query**: `/install-agent security` → show all agents matching "security" (security-reviewer, silent-failure-hunter, etc.)
+- **Without query**: Show categories, let user pick a category, then show agents in it.
+- **Preset shortcut**: `/install-agent --preset web-app` → install the 9-role web-app preset.
+
+## Example interaction
+
+User: `/install-agent frontend`
+
+You should respond:
+
+> Found 3 agents matching "frontend":
+>
+> 1. **frontend-developer** — React 19, Next.js 15, App Router, RSC, Tailwind, accessibility
+> 2. **nextjs-developer** — Next.js specialist: App Router, RSC, middleware, ISR, edge runtime
+> 3. **react-native-expert** — React Native + Expo cross-platform mobile
+>
+> Which would you like to install? (numbers, "all", or "cancel")
+
+After selection, run the install command and confirm:
+
+> ✓ Installed `frontend-developer` to `.claude/agents/frontend-developer.md`
+> ✓ Genasis overlay (Plane/MM protocol) injected.
+
+## Important
+
+- Each installed agent gets the Genasis overlay fence automatically (Plane/MM lifecycle protocol).
+- The overlay is already in the project from `genasis attach`. Installing an agent just adds the base expertise file.
+- Installed agents appear in `.claude/agents/` and are immediately active in Claude Code.

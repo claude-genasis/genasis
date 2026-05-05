@@ -86,32 +86,59 @@ OVERLAY_COUNT=$(find "$BUILD_DIR/overlays" -name "*.tera" | wc -l)
 echo "  Base agents: $BASE_COUNT"
 echo "  Overlays: $OVERLAY_COUNT"
 
-# 2. Create tarball
-echo "  Creating $TARBALL..."
-(cd "$BUILD_DIR" && tar -czf "$POOL_DIR/$TARBALL" .)
+# 2. Create individual assets list + tarball (both uploaded)
+echo "  Creating individual agent assets..."
+ASSETS_DIR="$POOL_DIR/release-assets"
+rm -rf "$ASSETS_DIR"
+mkdir -p "$ASSETS_DIR"
 
-# SHA256
-sha256sum "$POOL_DIR/$TARBALL" > "$POOL_DIR/${TARBALL}.sha256"
-echo "  SHA256: $(cat "$POOL_DIR/${TARBALL}.sha256")"
+# Each base agent as an individual downloadable .md file
+for f in "$BUILD_DIR/base/"*.md; do
+    [ -f "$f" ] || continue
+    cp "$f" "$ASSETS_DIR/"
+done
 
-# 3. Upload to genasis Releases
+# Also create the full tarball (for `--preset` bulk install)
+echo "  Creating $TARBALL (full catalog)..."
+(cd "$BUILD_DIR" && tar -czf "$ASSETS_DIR/$TARBALL" .)
+sha256sum "$ASSETS_DIR/$TARBALL" > "$ASSETS_DIR/${TARBALL}.sha256"
+
+INDIVIDUAL_COUNT=$(find "$ASSETS_DIR" -name "*.md" | wc -l)
+echo "  Individual agents: $INDIVIDUAL_COUNT"
+echo "  Full tarball: $TARBALL"
+
+# 3. Upload to genasis Releases (individual + tarball)
 echo "  Uploading to genasis Releases as $TAG..."
 cd "$GENASIS_DIR"
 
-# Create release (or upload to existing)
+# Build release notes
+NOTES="Agents Catalog v${VERSION}
+
+## Install individual agents
+\`\`\`bash
+genasis agents install frontend-developer
+genasis agents install --preset web-app   # 9 core agents
+\`\`\`
+
+## Browse available agents
+\`\`\`bash
+genasis agents           # interactive TUI
+/install-agent mobile    # Claude Code slash command
+\`\`\`
+
+## Stats
+- Individual agents: ${INDIVIDUAL_COUNT}
+- Overlay patches: ${OVERLAY_COUNT}
+- Full tarball for preset install included"
+
+# Create release with all assets
 gh release create "$TAG" \
     --title "Agents Catalog v${VERSION}" \
-    --notes "Agents catalog v${VERSION}.
-
-Install: \`genasis agents fetch --version ${VERSION}\`
-Update: \`genasis agents update\`
-
-Contains ${BASE_COUNT} base agents + ${OVERLAY_COUNT} overlay patches." \
-    "$POOL_DIR/$TARBALL" \
-    "$POOL_DIR/${TARBALL}.sha256" \
+    --notes "$NOTES" \
+    "$ASSETS_DIR"/* \
     2>/dev/null || {
-    # If release already exists, upload assets
-    gh release upload "$TAG" "$POOL_DIR/$TARBALL" "$POOL_DIR/${TARBALL}.sha256" --clobber
+    # If release already exists, upload/clobber
+    gh release upload "$TAG" "$ASSETS_DIR"/* --clobber
 }
 
 echo ""

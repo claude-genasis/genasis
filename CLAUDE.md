@@ -166,3 +166,16 @@ User project (.claude/genasis/)
 3. The manifest comparison runs **by default** (debug mode always on) so
    drift is silently tracked locally even if never submitted — zero
    developer effort to collect the data.
+
+### Contribution governance (Data-Only PR Model)
+
+- **Contributors** may ONLY submit `debug-history/patches/*.patch.json`
+  files via PR. They must NOT modify templates, overlay source, or
+  analysis files based on debug data.
+- **Maintainer** processes accumulated patches via Claude Code automated
+  development (`/debug-review` skill), reviews auto-generated PRs, and
+  merges fixes.
+- This separation ensures: zero supply-chain risk from contributors,
+  consistent fix quality across all users, minimal review burden.
+- See `docs/ADR/ADR-012-debug-history-feedback-loop.md` §8 for full
+  rationale.

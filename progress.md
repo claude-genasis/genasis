@@ -12,8 +12,9 @@
 
 **Started**: 2026-05-03
 **Target first release**: v0.1.0 (git tag after M14.0 ratification)
-**Current milestone**: **M14 planning** (Default agentic team bootstrap, 2026-05-05 user-flagged).
-M0–M12 + Phase D all complete. v0.1.0 release tag after M14.0 (ADR-010 ratify).
+**Current milestone**: **M14 planning** + **Phase F design** (Debug History feedback loop, ADR-012).
+M0–M12 + Phase D all complete. Phase F (M15–M17) designed 2026-05-05.
+v0.1.0 release tag after M14.0 (ADR-010 ratify).
 
 ---
 
@@ -683,6 +684,97 @@ Existing team asset recognition and fence injection engine.
 
 ---
 
+## Phase F — Debug History Feedback Loop (ADR-012)
+
+> 2026-05-05 user-designed. Genasis as a meta-tool generates overlay files that
+> users inevitably modify. Those modifications are the highest-signal feedback
+> for improving genasis. This phase implements a secure, always-on drift
+> detection + opt-in submission pipeline that feeds field patches back into
+> genasis development via automated Claude Code analysis.
+>
+> Governance: contributors submit data only (`debug-history/patches/*.patch.json`);
+> maintainer processes patches via Claude Code `/debug-review` skill for auto-development.
+> See ADR-012 §8.
+
+### M15 — Manifest + Drift Detection + Local Debug Commands
+
+- [ ] `genasis-core` manifest module:
+  - [ ] `.manifest.json` schema (genasis_version, agents_catalog_version, attached_at, lang, files map with sha256/template_source/fence_sha256)
+  - [ ] `manifest::generate(project_root)` — scan `.claude/genasis/` + marker fences, produce manifest
+  - [ ] `manifest::compare(manifest, live_state)` → `Vec<DriftEntry>`
+  - [ ] `DriftEntry { file, drift_type, old_hash, new_hash, diff_lines }`
+- [ ] Manifest generation wired into `cmd_attach.rs` and `cmd_init.rs` (post-apply)
+- [ ] Passive drift detection on every CLI invocation:
+  - [ ] `app_preamble()` or equivalent hook runs manifest compare
+  - [ ] Appends to `.claude/genasis/.drift-log/current.jsonl`
+  - [ ] < 1ms overhead target (SHA-256 per managed file only)
+- [ ] `genasis debug` subcommand tree:
+  - [ ] `genasis debug status` — drift summary (file count, last collect timestamp)
+  - [ ] `genasis debug log` — display `.drift-log/current.jsonl` contents
+  - [ ] `genasis debug collect` — anonymise + generate `patch.json`:
+    - [ ] Secret stripping (TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL regex)
+    - [ ] Path anonymisation (absolute paths → `<PROJECT_ROOT>/...`)
+    - [ ] Project identity as one-way hash
+    - [ ] Output to `~/.genasis/debug-history/<project-hash>/<timestamp>.patch.json`
+  - [ ] `genasis debug reset` — update manifest to current state, clear drift log
+- [ ] i18n keys: `debug.status.*`, `debug.collect.*`, `debug.log.*`, `debug.reset.*` (en/ko)
+- [ ] Unit tests: manifest generate/compare, drift detection, secret stripping, path anonymisation
+- [ ] Integration test: attach → manual file edit → drift detected → collect → patch.json valid
+
+### M16 — Submit + Repo Structure + `/debug-review` Skill
+
+- [ ] `genasis debug submit` command:
+  - [ ] `--all | --latest | --file <path>` selection
+  - [ ] Full payload preview before confirmation
+  - [ ] Interactive confirm prompt (i18n)
+  - [ ] Optional `user_comment` field
+  - [ ] Submission via `gh issue create` (label: `debug-history`, structured JSON body)
+  - [ ] Rate limiting: max 1 submit per project per day
+- [ ] `debug-history/` directory structure in genasis repo:
+  - [ ] `debug-history/index.jsonl` (patch registry: id, submitted_at, project_hash, status)
+  - [ ] `debug-history/patches/` (submitted patch.json files)
+  - [ ] `debug-history/analysis/` (auto-generated: clusters.md, proposed-fixes.md)
+  - [ ] `debug-history/schema.json` (JSON Schema for patch.json validation)
+- [ ] `.github/workflows/debug-history-pr.yml`:
+  - [ ] Only allow changes to `debug-history/patches/*.patch.json`
+  - [ ] JSON schema validation
+  - [ ] Executable content rejection (shebang, suspicious patterns)
+  - [ ] Auto-label `[debug-history]` + auto-assign maintainer
+- [ ] `.claude/skills/debug-review.md` skill:
+  - [ ] Read all unresolved patches from `debug-history/patches/`
+  - [ ] Cluster by affected template/file
+  - [ ] Identify recurring patterns (threshold: ≥2 patches)
+  - [ ] Propose template changes as Edits
+  - [ ] Update `debug-history/analysis/clusters.md`
+  - [ ] Tag resolved patches in `index.jsonl`
+- [ ] i18n keys: `debug.submit.*`, `debug.submit.confirm`, `debug.submit.rate_limited` (en/ko)
+
+### M17 — Analysis Automation + Integration
+
+- [ ] `/debug-review` skill triggers:
+  - [ ] Manual: maintainer invokes `/debug-review`
+  - [ ] Scheduled: weekly auto-run (GitHub Actions + Claude Code)
+- [ ] `debug-history/analysis/clusters.md` auto-generation:
+  - [ ] Group patches by template source
+  - [ ] Classify: bug_fix / workflow_extension / project_specific
+  - [ ] Frequency count + example excerpts
+- [ ] `debug-history/analysis/proposed-fixes.md` auto-generation:
+  - [ ] For each cluster with ≥2 occurrences: draft template Edit
+  - [ ] Link to source patch IDs
+  - [ ] Confidence score (based on pattern consistency)
+- [ ] Audit trail:
+  - [ ] Every merged template fix references motivating patch IDs in commit message
+  - [ ] Resolved patches tagged in `index.jsonl` with fix commit SHA
+- [ ] Archival policy:
+  - [ ] Patches older than 6 months → `debug-history/archive/YYYY-MM/`
+  - [ ] Archived patches excluded from active analysis
+- [ ] Documentation:
+  - [ ] `CONTRIBUTING.md` section on debug-history submissions
+  - [ ] `genasis debug --help` comprehensive usage guide
+  - [ ] GENASIS.md template updated with debug history section
+
+---
+
 ## In-progress notes
 
 (This section records blocks, decision changes, and deferred items inline.)
@@ -756,11 +848,20 @@ Community best-of-breed agents curated via private `agents-pool` submodule.
 | E.7.2 | publish.sh → tarball build + gh release upload (not copy to genasis) | done |
 | E.7.3 | release-agents.yml → verify-only (tarball built by agents-pool, not CI) | done |
 | E.7.4 | agents-pool/CLAUDE.md — curation strategy + privacy rules | done |
-| E.8 | `agents-pool` pushed to private repo + genasis submodule registration | pending |
-| E.9 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
-| E.10 | `install.sh` update (include `genasis agents fetch`) | pending |
-| E.11 | Remove old `crates/genasis-templates/templates/` (dead code cleanup) | pending |
-| E.12 | First `agents-v1.0.0` release tag (validates full pipeline end-to-end) | pending |
+| E.8 | Agent marketplace model: individual install + index.json + `/install-agent` command | done |
+| E.8.1 | `agents/index.json` — 23 agents, 6 categories, 3 presets (metadata only) | done |
+| E.8.2 | CLI `genasis agents install <name>` — individual fetch from release assets | done |
+| E.8.3 | CLI `genasis agents browse` — interactive TUI placeholder | done |
+| E.8.4 | CLI `genasis agents list --category/--search` — filtered browsing | done |
+| E.8.5 | CLI `genasis agents installed` / `remove` — project management | done |
+| E.8.6 | `/install-agent` Claude Code slash command template | done |
+| E.8.7 | `publish.sh` uploads individual .md as release assets | done |
+| E.9 | `agents-pool` pushed to private repo + genasis submodule registration | pending |
+| E.10 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
+| E.11 | `install.sh` update | pending |
+| E.12 | Remove old `crates/genasis-templates/templates/` | pending |
+| E.13 | Interactive TUI (dialoguer) for `genasis agents browse` | pending |
+| E.14 | First `agents-v1.0.0` release (validates full pipeline) | pending |
 
 ### Default 9-role team (famous-agents.md 기반 best-of-breed)
 
