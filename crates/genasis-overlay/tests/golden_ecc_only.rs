@@ -8,7 +8,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use genasis_overlay::{apply, plan_attach, plan_detach, scan, AttachOptions, PlannedAction};
+use genasis_overlay::{apply, plan_attach, plan_detach, scan, AttachOptions, PlannedAction, Role};
+use genasis_templates::AgentStore;
 
 fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR for genasis-overlay points at crates/genasis-overlay.
@@ -38,6 +39,35 @@ fn read(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
 }
 
+/// Create a mock AgentStore with overlay templates for all 10 roles.
+fn mock_store() -> (tempfile::TempDir, AgentStore) {
+    let catalog = tempfile::tempdir().unwrap();
+    let base = catalog.path().join("base");
+    let overlays_en = catalog.path().join("overlays/en");
+    fs::create_dir_all(&base).unwrap();
+    fs::create_dir_all(&overlays_en).unwrap();
+    fs::write(
+        catalog.path().join("manifest.json"),
+        r#"{"version":"0.0.1-test","roles":[]}"#,
+    )
+    .unwrap();
+    for role in Role::ALL {
+        let slug = role.slug();
+        fs::write(
+            base.join(format!("{slug}.md")),
+            format!("---\nname: {slug}\ndescription: test\ntools: Read\nmodel: sonnet\ncolor: gray\n---\n# {slug}\n"),
+        )
+        .unwrap();
+        fs::write(
+            overlays_en.join(format!("{slug}.patch.md.tera")),
+            format!("## overlay for {slug}\nproject: {{{{ project_name | default(value=\"test\") }}}}\n"),
+        )
+        .unwrap();
+    }
+    let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+    (catalog, store)
+}
+
 #[test]
 fn ecc_only_attach_then_detach_round_trips() {
     let fixture_input = workspace_root().join("tests/golden/ecc-only/input");
@@ -62,7 +92,8 @@ fn ecc_only_attach_then_detach_round_trips() {
     // 2. attach
     let report = scan(&project).unwrap();
     let opts = AttachOptions::new("1.0");
-    let plan = plan_attach(&report.agents, &opts).unwrap();
+    let (_cat, store) = mock_store();
+    let plan = plan_attach(&report.agents, &opts, &store).unwrap();
     let written = apply(&plan).unwrap();
 
     // Frontend has a template → fence injected.
@@ -140,9 +171,10 @@ fn double_attach_is_idempotent() {
     copy_dir_recursive(&fixture_input, &project);
 
     let opts = AttachOptions::new("1.0");
+    let (_cat, store) = mock_store();
     // First attach
     let r1 = scan(&project).unwrap();
-    let p1 = plan_attach(&r1.agents, &opts).unwrap();
+    let p1 = plan_attach(&r1.agents, &opts, &store).unwrap();
     apply(&p1).unwrap();
 
     let frontend_path = project.join(".claude/agents/frontend.md");
@@ -150,7 +182,7 @@ fn double_attach_is_idempotent() {
 
     // Second attach — must be a no-op.
     let r2 = scan(&project).unwrap();
-    let p2 = plan_attach(&r2.agents, &opts).unwrap();
+    let p2 = plan_attach(&r2.agents, &opts, &store).unwrap();
     let frontend_change = p2
         .changes
         .iter()

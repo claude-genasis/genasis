@@ -17,6 +17,7 @@ use crate::registry;
 ///
 /// Holds the cache directory path and provides file access methods
 /// analogous to the old `include_dir::Dir` interface.
+#[derive(Debug)]
 pub struct AgentStore {
     root: PathBuf,
 }

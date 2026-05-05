@@ -55,7 +55,14 @@ pub async fn run(args: Args) -> Result<()> {
         force: args.force,
         lang: active_lang,
     };
-    let plan = plan_attach(&report.agents, &opts)?;
+    // ADR-011: Load agents catalog from cache for overlay templates.
+    let agents_version =
+        std::env::var("GENASIS_AGENTS_VERSION").unwrap_or_else(|_| "1.0.0".to_string());
+    let agents_registry = std::env::var("GENASIS_AGENTS_REGISTRY")
+        .unwrap_or_else(|_| "https://github.com/claude-genasis/genasis/releases".to_string());
+    let agents_cache = std::env::var("GENASIS_AGENTS_CACHE_DIR").unwrap_or_default();
+    let store = genasis_templates::load(&agents_version, &agents_registry, &agents_cache, true)?;
+    let plan = plan_attach(&report.agents, &opts, &store)?;
     print!("{}", summary(&plan));
     if args.diff {
         println!();

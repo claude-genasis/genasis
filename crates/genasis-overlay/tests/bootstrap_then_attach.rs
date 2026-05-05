@@ -8,12 +8,50 @@ use genasis_overlay::{
     apply_bootstrap, plan_attach, plan_bootstrap, scan, AttachOptions, BootstrapOptions,
     Classified, PlannedAction, Role,
 };
+use genasis_templates::AgentStore;
 use tempfile::tempdir;
+
+/// Create a mock AgentStore with base .md files and overlay templates
+/// for all 10 roles (both `en` and `ko` locales).
+fn mock_store() -> (tempfile::TempDir, AgentStore) {
+    let catalog = tempdir().unwrap();
+    let base = catalog.path().join("base");
+    let overlays_en = catalog.path().join("overlays/en");
+    let overlays_ko = catalog.path().join("overlays/ko");
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&overlays_en).unwrap();
+    std::fs::create_dir_all(&overlays_ko).unwrap();
+    std::fs::write(
+        catalog.path().join("manifest.json"),
+        r#"{"version":"0.0.1-test","roles":[]}"#,
+    )
+    .unwrap();
+    for role in Role::ALL {
+        let slug = role.slug();
+        let content = format!(
+            "---\nname: {slug}\ndescription: test {slug}\ntools: Read\nmodel: sonnet\ncolor: gray\n---\n\n# {slug} Agent\n\nTest base file.\n"
+        );
+        std::fs::write(base.join(format!("{slug}.md")), &content).unwrap();
+        std::fs::write(
+            overlays_en.join(format!("{slug}.patch.md.tera")),
+            format!("## (Genasis Overlay) Plane / Mattermost protocol\nproject: {{{{ project_name | default(value=\"test\") }}}}\nrole: {slug}\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            overlays_ko.join(format!("{slug}.patch.md.tera")),
+            format!("## (Genasis Overlay) Plane / Mattermost 프로토콜\nproject: {{{{ project_name | default(value=\"test\") }}}}\nrole: {slug}\n"),
+        )
+        .unwrap();
+    }
+    let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+    (catalog, store)
+}
 
 #[test]
 fn bootstrap_then_attach_injects_into_every_role() {
     let d = tempdir().unwrap();
-    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+    let (_cat, store) = mock_store();
+    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en"), &store).unwrap();
     apply_bootstrap(&plan).unwrap();
 
     let report = scan(d.path()).unwrap();
@@ -33,7 +71,7 @@ fn bootstrap_then_attach_injects_into_every_role() {
     }
 
     let opts = AttachOptions::new("1.0").with_lang("en");
-    let attach_plan = plan_attach(&report.agents, &opts).unwrap();
+    let attach_plan = plan_attach(&report.agents, &opts, &store).unwrap();
     let injects: Vec<_> = attach_plan
         .changes
         .iter()
@@ -45,14 +83,15 @@ fn bootstrap_then_attach_injects_into_every_role() {
 #[test]
 fn bootstrap_ko_then_attach_ko_injects_korean_overlay() {
     let d = tempdir().unwrap();
-    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("ko")).unwrap();
+    let (_cat, store) = mock_store();
+    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("ko"), &store).unwrap();
     apply_bootstrap(&plan).unwrap();
 
     let report = scan(d.path()).unwrap();
     assert_eq!(report.agents.len(), 10);
 
     let opts = AttachOptions::new("1.0").with_lang("ko");
-    let attach_plan = plan_attach(&report.agents, &opts).unwrap();
+    let attach_plan = plan_attach(&report.agents, &opts, &store).unwrap();
     let injects = attach_plan
         .changes
         .iter()
@@ -83,6 +122,7 @@ fn bootstrap_ko_then_attach_ko_injects_korean_overlay() {
 #[test]
 fn bootstrap_partial_then_attach_handles_mix() {
     let d = tempdir().unwrap();
+    let (_cat, store) = mock_store();
 
     // Pre-author one role file the user already owns; bootstrap should
     // skip it and only emit the other 9.
@@ -94,7 +134,7 @@ fn bootstrap_partial_then_attach_handles_mix() {
     )
     .unwrap();
 
-    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en")).unwrap();
+    let plan = plan_bootstrap(d.path(), &BootstrapOptions::new("en"), &store).unwrap();
     let creates: Vec<_> = plan.creates().collect();
     let skips: Vec<_> = plan.skips().collect();
     assert_eq!(creates.len(), 9);

@@ -67,7 +67,6 @@ pub async fn pub_run(
     // Seed `[design]` with default getdesign URLs the first time we attach.
     // Phase D — the gallery is replaceable later via genasis.toml edits.
     seed_design_defaults(&project_root)?;
-    write_reference_docs(&project_root, &args.reference_docs, decision.lang)?;
 
     let report = scan(&project_root)?;
     if !report.skipped.is_empty() {
@@ -92,6 +91,7 @@ pub async fn pub_run(
         &agents_cfg.cache_dir,
         agents_cfg.auto_check,
     )?;
+    write_reference_docs(&project_root, &args.reference_docs, decision.lang, &store)?;
     let plan = plan_attach(&report.agents, &opts, &store)?;
 
     print!("{}", summary(&plan));
@@ -197,8 +197,9 @@ fn write_reference_docs(
     project_root: &std::path::Path,
     reference_langs: &[String],
     active: genasis_i18n::Lang,
+    store: &genasis_templates::AgentStore,
 ) -> Result<()> {
-    use genasis_templates::{get_lang, SUPPORTED_LANGS};
+    use genasis_templates::SUPPORTED_LANGS;
     if reference_langs.is_empty() {
         return Ok(());
     }
@@ -224,7 +225,9 @@ fn write_reference_docs(
             .with_context(|| format!("create reference-docs dir: {}", dir.display()))?;
         // Only the GENASIS.md contract makes sense as a reference; per-role
         // overlays would need template variables that only attach knows.
-        if let Some(body) = get_lang(&lang_code, "GENASIS.md.tera") {
+        // ADR-011: read from AgentStore on disk (get_lang removed with
+        // include_dir migration).
+        if let Some(body) = store.get_file(&format!("{lang_code}/GENASIS.md.tera")) {
             let target = dir.join("GENASIS.md");
             std::fs::write(&target, body).with_context(|| format!("write {}", target.display()))?;
         }

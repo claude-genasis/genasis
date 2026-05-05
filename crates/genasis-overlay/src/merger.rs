@@ -289,6 +289,37 @@ mod tests {
     use super::*;
     use crate::detector::DetectedAgent;
     use crate::role_inference::Role;
+    use genasis_templates::AgentStore;
+    use std::fs;
+
+    /// Create a mock AgentStore with overlay templates for all 10 roles.
+    fn mock_store() -> (tempfile::TempDir, AgentStore) {
+        let catalog = tempfile::tempdir().unwrap();
+        let base = catalog.path().join("base");
+        let overlays_en = catalog.path().join("overlays/en");
+        fs::create_dir_all(&base).unwrap();
+        fs::create_dir_all(&overlays_en).unwrap();
+        fs::write(
+            catalog.path().join("manifest.json"),
+            r#"{"version":"0.0.1-test","roles":[]}"#,
+        )
+        .unwrap();
+        for role in Role::ALL {
+            let slug = role.slug();
+            fs::write(
+                base.join(format!("{slug}.md")),
+                format!("---\nname: {slug}\ndescription: test\ntools: Read\nmodel: sonnet\ncolor: gray\n---\n# {slug}\n"),
+            )
+            .unwrap();
+            fs::write(
+                overlays_en.join(format!("{slug}.patch.md.tera")),
+                format!("## overlay for {slug}\nproject: {{{{ project_name | default(value=\"test\") }}}}\n"),
+            )
+            .unwrap();
+        }
+        let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+        (catalog, store)
+    }
 
     fn make_agent(role: Role, raw: &str) -> DetectedAgent {
         DetectedAgent {
@@ -313,7 +344,8 @@ mod tests {
             raw: "---\nname: loop-operator\n---\n".into(),
             has_existing_fence: false,
         };
-        let plan = plan_attach(&[agent], &AttachOptions::new("1.0")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_attach(&[agent], &AttachOptions::new("1.0"), &store).unwrap();
         assert_eq!(plan.changes.len(), 1);
         assert!(matches!(plan.changes[0].action, PlannedAction::Skip(_)));
     }
@@ -340,7 +372,8 @@ mod tests {
             raw: "---\nname: loop-operator\n---\nbody\n".into(),
             has_existing_fence: false,
         };
-        let plan = plan_attach(&[agent], &AttachOptions::new("1.0")).unwrap();
+        let (_cat, store) = mock_store();
+        let plan = plan_attach(&[agent], &AttachOptions::new("1.0"), &store).unwrap();
         match &plan.changes[0].action {
             PlannedAction::Skip(reason) => assert!(reason.contains("custom")),
             other => panic!("expected skip, got {other:?}"),
