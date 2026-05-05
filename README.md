@@ -42,17 +42,37 @@ Genasis solves both problems with a **single Rust binary**:
 
 4. **Fully reversible** — `genasis detach` removes everything Genasis added. Marker fences only. Zero residue.
 
+## Try It Now (no server setup required)
+
+> **Don't have Plane or Mattermost?** Apply for a free trial environment at
+> [**trial.realstory.blog**](https://trial.realstory.blog) — get pre-provisioned
+> credentials to our hosted Plane + Mattermost in minutes, then skip straight
+> to step 3 below.
+
 ## Quickstart
 
 ```bash
+# 1. Install genasis
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
+
+# 2. Browse and install agents (interactive TUI)
+genasis agents browse
+
+# 3. Connect to Plane + Mattermost (paste keys from trial or self-hosted)
+genasis init
+
+# Done! Your agentic team is running. Open Plane to see agents picking up tickets.
 ```
+
+<details>
+<summary>Language options</summary>
 
 ```bash
 sh install.sh --lang en        # English agent instructions
 sh install.sh --lang ko        # Korean agent instructions
 sh install.sh --lang both      # rejected — see docs/impact-of-multilang-prompts.md
 ```
+</details>
 
 ## At a Glance
 
@@ -230,7 +250,16 @@ flowchart TB
 | Install-time i18n | ✅ en / ko | — | — | — |
 | Single Rust binary | ✅ | bash | npm | npm |
 
-## Documentation
+## Guides
+
+| Guide | What it covers |
+|---|---|
+| [**Server Setup**](servers/README.md) | Self-host Plane + Mattermost with one docker-compose. Key extraction walkthrough. |
+| [**Design Swap**](docs/DESIGN-SWAP-GUIDE.md) | Replace your design system, restore, override, EPIC mode. |
+| [**Agents Marketplace**](docs/AGENTS-MARKETPLACE.md) | Browse categories, install presets, use `/install-agent` in Claude Code. |
+| [**Full Quickstart**](docs/QUICKSTART.md) | Detailed install + first attach + verify walkthrough. |
+
+## Documentation (reference)
 
 | | English | 한국어 |
 |---|---|---|
