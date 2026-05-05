@@ -58,6 +58,7 @@ sh install.sh --lang both
 | **Design hot-swap** | `genasis design swap <ref-url>` 가 `docs/design-system.md` 재생성 + 영향 영역 Plane 이슈 자동 발행. |
 | **Schema-as-code** | 읽기는 SQL guard, 쓰기는 Atlas / Drizzle Kit / DuckDB raw runner. |
 | **Monitor TUI** | Ratatui 대시보드: sprint, tokens, agents, deploy LED, network, log tail. |
+| **Debug History** | 상시 드리프트 감지. 필드 수정사항을 옵트인 제출로 genasis 개선에 피드백. 제로 노력, 보안 우선. |
 | **i18n** | 영어/한국어 install-time 선택. atomic `lang switch`. 동시에 한 언어만. |
 
 ## 사용법
@@ -77,6 +78,10 @@ genasis lang switch <en|ko>
 genasis design swap <reference-url>
 genasis db query "SELECT ..."
 genasis db migrate
+
+genasis debug status           # 현재 프로젝트 드리프트 요약
+genasis debug collect          # 로컬 수정사항에서 익명화 패치 생성
+genasis debug submit           # 옵트인: genasis 개선에 패치 기여
 ```
 
 ## 데모
@@ -136,7 +141,7 @@ flowchart TB
 
 ## 상태
 
-Pre-release. M11 까지의 기능은 자리잡았고 M12 (i18n) 마무리 단계. 진행은 [`progress.ko.md`](progress.ko.md) 추적.
+Pre-release. M0–M12 + Phase D (design catalog) 완료. **Phase E** (Dynamic Agents Catalog — ADR-011) 진행 중. **Phase F** (Debug History — ADR-012) 설계 완료: 상시 드리프트 감지가 필드 수정사항을 data-only 기여자 PR + 메인테이너 자동개발로 genasis 개선에 피드백. 진행은 [`progress.ko.md`](progress.ko.md) 추적.
 
 ## 기여
 

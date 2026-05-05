@@ -1585,3 +1585,105 @@ base 는 의도적으로 얇게 유지.
 - ☐ README Comparison 표에 "Bootstrap" 행 추가
 - ☐ `cargo test --workspace` green, `lint-i18n` green, golden blank
   round-trip green
+
+---
+
+## 21. Debug History — 필드 드리프트 피드백 루프 (Phase F)
+
+### 21.1 배경
+
+Genasis는 **메타 도구**다 — overlay 파일을 생성하고 사용자 프로젝트에
+설치한다. 사용자는 필연적으로 이 파일들을 수정한다:
+
+- overlay 템플릿 버그 수정 (lifecycle 명령 오류, 환경변수 누락)
+- 프로젝트별 워크플로 적응 (커스텀 스프린트, 비표준 Plane 라벨)
+- genasis 한계 우회
+
+이 수정사항 = **genasis 개선을 위한 최고 가치 신호**. 현재는 소실됨.
+
+### 21.2 핵심 설계 — Manifest-Drift-Submit 파이프라인
+
+```
+attach/init 시 .manifest.json 기록 (SHA-256 스냅샷)
+    ↓
+매 CLI 호출 시 수동적 드리프트 감지 (~1ms)
+    ↓ .drift-log/current.jsonl (로컬 전용)
+genasis debug collect
+    ↓ 익명화·시크릿 교정·경로 해시
+~/.genasis/debug-history/<project-hash>/<ts>.patch.json
+    ↓ (옵트인)
+genasis debug submit → GitHub Issue 또는 debug-history/patches/ PR
+    ↓
+genasis 리포 축적 → /debug-review 스킬 → 자동개발 → 메인테이너 승인
+```
+
+### 21.3 보안 모델
+
+| 계층 | 보호 |
+|---|---|
+| 수집 범위 | `.claude/genasis/` + marker fence 만 — `src/`, `lib/`, 테스트 등 절대 불포함 |
+| 시크릿 교정 | TOKEN/SECRET/KEY/PASSWORD/CREDENTIAL 정규식 필터 |
+| 경로 익명화 | 절대 경로 대체, 프로젝트는 비가역 해시로만 식별 |
+| 옵트인 제출 | 명시적 `debug submit` + 페이로드 미리보기 + 확인 없이는 외부 전송 없음 |
+| 속도 제한 | 프로젝트당 하루 최대 1회 제출 |
+
+### 21.4 기여 거버넌스 — Data-Only PR 모델
+
+**핵심 원칙**: 기여자는 데이터(patch.json)만 제출, 코드 수정은 메인테이너가
+Claude Code로 자동개발.
+
+```
+기여자 (허용):
+  • debug-history/patches/*.patch.json에 PR
+  • user_comment으로 맥락 설명
+  • [debug-history] 라벨 이슈 오픈
+
+기여자 (불허):
+  • 디버그 데이터 기반 템플릿(.tera) 수정
+  • overlay 소스 파일 수정
+  • analysis/ 또는 clusters.md 수정
+
+메인테이너:
+  1. /debug-review 스킬 → 패치 클러스터링 + 분석
+  2. Claude Code가 템플릿 수정 PR 자동 생성
+  3. 메인테이너 승인 → 머지 → 다음 릴리즈에 포함
+  4. 해결된 패치를 index.jsonl에 태그
+```
+
+**이유**:
+- 공급망 공격 표면 제거 (기여자가 실행 코드를 건드릴 수 없음)
+- 일관된 수정 품질 (Claude Code가 전체 패치를 교차 분석)
+- 리뷰 부담 최소화 (patch.json 검토는 알려진 스키마의 데이터)
+
+**CI 강제**: `.github/workflows/debug-history-pr.yml` 이 patches/ 만 허용,
+JSON 스키마 검증, 실행 가능 콘텐츠 거부, 자동 라벨·할당.
+
+### 21.5 자기개선 기계장치
+
+1. **`/debug-review` 스킬** — debug-history/patches/ 읽기, 클러스터링,
+   ≥2회 패턴에 대해 템플릿 변경 제안
+2. **`debug-history/analysis/clusters.md`** — 자동 생성, 패턴 그룹·빈도·발췌
+3. **감사 추적** — 모든 수정 커밋이 동기 패치 ID 참조
+
+### 21.6 CLI 명령 추가
+
+```
+genasis debug
+├── status      드리프트 요약
+├── collect     익명화 patch.json 생성
+├── submit      옵트인 제출
+├── log         .drift-log 열람
+└── reset       매니페스트 현재 상태로 갱신
+```
+
+### 21.7 ADR-012
+
+`docs/ko/ADR/ADR-012-debug-history-feedback-loop.md` (한국어 SSOT) +
+`docs/ADR/ADR-012-...` (영어 mirror) 에서 전체 결정 근거·대안·결과·
+구현 계획(M15–M17) 상세 기술.
+
+### 21.8 DoD (Phase F)
+
+- ☐ M15: manifest 생성 + 드리프트 감지 + `debug status/collect/log/reset`
+- ☐ M16: `debug submit` + repo `debug-history/` 구조 + CI workflow + `/debug-review` 스킬
+- ☐ M17: 분석 자동화 + clusters.md + 아카이빙 + 문서

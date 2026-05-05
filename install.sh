@@ -521,6 +521,10 @@ main() {
 
     if fetch_binary; then
         if [ "$RUN_AFTER_INSTALL" -eq 1 ]; then
+            info "Fetching agents catalog (required before first attach)..."
+            "$PREFIX/genasis" agents fetch \
+                || warn "'genasis agents fetch' failed — attach will use cached catalog if available."
+
             info "Running 'genasis attach --lang $ACTIVE_LANG --non-interactive' (use --no-run to skip)"
             "$PREFIX/genasis" attach \
                 --lang "$ACTIVE_LANG" \

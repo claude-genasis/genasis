@@ -83,7 +83,16 @@ pub async fn pub_run(
         force: args.force,
         lang: decision.lang.code().to_string(),
     };
-    let plan = plan_attach(&report.agents, &opts)?;
+
+    // ADR-011: Load agents catalog from cache (auto-fetch if [agents].auto_check).
+    let agents_cfg = load_agents_config(&project_root);
+    let store = genasis_templates::load(
+        &agents_cfg.version,
+        &agents_cfg.registry,
+        &agents_cfg.cache_dir,
+        agents_cfg.auto_check,
+    )?;
+    let plan = plan_attach(&report.agents, &opts, &store)?;
 
     print!("{}", summary(&plan));
     if args.diff {
@@ -221,6 +230,33 @@ fn write_reference_docs(
         }
     }
     Ok(())
+}
+
+/// Load [agents] config from genasis.toml, or return defaults.
+struct AgentsConfig {
+    version: String,
+    registry: String,
+    cache_dir: String,
+    auto_check: bool,
+}
+
+fn load_agents_config(project_root: &std::path::Path) -> AgentsConfig {
+    let cfg_path = project_root.join(CONFIG_FILE_NAME);
+    let cfg = cfg_path
+        .is_file()
+        .then(|| Config::load(&cfg_path).ok())
+        .flatten();
+
+    // TODO: read from cfg.agents once Config struct gains [agents] section.
+    AgentsConfig {
+        version: std::env::var("GENASIS_AGENTS_VERSION")
+            .unwrap_or_else(|_| "1.0.0".to_string()),
+        registry: std::env::var("GENASIS_AGENTS_REGISTRY").unwrap_or_else(|_| {
+            "https://github.com/claude-genasis/genasis/releases".to_string()
+        }),
+        cache_dir: std::env::var("GENASIS_AGENTS_CACHE_DIR").unwrap_or_default(),
+        auto_check: true,
+    }
 }
 
 fn build_context(project_root: &std::path::Path) -> Result<serde_json::Value> {

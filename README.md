@@ -59,6 +59,7 @@ sh install.sh --lang both
 | **Design hot-swap** | `genasis design swap <ref-url>` regenerates `docs/design-system.md` and emits Plane issues for impacted areas. |
 | **Schema-as-code** | Read via SQL guard, write via Atlas / Drizzle Kit / DuckDB raw runner. |
 | **Monitor TUI** | Ratatui dashboard: sprint, tokens, agents, deploy LEDs, network, log tail. |
+| **Debug History** | Always-on drift detection. Field modifications feed back into genasis improvement via opt-in submission. Zero-effort, security-first. |
 | **i18n** | English / Korean install-time selector. Atomic `lang switch`. Single-language at a time. |
 
 ## Usage
@@ -83,6 +84,10 @@ genasis lang switch <en|ko>
 genasis design swap <reference-url>
 genasis db query "SELECT ..."
 genasis db migrate
+
+genasis debug status           # drift summary for current project
+genasis debug collect          # generate anonymised patch from local modifications
+genasis debug submit           # opt-in: contribute patch to genasis improvement
 ```
 
 ## Demo
@@ -142,7 +147,7 @@ flowchart TB
 
 ## Status
 
-Pre-release. M0–M12 + Phase D (design catalog) complete. **Phase E** (Dynamic Agents Catalog — ADR-011) in progress: agents are no longer embedded in the binary; they're curated from community best-of-breed sources and distributed as independent release tarballs. Track progress in [`progress.md`](progress.md).
+Pre-release. M0–M12 + Phase D (design catalog) complete. **Phase E** (Dynamic Agents Catalog — ADR-011) in progress. **Phase F** (Debug History — ADR-012) designed: always-on drift detection feeds field modifications back into genasis improvement via data-only contributor PRs + maintainer auto-development. Track progress in [`progress.md`](progress.md).
 
 ## Contributing
 

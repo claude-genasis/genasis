@@ -56,6 +56,28 @@ Claude Code agent team. The overlay covers:
 - **§20 Default agentic team bootstrap (M14)** — green-field install
   path; introduces base + patch 2-layer structure. Read together with
   `docs/ADR/ADR-010-default-team-bootstrap.md` (planning).
+- **§21 Debug History — Field Feedback Loop (Phase F)** — always-on
+  drift detection + opt-in submission + data-only contributor governance
+  + maintainer auto-development via Claude Code. Read together with
+  `docs/ADR/ADR-012-debug-history-feedback-loop.md`.
+
+## §21 — Debug History: Field Drift Feedback Loop (Phase F)
+
+Genasis is a meta-tool that generates overlay files users inevitably
+modify. Those modifications are the highest-signal feedback for
+improvement. Phase F implements:
+
+1. **Manifest** (`.manifest.json`) — SHA-256 snapshot at attach time
+2. **Passive drift detection** — every CLI call compares live vs manifest (~1ms)
+3. **`genasis debug collect`** — anonymised, secret-stripped `patch.json`
+4. **`genasis debug submit`** — opt-in submission (GitHub Issue or PR)
+5. **`/debug-review` skill** — Claude Code clusters patches, proposes template fixes
+6. **Data-Only Contributor Governance** — contributors submit patch.json only;
+   maintainer processes via automated Claude Code development
+
+Security: only overlay-scoped diffs, secret redaction, path hashing,
+opt-in with full payload preview. See
+[`ADR-012`](docs/ADR/ADR-012-debug-history-feedback-loop.md) for full design.
 
 ## i18n decision (M12)
 
