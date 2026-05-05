@@ -5,12 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Tera templates embedded at build time via include_dir!()"
+description = "Agents catalog: fetch from GitHub Releases, cache locally, load for rendering (ADR-011)"
 
 [dependencies]
 anyhow.workspace = true
 tera.workspace = true
-include_dir.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 genasis-core.workspace = true
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+flate2 = "1"
+tar = "0.4"
+dirs = "5"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+tempfile.workspace = true

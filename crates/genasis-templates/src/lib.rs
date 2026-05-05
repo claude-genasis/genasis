@@ -1,114 +1,20 @@
-//! genasis-templates — Tera templates embedded at compile time.
+//! genasis-templates — Agents catalog: fetch, cache, and load.
 //!
-//! Templates live under two parallel locale subtrees, `templates/en/` and
-//! `templates/ko/`, both loaded via `include_dir!()` so the release binary
-//! is self-contained. The CLI's `--lang` selection chooses which subtree
-//! is consulted by [`get_lang`] / [`get`].
+//! ADR-011: Templates/agents are NO LONGER embedded in the binary via
+//! `include_dir!()`. Instead they are distributed as GitHub Release
+//! tarballs (`agents-v1.x.tar.gz`) and fetched at runtime.
+//!
+//! The catalog is cached at `~/.cache/genasis/agents/v{version}/` and
+//! loaded from disk when needed. The version is pinned in
+//! `genasis.toml [agents].version`.
 
-use include_dir::{include_dir, Dir};
+pub mod cache;
+pub mod registry;
+pub mod store;
 
-pub static TEMPLATES: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
+pub use cache::{cache_dir, is_cached, list_cached, remove_cached, store_tarball};
+pub use registry::{check_latest, fetch_tarball};
+pub use store::{AgentStore, load};
 
-/// Look up a template body using the legacy single-tree path
-/// (e.g. `"en/GENASIS.md.tera"` or `"ko/agent-overlays/frontend.patch.md.tera"`).
-pub fn get(path: &str) -> Option<&'static str> {
-    TEMPLATES.get_file(path).and_then(|f| f.contents_utf8())
-}
-
-/// Look up a template body for a specific BCP-47 locale code.
-///
-/// `lang` is `"en"` or `"ko"`; `relative` is the path inside the locale
-/// subtree (e.g. `"GENASIS.md.tera"` or
-/// `"agent-overlays/frontend.patch.md.tera"`).
-pub fn get_lang(lang: &str, relative: &str) -> Option<&'static str> {
-    let combined = format!("{lang}/{relative}");
-    TEMPLATES
-        .get_file(&combined)
-        .and_then(|f| f.contents_utf8())
-}
-
-/// Locale subtrees that are guaranteed to exist at build time.
+/// Locale subtrees supported by overlays.
 pub const SUPPORTED_LANGS: &[&str] = &["en", "ko"];
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn english_genasis_md_present() {
-        assert!(get_lang("en", "GENASIS.md.tera").is_some());
-    }
-
-    #[test]
-    fn korean_genasis_md_present() {
-        assert!(get_lang("ko", "GENASIS.md.tera").is_some());
-    }
-
-    #[test]
-    fn english_frontend_overlay_present() {
-        assert!(get_lang("en", "agent-overlays/frontend.patch.md.tera").is_some());
-    }
-
-    #[test]
-    fn korean_frontend_overlay_present() {
-        assert!(get_lang("ko", "agent-overlays/frontend.patch.md.tera").is_some());
-    }
-
-    #[test]
-    fn unknown_locale_returns_none() {
-        assert!(get_lang("xx", "GENASIS.md.tera").is_none());
-    }
-
-    #[test]
-    fn english_and_korean_have_same_top_level_files() {
-        let en: std::collections::BTreeSet<_> = TEMPLATES
-            .get_dir("en")
-            .expect("en/ subtree must exist")
-            .files()
-            .map(|f| f.path().file_name().unwrap().to_string_lossy().to_string())
-            .collect();
-        let ko: std::collections::BTreeSet<_> = TEMPLATES
-            .get_dir("ko")
-            .expect("ko/ subtree must exist")
-            .files()
-            .map(|f| f.path().file_name().unwrap().to_string_lossy().to_string())
-            .collect();
-        assert_eq!(en, ko, "top-level filename parity required");
-    }
-
-    /// M14.1 — the bootstrap stage relies on a `templates/<lang>/agents/`
-    /// subtree carrying one `<role>.md.tera` per canonical role in both
-    /// locales.
-    #[test]
-    fn agent_base_subtrees_have_same_roles() {
-        const REQUIRED_ROLES: &[&str] = &[
-            "pm",
-            "planner",
-            "architect",
-            "frontend",
-            "backend",
-            "qa",
-            "designer",
-            "security",
-            "devops",
-            "code-reviewer",
-        ];
-        for lang in SUPPORTED_LANGS {
-            let dir = TEMPLATES
-                .get_dir(format!("{lang}/agents"))
-                .unwrap_or_else(|| panic!("{lang}/agents subtree missing"));
-            for role in REQUIRED_ROLES {
-                let template = format!("{role}.md.tera");
-                assert!(
-                    dir.files().any(|f| f
-                        .path()
-                        .file_name()
-                        .and_then(|s| s.to_str())
-                        .map(|n| n == template)
-                        .unwrap_or(false)),
-                    "{lang}/agents/{template} missing"
-                );
-            }
-        }
-    }
-}
