@@ -740,20 +740,37 @@ Existing team asset recognition and fence injection engine.
 
 Architectural shift: remove `include_dir!()` compile-time template embed,
 replace with runtime fetch from GitHub Releases (`agents-v1.x.tar.gz`).
+Community best-of-breed agents curated via private `agents-pool` submodule.
 
 | Sub-milestone | Scope | Status |
 |---|---|---|
 | E.0 | ADR-011 written (KO + EN) | done |
-| E.1 | `agents/` catalog directory (9 base + overlays + commands + hooks + manifest) | done |
+| E.1 | `agents/` catalog directory (9 base + 20 overlays + 16 commands + 6 hooks + manifest) | done |
 | E.2 | `genasis-templates` crate → fetch+cache+load (include_dir removed) | done |
 | E.3 | `genasis-overlay` merger/bootstrap wired to AgentStore | done |
-| E.4 | CLI `genasis agents {fetch,status,update,list}` | done |
-| E.5 | `.github/workflows/release-agents.yml` (tag → tarball) | done |
-| E.6 | `agents-pool/` skeleton (crawl/verify/publish scripts) | done |
-| E.7 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
-| E.8 | `install.sh` update (include `genasis agents fetch`) | pending |
-| E.9 | Remove old `crates/genasis-templates/templates/` (dead code) | pending |
-| E.10 | First `agents-v1.0.0` release tag (validates full pipeline) | pending |
+| E.4 | CLI `genasis agents {fetch,status,update,list}` subcommand | done |
+| E.5 | `.github/workflows/release-agents.yml` (tag → tarball + sha256) | done |
+| E.6 | `agents-pool/` skeleton (config.toml + crawl/verify/publish scripts) | done |
+| E.7 | `agents-pool` crawl → verify → publish pipeline live test | in progress |
+| E.8 | `agents-pool` pushed to private repo + genasis submodule registration | pending |
+| E.9 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
+| E.10 | `install.sh` update (include `genasis agents fetch`) | pending |
+| E.11 | Remove old `crates/genasis-templates/templates/` (dead code cleanup) | pending |
+| E.12 | First `agents-v1.0.0` release tag (validates full pipeline end-to-end) | pending |
+
+### Default 9-role team (famous-agents.md 기반 best-of-breed)
+
+| Role | Source | Category |
+|---|---|---|
+| pm | genasis + dl-ezo reference | core |
+| architect | ECC | core |
+| frontend-developer | wshobson | core |
+| backend-developer | wshobson | core |
+| code-reviewer | ECC (gold standard) | core |
+| qa-tester | VoltAgent | core |
+| security-reviewer | ECC | core |
+| planner | dl-ezo | core |
+| designer | genasis | core |
 
 ## Releases
 

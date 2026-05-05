@@ -51,6 +51,7 @@ sh install.sh --lang both
 
 | | |
 |---|---|
+| **Dynamic Agents Catalog** | Best-of-breed agents curated from ECC, wshobson, VoltAgent, dl-ezo. Fetched at runtime, not baked into the binary. |
 | **Non-destructive overlay** | Marker fences inside `.claude/agents/*.md`. `detach` removes everything. |
 | **Plane integration** | Direct REST. Auto-detects upstream vs. agent-aware flavor. |
 | **Mattermost orchestration** | One bot per agent role; one thread per Plane issue. |
@@ -63,11 +64,16 @@ sh install.sh --lang both
 ## Usage
 
 ```bash
-genasis init              # blank project → ECC team + overlay + Plane/MM provisioning
+genasis init              # blank project → bootstrap team + overlay + Plane/MM provisioning
 genasis attach            # existing team → bolt overlay on
 genasis detach            # remove overlay (marker fences only)
 genasis doctor            # verify env / tools / locale state
 genasis upgrade           # bump overlay version (fence-hash diff)
+
+genasis agents fetch      # download agents catalog (9 roles, overlays, commands, hooks)
+genasis agents status     # show pinned version + cached + latest available
+genasis agents update     # fetch latest + update pin in genasis.toml
+genasis agents list       # show agents in current catalog
 
 genasis monitor           # Ratatui TUI
 
@@ -136,7 +142,7 @@ flowchart TB
 
 ## Status
 
-Pre-release. Functionality below the M11 line is in place; M12 (i18n) is wrapping up. Track progress in [`progress.md`](progress.md).
+Pre-release. M0–M12 + Phase D (design catalog) complete. **Phase E** (Dynamic Agents Catalog — ADR-011) in progress: agents are no longer embedded in the binary; they're curated from community best-of-breed sources and distributed as independent release tarballs. Track progress in [`progress.md`](progress.md).
 
 ## Contributing
 
