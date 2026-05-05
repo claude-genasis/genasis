@@ -736,9 +736,27 @@ Existing team asset recognition and fence injection engine.
 
 ---
 
+## Phase E — Dynamic Agents Catalog (ADR-011, 2026-05-05)
+
+Architectural shift: remove `include_dir!()` compile-time template embed,
+replace with runtime fetch from GitHub Releases (`agents-v1.x.tar.gz`).
+
+| Sub-milestone | Scope | Status |
+|---|---|---|
+| E.0 | ADR-011 written (KO + EN) | done |
+| E.1 | `agents/` catalog directory (9 base + overlays + commands + hooks + manifest) | done |
+| E.2 | `genasis-templates` crate → fetch+cache+load (include_dir removed) | done |
+| E.3 | `genasis-overlay` merger/bootstrap wired to AgentStore | done |
+| E.4 | CLI `genasis agents {fetch,status,update,list}` | done |
+| E.5 | `.github/workflows/release-agents.yml` (tag → tarball) | done |
+| E.6 | `agents-pool/` skeleton (crawl/verify/publish scripts) | done |
+| E.7 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
+| E.8 | `install.sh` update (include `genasis agents fetch`) | pending |
+| E.9 | Remove old `crates/genasis-templates/templates/` (dead code) | pending |
+| E.10 | First `agents-v1.0.0` release tag (validates full pipeline) | pending |
+
 ## Releases
 
-No release tagged yet. First release (`v0.1.0`) cut after M14.0
-(ADR-010 ratified) — at that point M0–M12 + Phase D are shippable
-and M14 implementation tracks separately. Translation completion gate
-in `release.yml` already passes.
+No release tagged yet. First release (`v0.1.0`) cut after Phase E.10
+(first successful agents catalog release validates the full pipeline).
+Translation completion gate in `release.yml` already passes.
