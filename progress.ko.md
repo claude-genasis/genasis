@@ -843,6 +843,74 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 
 ---
 
+## Phase G — 서버 설치 + 체험 신청 + 문서 리팩토링 (2026-05-06)
+
+genasis를 즉시 사용 가능하게 만드는 단계: 원커맨드 서버 설치, 호스팅된
+체험 환경, 간결한 README, 디자인 교체 가이드.
+
+| Sub-milestone | Scope | Status |
+|---|---|---|
+| G.1 | `servers/` — Plane + Mattermost + Caddy 통합 docker-compose + 설치 가이드 (키 추출 방법 포함) | planning |
+| G.2 | 체험 신청 web app PRD (agents-pool) — 신청 → MM #genasis-trial → 관리자 응답 → 키 제공 | planning |
+| G.3 | README 리팩토링 — quickstart + 체험 링크 중심, 상세 내용은 외부 가이드로 분리 | planning |
+| G.4 | `docs/DESIGN-SWAP-GUIDE.md` — design-system.md 교체 방법 가이드 | planning |
+
+### G.1 — 서버 설치 가이드 (`servers/`)
+
+통합 Docker 배포: Plane + Mattermost + Caddy reverse proxy.
+소스: 현 호스트의 `/work/plane` + `/work/mattermost` Docker 설정.
+
+산출물:
+- `servers/docker-compose.yml` — 단일 파일로 모든 서비스 기동
+- `servers/Caddyfile` — TLS + 리버스 프록시 (plane.domain / mm.domain)
+- `servers/README.md` — 단계별 가이드:
+  - 사전 요구 (Docker, 도메인, DNS)
+  - 환경 변수 설정
+  - Plane API key + workspace slug 추출 방법
+  - Mattermost 봇 토큰 생성 (role별)
+  - Plane user UUID 확보 (agent 할당용)
+  - `genasis.toml`에 추출한 키 입력 방법
+
+### G.2 — 체험 신청 web app (PRD — agents-pool)
+
+mm.realstory.blog / plane.realstory.blog 에서 호스팅. genasis를 자체
+서버 없��� 체험 가능.
+
+플로우:
+1. 사용자가 체험 신청 페이지 방문
+2. 정보 입력 (이름, 이메일, 프로��트명, 팀 규모)
+3. 제출 → Mattermost `#genasis-trial` 채널에 알림
+4. 관리자(메인테이너)가 환경 프로비���닝 후 응답
+5. 사용자가 ���청 페이지에서 발급된 키/로그인 정보 확인
+
+PRD: `agents-pool/prd/trial-webapp.md` (private).
+
+### G.3 — README 리팩토링
+
+원칙:
+- Above the fold: 태그라인 + 한 줄 가치 + quickstart (3 명령)
+- 체험 CTA: "호스팅된 Plane + Mattermost로 바로 체험" → 링크
+- 복잡한 내용은 외부 가이드 파일로 분리 + 링크
+- SEO 필수 콘텐츠 유지 (비교 표, 아키텍처 다이어그램)
+
+외부 가이드 (README에서 링크):
+- `docs/QUICKSTART.md` — 설치 + 첫 attach 전체 워크스루
+- `docs/SERVER-SETUP.md` → `servers/README.md`
+- `docs/DESIGN-SWAP-GUIDE.md` — 디자인 시스템 교체
+- `docs/AGENTS-MARKETPLACE.md` — agent 브라우징 + 설치
+
+### G.4 — 디자인 교체 가이드
+
+`docs/DESIGN-SWAP-GUIDE.md`:
+- design-system.md란 무엇이고 왜 중요한가
+- `genasis design swap <slug>` — 갤러리 브라우징
+- `genasis design swap --from <path>` — 로컬 파일
+- `genasis design restore` — pristine 복원
+- 사용자 오버라이드 (`genasis design override add`)
+- EPIC 모드 (영향 UI 영역 자동 이슈 생성)
+
+---
+
 ## 진행 중 메모
 
 (이 섹션은 막힘·결정 변경·추후 처리 사항을 inline 기록)

@@ -1,0 +1,32 @@
+# Genasis Server Stack — Caddy Reverse Proxy
+# Handles TLS termination + routing for Plane and Mattermost.
+#
+# Replace {$PLANE_DOMAIN} and {$MM_DOMAIN} with your actual domains,
+# or set environment variables before running Caddy.
+
+{$PLANE_DOMAIN:plane.example.com} {
+    reverse_proxy localhost:{$PLANE_PORT:38381}
+}
+
+{$MM_DOMAIN:mm.example.com} {
+    reverse_proxy localhost:{$MM_PORT:38385} {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up Host {http.request.host}
+
+        # WebSocket support (real-time messaging + Calls)
+        header_up Upgrade {http.request.header.Upgrade}
+        header_up Connection {http.request.header.Connection}
+
+        transport http {
+            read_buffer 4096
+            write_buffer 4096
+        }
+    }
+
+    request_body {
+        max_size 500MB
+    }
+}

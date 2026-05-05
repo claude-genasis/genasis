@@ -877,8 +877,77 @@ Community best-of-breed agents curated via private `agents-pool` submodule.
 | planner | dl-ezo | core |
 | designer | genasis | core |
 
+## Phase F — Server Setup + Trial + Docs Refactor (2026-05-06)
+
+Making genasis immediately usable: one-command server install, hosted
+trial environment, streamlined README, and design swap guide.
+
+| Sub-milestone | Scope | Status |
+|---|---|---|
+| F.1 | `servers/` — unified docker-compose.yml (Plane + Mattermost + Caddy) + install guide with key extraction | planning |
+| F.2 | Trial signup web app PRD (agents-pool) — apply → MM #genasis-trial → admin responds → user gets keys | planning |
+| F.3 | README refactor — simplify to quickstart + trial link, move details to external guides | planning |
+| F.4 | `docs/DESIGN-SWAP-GUIDE.md` — how to replace design-system.md via `genasis design swap` | planning |
+
+### F.1 — Server installation guide (`servers/`)
+
+Unified Docker deployment of Plane + Mattermost + Caddy reverse proxy.
+Source: existing `/work/plane` and `/work/mattermost` Docker configs on this host.
+
+Deliverables:
+- `servers/docker-compose.yml` — single file to bring up all services
+- `servers/Caddyfile` — TLS + reverse proxy (plane.domain / mm.domain)
+- `servers/README.md` — step-by-step guide including:
+  - Prerequisites (Docker, domain, DNS)
+  - Environment variables to set
+  - How to extract Plane API key + workspace slug
+  - How to create Mattermost bot tokens (per agent role)
+  - How to obtain Plane user UUIDs for agent assignment
+  - How to configure `genasis.toml` with the extracted keys
+
+### F.2 — Trial signup web app (PRD in agents-pool)
+
+Hosted demo at mm.realstory.blog / plane.realstory.blog allowing
+potential users to try genasis without self-hosting.
+
+Flow:
+1. User visits trial signup page
+2. Fills in: name, email, project name, desired team size
+3. Submission posts to Mattermost `#genasis-trial` channel
+4. Admin (maintainer) responds with provisioned credentials
+5. User sees keys/login info on the signup page (or via email)
+
+PRD lives in `agents-pool/prd/trial-webapp.md` (private).
+Only the plan reference lives in public progress.md.
+
+### F.3 — README refactor
+
+Principles:
+- Above the fold: tagline + one-line value prop + quickstart (3 commands)
+- Trial CTA: "Try it now with our hosted Plane + Mattermost" → link
+- Move complex docs to external files with links
+- Keep SEO-critical content (comparison table, architecture diagram)
+
+External guide files (linked from README):
+- `docs/QUICKSTART.md` — full install + first attach walkthrough
+- `docs/SERVER-SETUP.md` → `servers/README.md`
+- `docs/DESIGN-SWAP-GUIDE.md` — design system replacement
+- `docs/AGENTS-MARKETPLACE.md` — browsing + installing agents
+
+### F.4 — Design swap guide
+
+`docs/DESIGN-SWAP-GUIDE.md` covering:
+- What is design-system.md and why it matters
+- `genasis design swap <slug>` — browsing the gallery
+- `genasis design swap --from <path>` — local file
+- `genasis design restore` — reverting to pristine
+- User overrides (`genasis design override add`)
+- EPIC mode (auto-issues for impacted UI areas)
+
+---
+
 ## Releases
 
-No release tagged yet. First release (`v0.1.0`) cut after Phase E.10
-(first successful agents catalog release validates the full pipeline).
-Translation completion gate in `release.yml` already passes.
+First release (`v0.1.0`) cut after F.1 (server guide) enables
+end-to-end self-hosted setup. `agents-v1.0.0` already published.
+Translation completion gate in `release.yml` passes.

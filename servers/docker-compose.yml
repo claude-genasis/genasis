@@ -1,0 +1,223 @@
+# Genasis Server Stack — Plane + Mattermost (unified)
+#
+# Usage:
+#   cp .env.example .env   # Edit with your values
+#   docker compose up -d
+#
+# This file runs both Plane and Mattermost with their respective
+# databases. Caddy runs on the host (not in this compose) for TLS.
+
+# ═══════════════════════════════════════════════════════════
+# PLANE
+# ═══════════════════════════════════════════════════════════
+
+x-plane-db-env: &plane-db-env
+  PGHOST: plane-db
+  PGDATABASE: plane
+  POSTGRES_USER: ${PLANE_POSTGRES_USER:-plane}
+  POSTGRES_PASSWORD: ${PLANE_POSTGRES_PASSWORD:-plane}
+  POSTGRES_DB: plane
+  POSTGRES_PORT: "5432"
+  PGDATA: /var/lib/postgresql/data
+
+x-plane-redis-env: &plane-redis-env
+  REDIS_HOST: plane-redis
+  REDIS_PORT: "6379"
+  REDIS_URL: redis://plane-redis:6379/
+
+x-plane-minio-env: &plane-minio-env
+  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-access-key}
+  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+
+x-plane-s3-env: &plane-s3-env
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-access-key}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-secret-key}
+  AWS_S3_ENDPOINT_URL: http://plane-minio:9000
+  AWS_S3_BUCKET_NAME: uploads
+
+x-plane-mq-env: &plane-mq-env
+  RABBITMQ_HOST: plane-mq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-plane}
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-plane}
+  RABBITMQ_DEFAULT_VHOST: plane
+  RABBITMQ_VHOST: plane
+
+x-plane-app-env: &plane-app-env
+  WEB_URL: https://${PLANE_DOMAIN:-plane.example.com}
+  DEBUG: "0"
+  CORS_ALLOWED_ORIGINS: https://${PLANE_DOMAIN:-plane.example.com}
+  GUNICORN_WORKERS: 1
+  USE_MINIO: "1"
+  DATABASE_URL: postgresql://${PLANE_POSTGRES_USER:-plane}:${PLANE_POSTGRES_PASSWORD:-plane}@plane-db/plane
+  SECRET_KEY: ${PLANE_SECRET_KEY:-60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5}
+  AMQP_URL: amqp://${RABBITMQ_USER:-plane}:${RABBITMQ_PASSWORD:-plane}@plane-mq:5672/plane
+  API_KEY_RATE_LIMIT: 60/minute
+  LIVE_SERVER_SECRET_KEY: ${PLANE_SECRET_KEY:-60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5}
+
+x-plane-proxy-env: &plane-proxy-env
+  APP_DOMAIN: ${PLANE_DOMAIN:-plane.example.com}
+  FILE_SIZE_LIMIT: "5242880"
+  LISTEN_HTTP_PORT: ${PLANE_PORT:-38381}
+  LISTEN_HTTPS_PORT: "4430"
+  BUCKET_NAME: uploads
+  SITE_ADDRESS: ":80"
+
+services:
+  # ─── Plane Services ────────────────────────────────────
+  plane-web:
+    image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.3}
+    restart: unless-stopped
+    depends_on: [plane-api, plane-worker]
+
+  plane-space:
+    image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.3}
+    restart: unless-stopped
+    depends_on: [plane-api]
+
+  plane-admin:
+    image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.3}
+    restart: unless-stopped
+    depends_on: [plane-api]
+
+  plane-live:
+    image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.3}
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://plane-api:8000
+      LIVE_SERVER_SECRET_KEY: ${PLANE_SECRET_KEY:-60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5}
+      <<: *plane-redis-env
+    depends_on: [plane-api]
+
+  plane-api:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}
+    command: ./bin/docker-entrypoint-api.sh
+    restart: unless-stopped
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-proxy-env]
+    depends_on: [plane-db, plane-redis, plane-mq]
+
+  plane-worker:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}
+    command: ./bin/docker-entrypoint-worker.sh
+    restart: unless-stopped
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-proxy-env]
+    depends_on: [plane-api, plane-db, plane-redis, plane-mq]
+
+  plane-beat:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}
+    command: ./bin/docker-entrypoint-beat.sh
+    restart: unless-stopped
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-proxy-env]
+    depends_on: [plane-api, plane-db, plane-redis, plane-mq]
+
+  plane-migrator:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}
+    command: ./bin/docker-entrypoint-migrator.sh
+    restart: on-failure
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-proxy-env]
+    depends_on: [plane-db, plane-redis]
+
+  plane-proxy:
+    image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-v1.2.3}
+    restart: unless-stopped
+    ports:
+      - "${PLANE_PORT:-38381}:80"
+    environment:
+      <<: *plane-proxy-env
+    depends_on: [plane-web, plane-api, plane-space, plane-admin, plane-live]
+
+  plane-db:
+    image: postgres:15.7-alpine
+    command: postgres -c 'max_connections=1000'
+    restart: unless-stopped
+    environment:
+      <<: *plane-db-env
+    volumes:
+      - plane-pgdata:/var/lib/postgresql/data
+
+  plane-redis:
+    image: valkey/valkey:7.2.11-alpine
+    restart: unless-stopped
+    volumes:
+      - plane-redisdata:/data
+
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    restart: unless-stopped
+    environment:
+      <<: *plane-mq-env
+    volumes:
+      - plane-rabbitmq:/var/lib/rabbitmq
+
+  plane-minio:
+    image: minio/minio:latest
+    command: server /export --console-address ":9090"
+    restart: unless-stopped
+    environment:
+      <<: *plane-minio-env
+    volumes:
+      - plane-uploads:/export
+
+  # ─── Mattermost Services ───────────────────────────────
+  mm-postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 16G
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    volumes:
+      - mm-pgdata:/var/lib/postgresql/data
+    environment:
+      TZ: ${TZ:-Asia/Seoul}
+      POSTGRES_USER: ${MM_POSTGRES_USER:-mmuser}
+      POSTGRES_PASSWORD: ${MM_POSTGRES_PASSWORD:-mmpassword}
+      POSTGRES_DB: mattermost
+
+  mattermost:
+    image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG:-10.11.8}
+    restart: unless-stopped
+    depends_on: [mm-postgres]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 4G
+    tmpfs:
+      - /tmp
+    ports:
+      - "${MM_PORT:-38385}:8065"
+    volumes:
+      - mm-config:/mattermost/config:rw
+      - mm-data:/mattermost/data:rw
+      - mm-logs:/mattermost/logs:rw
+      - mm-plugins:/mattermost/plugins:rw
+      - mm-client-plugins:/mattermost/client/plugins:rw
+      - mm-bleve:/mattermost/bleve-indexes:rw
+    environment:
+      TZ: ${TZ:-Asia/Seoul}
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: postgres://${MM_POSTGRES_USER:-mmuser}:${MM_POSTGRES_PASSWORD:-mmpassword}@mm-postgres:5432/mattermost?sslmode=disable&connect_timeout=10
+      MM_BLEVESETTINGS_INDEXDIR: /mattermost/bleve-indexes
+      MM_SERVICESETTINGS_SITEURL: https://${MM_DOMAIN:-mm.example.com}
+
+# ═══════════════════════════════════════════════════════════
+# Volumes
+# ═══════════════════════════════════════════════════════════
+volumes:
+  plane-pgdata:
+  plane-redisdata:
+  plane-uploads:
+  plane-rabbitmq:
+  mm-pgdata:
+  mm-config:
+  mm-data:
+  mm-logs:
+  mm-plugins:
+  mm-client-plugins:
+  mm-bleve:
