@@ -1,6 +1,6 @@
 # Design Swap Guide
 
-> 한국어: [ko/DESIGN-SWAP-GUIDE.md](ko/DESIGN-SWAP-GUIDE.md) *(coming soon)*
+> 한국어: [ko/DESIGN-SWAP-GUIDE.md](ko/DESIGN-SWAP-GUIDE.md)
 
 Your project's design system lives in `docs/design-system.md`. When you want
 to change it — adopt a new design language, switch component libraries, or

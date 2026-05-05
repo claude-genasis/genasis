@@ -1,6 +1,6 @@
 # Credits & Open-Source Acknowledgments
 
-> 한국어: [ko/CREDITS.md](ko/CREDITS.md) *(coming soon)*
+> 한국어: [ko/CREDITS.md](ko/CREDITS.md)
 
 Genasis is built on the shoulders of excellent open-source projects.
 We curate, integrate, and add value — we don't reinvent wheels.

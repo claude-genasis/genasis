@@ -1,6 +1,6 @@
 # Quickstart — Full Walkthrough
 
-> 한국어: [ko/QUICKSTART.md](ko/QUICKSTART.md) *(coming soon)*
+> 한국어: [ko/QUICKSTART.md](ko/QUICKSTART.md)
 
 This guide walks you through installing genasis, setting up a team,
 and running your first sprint with agents — from zero to agents

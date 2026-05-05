@@ -1,6 +1,6 @@
 # Agents Marketplace Guide
 
-> 한국어: [ko/AGENTS-MARKETPLACE.md](ko/AGENTS-MARKETPLACE.md) *(coming soon)*
+> 한국어: [ko/AGENTS-MARKETPLACE.md](ko/AGENTS-MARKETPLACE.md)
 
 Genasis ships with 20+ curated agents sourced from the best community
 repositories (ECC, wshobson/agents, VoltAgent, dl-ezo). You browse them
