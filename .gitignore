@@ -37,6 +37,15 @@ Thumbs.db
 
 # Node sub-process (Plane provisioning) deps
 crates/genasis-cli/scripts/node_modules/
+
+# agents-pool private submodule (not tracked in public repo)
+# The submodule itself is registered in .gitmodules (private URL),
+# but its contents should never leak into genasis commits.
+agents-pool/
+
+# agents/base/ does NOT belong in public repo — base agents are
+# distributed only via release tarballs built by agents-pool.
+agents/base/
 crates/genasis-cli/scripts/package-lock.json
 
 # Migration backups produced by `genasis migrate-from-genesis`

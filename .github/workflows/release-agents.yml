@@ -1,42 +1,51 @@
 name: Release Agents Catalog
 
+# This workflow is a PLACEHOLDER. The actual agents catalog release is
+# created by the agents-pool private pipeline (publish.sh) which builds
+# the tarball (base agents + overlays + commands + hooks) and uploads it
+# directly via `gh release create agents-v{version}`.
+#
+# This workflow exists only to:
+# 1. Validate that a release tagged `agents-v*` has the expected assets.
+# 2. Add a verification badge to the release.
+#
+# It does NOT build or package the tarball itself — that's agents-pool's job.
+
 on:
-  push:
-    tags:
-      - 'agents-v*'
+  release:
+    types: [published]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  verify-release:
+    if: startsWith(github.event.release.tag_name, 'agents-v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Extract version from tag
+      - name: Extract version
         id: version
         run: echo "version=${GITHUB_REF_NAME#agents-v}" >> "$GITHUB_OUTPUT"
 
-      - name: Package agents catalog tarball
+      - name: Verify tarball asset exists
         run: |
-          cd agents
-          tar -czf "../agents-v${{ steps.version.outputs.version }}.tar.gz" .
-          cd ..
-          sha256sum "agents-v${{ steps.version.outputs.version }}.tar.gz" > "agents-v${{ steps.version.outputs.version }}.tar.gz.sha256"
+          ASSET="agents-v${{ steps.version.outputs.version }}.tar.gz"
+          echo "Checking for asset: $ASSET"
+          gh release view "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --json assets \
+            --jq ".assets[].name" | grep -q "$ASSET"
+          echo "✓ Asset found"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "Agents Catalog v${{ steps.version.outputs.version }}"
-          body: |
-            Agents catalog release v${{ steps.version.outputs.version }}.
-
-            Install: `genasis agents fetch --version ${{ steps.version.outputs.version }}`
-            Update: `genasis agents update`
-
-            Contains 9 base agents (best-of-breed from ECC, wshobson, VoltAgent, dl-ezo)
-            + Plane/MM overlay patches (en/ko) + 16 commands + 6 hooks.
-          files: |
-            agents-v${{ steps.version.outputs.version }}.tar.gz
-            agents-v${{ steps.version.outputs.version }}.tar.gz.sha256
+      - name: Verify sha256 asset exists
+        run: |
+          SHA_ASSET="agents-v${{ steps.version.outputs.version }}.tar.gz.sha256"
+          gh release view "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --json assets \
+            --jq ".assets[].name" | grep -q "$SHA_ASSET"
+          echo "✓ SHA256 asset found"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -751,7 +751,11 @@ Community best-of-breed agents curated via private `agents-pool` submodule.
 | E.4 | CLI `genasis agents {fetch,status,update,list}` subcommand | done |
 | E.5 | `.github/workflows/release-agents.yml` (tag → tarball + sha256) | done |
 | E.6 | `agents-pool/` skeleton (config.toml + crawl/verify/publish scripts) | done |
-| E.7 | `agents-pool` crawl → verify → publish pipeline live test | in progress |
+| E.7 | `agents-pool` crawl → verify → publish pipeline live test | done |
+| E.7.1 | Separation enforced: agents/base/ removed from public repo, .gitignore blocks it | done |
+| E.7.2 | publish.sh → tarball build + gh release upload (not copy to genasis) | done |
+| E.7.3 | release-agents.yml → verify-only (tarball built by agents-pool, not CI) | done |
+| E.7.4 | agents-pool/CLAUDE.md — curation strategy + privacy rules | done |
 | E.8 | `agents-pool` pushed to private repo + genasis submodule registration | pending |
 | E.9 | Wire `cmd_attach`/`cmd_upgrade` to load AgentStore before plan | pending |
 | E.10 | `install.sh` update (include `genasis agents fetch`) | pending |
