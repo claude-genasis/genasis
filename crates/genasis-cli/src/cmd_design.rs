@@ -416,10 +416,7 @@ async fn run_status(project_root: &std::path::Path, _design_cfg: &DesignConfig) 
     Ok(())
 }
 
-async fn run_restore_op(
-    project_root: &std::path::Path,
-    design_cfg: &DesignConfig,
-) -> Result<()> {
+async fn run_restore_op(project_root: &std::path::Path, design_cfg: &DesignConfig) -> Result<()> {
     let outcome =
         run_restore(project_root, &design_cfg.external_dir).context("design restore failed")?;
     println!(
@@ -438,10 +435,7 @@ async fn run_restore_op(
     Ok(())
 }
 
-async fn run_verify_op(
-    project_root: &std::path::Path,
-    design_cfg: &DesignConfig,
-) -> Result<()> {
+async fn run_verify_op(project_root: &std::path::Path, design_cfg: &DesignConfig) -> Result<()> {
     let outcome =
         run_verify(project_root, &design_cfg.external_dir).context("design verify failed")?;
     match outcome.mode {
@@ -492,10 +486,7 @@ async fn run_override_op(project_root: &std::path::Path, op: OverrideOp) -> Resu
                 "{}",
                 tr_args(
                     "design.override.added",
-                    &[
-                        ("id", &entry.id),
-                        ("applied_at", &entry.applied_at),
-                    ],
+                    &[("id", &entry.id), ("applied_at", &entry.applied_at),],
                 )
             );
             println!("    {}", entry.body);

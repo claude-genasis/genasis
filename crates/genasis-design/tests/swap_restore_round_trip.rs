@@ -11,10 +11,7 @@ use genasis_design::{run_restore, run_swap, sha256_hex, Mode, State};
 
 use tempfile::tempdir;
 
-fn fixed_input(
-    project_root: &std::path::Path,
-    source_file: std::path::PathBuf,
-) -> SwapInput {
+fn fixed_input(project_root: &std::path::Path, source_file: std::path::PathBuf) -> SwapInput {
     SwapInput {
         project_root: project_root.to_path_buf(),
         external_dir: "docs/design-system".into(),

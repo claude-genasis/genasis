@@ -249,11 +249,9 @@ fn load_agents_config(project_root: &std::path::Path) -> AgentsConfig {
 
     // TODO: read from cfg.agents once Config struct gains [agents] section.
     AgentsConfig {
-        version: std::env::var("GENASIS_AGENTS_VERSION")
-            .unwrap_or_else(|_| "1.0.0".to_string()),
-        registry: std::env::var("GENASIS_AGENTS_REGISTRY").unwrap_or_else(|_| {
-            "https://github.com/claude-genasis/genasis/releases".to_string()
-        }),
+        version: std::env::var("GENASIS_AGENTS_VERSION").unwrap_or_else(|_| "1.0.0".to_string()),
+        registry: std::env::var("GENASIS_AGENTS_REGISTRY")
+            .unwrap_or_else(|_| "https://github.com/claude-genasis/genasis/releases".to_string()),
         cache_dir: std::env::var("GENASIS_AGENTS_CACHE_DIR").unwrap_or_default(),
         auto_check: true,
     }

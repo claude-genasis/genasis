@@ -20,7 +20,10 @@ pub fn cache_dir(version: &str, override_dir: &str) -> Result<PathBuf> {
     }
     let base = dirs::cache_dir()
         .ok_or_else(|| Error::Config("cannot determine home cache directory".into()))?;
-    Ok(base.join("genasis").join("agents").join(format!("v{version}")))
+    Ok(base
+        .join("genasis")
+        .join("agents")
+        .join(format!("v{version}")))
 }
 
 /// Check whether a version is already cached (directory exists + manifest.json present).
@@ -41,9 +44,9 @@ pub fn store_tarball(version: &str, override_dir: &str, tarball: &[u8]) -> Resul
 
     let decoder = GzDecoder::new(tarball);
     let mut archive = tar::Archive::new(decoder);
-    archive.unpack(&dir).map_err(|e| {
-        Error::Config(format!("failed to extract agents tarball: {e}"))
-    })?;
+    archive
+        .unpack(&dir)
+        .map_err(|e| Error::Config(format!("failed to extract agents tarball: {e}")))?;
 
     // Verify manifest exists after extraction.
     if !dir.join("manifest.json").is_file() {

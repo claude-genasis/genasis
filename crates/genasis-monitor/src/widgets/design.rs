@@ -26,7 +26,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         ]));
         let head = format!(
             "🎨 {}    applied {}",
-            if d.slug.is_empty() { "(unset)" } else { &d.slug },
+            if d.slug.is_empty() {
+                "(unset)"
+            } else {
+                &d.slug
+            },
             if d.applied_at.is_empty() {
                 "(unset)"
             } else {

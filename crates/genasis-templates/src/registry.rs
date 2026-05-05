@@ -49,9 +49,7 @@ pub fn check_latest(registry_url: &str) -> Result<String> {
         }
     }
 
-    latest.ok_or_else(|| {
-        Error::Provider("no agents-v* releases found at registry".into())
-    })
+    latest.ok_or_else(|| Error::Provider("no agents-v* releases found at registry".into()))
 }
 
 /// Download the agents catalog tarball for a specific version.
@@ -71,8 +69,7 @@ pub fn fetch_tarball(registry_url: &str, version: &str) -> Result<Vec<u8>> {
     // Get the release by tag to find asset download URL.
     let release_url = format!(
         "{}/tags/{tag}",
-        api_url.trim_end_matches("/releases")
-            .to_string() + "/releases"
+        api_url.trim_end_matches("/releases").to_string() + "/releases"
     );
     let resp = client
         .get(&release_url)
@@ -103,14 +100,14 @@ pub fn fetch_tarball(registry_url: &str, version: &str) -> Result<Vec<u8>> {
         .find_map(|a| {
             let name = a.get("name")?.as_str()?;
             if name == asset_name {
-                a.get("browser_download_url")?.as_str().map(|s| s.to_string())
+                a.get("browser_download_url")?
+                    .as_str()
+                    .map(|s| s.to_string())
             } else {
                 None
             }
         })
-        .ok_or_else(|| {
-            Error::Provider(format!("asset {asset_name} not found in release {tag}"))
-        })?;
+        .ok_or_else(|| Error::Provider(format!("asset {asset_name} not found in release {tag}")))?;
 
     // Download the tarball.
     let resp = client
@@ -140,13 +137,11 @@ fn registry_to_api_url(registry_url: &str) -> Result<String> {
     let trimmed = registry_url
         .trim_end_matches('/')
         .trim_end_matches("/releases");
-    let path = trimmed
-        .strip_prefix("https://github.com/")
-        .ok_or_else(|| {
-            Error::Config(format!(
-                "registry URL must start with https://github.com/: {registry_url}"
-            ))
-        })?;
+    let path = trimmed.strip_prefix("https://github.com/").ok_or_else(|| {
+        Error::Config(format!(
+            "registry URL must start with https://github.com/: {registry_url}"
+        ))
+    })?;
     Ok(format!("https://api.github.com/repos/{path}/releases"))
 }
 

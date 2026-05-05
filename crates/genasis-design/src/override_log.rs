@@ -28,10 +28,8 @@ use genasis_core::fs::atomic_write;
 
 use crate::mode::{iso8601_now, Mode, State};
 
-const SENTINEL: &str =
-    "<!-- genasis design override add appends here. Do not edit by hand. -->";
-const KO_SENTINEL: &str =
-    "<!-- genasis design override add 가 자동 append. 직접 편집 금지. -->";
+const SENTINEL: &str = "<!-- genasis design override add appends here. Do not edit by hand. -->";
+const KO_SENTINEL: &str = "<!-- genasis design override add 가 자동 append. 직접 편집 금지. -->";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OverrideEntry {
@@ -55,12 +53,8 @@ pub fn add(project_root: &Path, body: &str) -> Result<OverrideEntry> {
         body: body.trim().to_string(),
     };
     let pointer_path = project_root.join("docs").join("design-system.md");
-    let pointer = std::fs::read_to_string(&pointer_path).map_err(|e| {
-        Error::Config(format!(
-            "read pointer {}: {e}",
-            pointer_path.display()
-        ))
-    })?;
+    let pointer = std::fs::read_to_string(&pointer_path)
+        .map_err(|e| Error::Config(format!("read pointer {}: {e}", pointer_path.display())))?;
     let new_pointer = insert_entry(&pointer, &entry)?;
     atomic_write(&pointer_path, new_pointer.as_bytes())?;
 
@@ -142,7 +136,8 @@ fn parse_entries(pointer: &str) -> Vec<OverrideEntry> {
             current = Some((id, ts, String::new()));
         } else if let Some((_, _, ref mut body)) = current.as_mut() {
             // Stop accumulating if we hit the next §C section header.
-            if line.starts_with("## §C") || line.starts_with("## §A") || line.starts_with("## §B") {
+            if line.starts_with("## §C") || line.starts_with("## §A") || line.starts_with("## §B")
+            {
                 break;
             }
             body.push_str(line);

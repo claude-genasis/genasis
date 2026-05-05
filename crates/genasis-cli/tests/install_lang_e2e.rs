@@ -95,7 +95,10 @@ fn flag_ko_drives_attach_without_prompt() {
         String::from_utf8_lossy(&out.stderr)
     );
     let cfg = std::fs::read_to_string(tmp.path().join("genasis.toml")).unwrap();
-    assert!(cfg.contains("active = \"ko\""), "genasis.toml [i18n].active not ko");
+    assert!(
+        cfg.contains("active = \"ko\""),
+        "genasis.toml [i18n].active not ko"
+    );
 }
 
 #[test]
@@ -139,7 +142,11 @@ fn non_tty_fallback_uses_lang_env_and_announces_it() {
         .env_remove("GENASIS_LANG")
         .output()
         .expect("spawn");
-    assert!(out.status.success(), "stderr={}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let cfg = std::fs::read_to_string(tmp.path().join("genasis.toml")).unwrap();
     assert!(
         cfg.contains("active = \"ko\""),
@@ -171,15 +178,14 @@ fn lang_status_reports_active_locale() {
         .expect("spawn");
     // Now query.
     let out = Command::new(binary())
-        .args([
-            "lang",
-            "--project",
-            tmp.path().to_str().unwrap(),
-            "status",
-        ])
+        .args(["lang", "--project", tmp.path().to_str().unwrap(), "status"])
         .output()
         .expect("spawn");
-    assert!(out.status.success(), "stderr={}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("active: ko"),
@@ -213,7 +219,11 @@ fn lang_switch_no_op_when_already_on_target() {
         ])
         .output()
         .expect("spawn");
-    assert!(out.status.success(), "stderr={}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("Already on") || stdout.contains("이미"),

@@ -91,7 +91,9 @@ pub async fn run(args: Args) -> Result<()> {
         .ok()
         .and_then(|c| c.design)
         .unwrap_or_default();
-    let state = genasis_design::State::load(&project_root).ok().unwrap_or_default();
+    let state = genasis_design::State::load(&project_root)
+        .ok()
+        .unwrap_or_default();
     match state.mode {
         genasis_design::Mode::Pristine => {
             println!("  {}", tr("doctor.design.mode_pristine"));
@@ -104,10 +106,7 @@ pub async fn run(args: Args) -> Result<()> {
         genasis_design::Mode::External => {
             println!(
                 "  {}",
-                tr_args(
-                    "doctor.design.mode_external",
-                    &[("slug", &state.slug)],
-                )
+                tr_args("doctor.design.mode_external", &[("slug", &state.slug)],)
             );
             // npx is required when external mode is in use (so subsequent
             // swaps can fetch new slugs).
@@ -123,10 +122,7 @@ pub async fn run(args: Args) -> Result<()> {
                             "  {}",
                             tr_args(
                                 "doctor.design.verify_ok",
-                                &[(
-                                    "hash_short",
-                                    &v.actual_hash[..v.actual_hash.len().min(12)],
-                                )],
+                                &[("hash_short", &v.actual_hash[..v.actual_hash.len().min(12)],)],
                             )
                         );
                     } else {
@@ -139,10 +135,7 @@ pub async fn run(args: Args) -> Result<()> {
                                         "expected",
                                         &v.recorded_hash[..v.recorded_hash.len().min(12)],
                                     ),
-                                    (
-                                        "actual",
-                                        &v.actual_hash[..v.actual_hash.len().min(12)],
-                                    ),
+                                    ("actual", &v.actual_hash[..v.actual_hash.len().min(12)],),
                                 ],
                             )
                         );

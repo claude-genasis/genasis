@@ -239,7 +239,11 @@ mod tests {
                 BootstrapAction::Create { body } => body,
                 _ => unreachable!(),
             };
-            assert!(body.starts_with("---\n"), "missing frontmatter: {}", change.role.slug());
+            assert!(
+                body.starts_with("---\n"),
+                "missing frontmatter: {}",
+                change.role.slug()
+            );
             for key in ["name:", "description:", "tools:", "model:", "color:"] {
                 assert!(body.contains(key), "{} missing {key}", change.role.slug());
             }

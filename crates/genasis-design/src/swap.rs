@@ -36,10 +36,7 @@ use crate::pointer::{self, Locale};
 #[derive(Debug, Clone)]
 pub enum Source {
     /// Fetch via the configured shell template (default: `npx getdesign`).
-    Slug {
-        slug: String,
-        add_command: String,
-    },
+    Slug { slug: String, add_command: String },
     /// Copy a local spec file. Source string becomes `file:<absolute-path>`.
     File(PathBuf),
 }
@@ -156,7 +153,9 @@ pub fn run(input: SwapInput) -> Result<SwapOutcome> {
     atomic_write(&pointer_path, pointer_body.as_bytes())?;
     new_state.save(&project_root)?;
 
-    let design_md_size = std::fs::metadata(&design_md_path).map(|m| m.len()).unwrap_or(0);
+    let design_md_size = std::fs::metadata(&design_md_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
 
     Ok(SwapOutcome {
         previous_state,

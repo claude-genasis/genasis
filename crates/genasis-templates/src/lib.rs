@@ -14,7 +14,7 @@ pub mod store;
 
 pub use cache::{cache_dir, is_cached, list_cached, remove_cached, store_tarball};
 pub use registry::{check_latest, fetch_tarball};
-pub use store::{AgentStore, load};
+pub use store::{load, AgentStore};
 
 /// Locale subtrees supported by overlays.
 pub const SUPPORTED_LANGS: &[&str] = &["en", "ko"];

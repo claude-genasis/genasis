@@ -5,8 +5,8 @@
 //! See ADR-010 + progress.ko.md M14.2.
 
 use genasis_overlay::{
-    apply_bootstrap, plan_attach, plan_bootstrap, scan, AttachOptions, BootstrapOptions, Classified,
-    PlannedAction, Role,
+    apply_bootstrap, plan_attach, plan_bootstrap, scan, AttachOptions, BootstrapOptions,
+    Classified, PlannedAction, Role,
 };
 use tempfile::tempdir;
 

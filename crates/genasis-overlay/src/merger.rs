@@ -244,15 +244,12 @@ pub struct AppliedReport {
 /// Build a Tera bundle from the AgentStore's `overlays/<lang>/` directory.
 ///
 /// ADR-011: loads overlay .tera files from the disk-cached agents catalog.
-pub fn build_tera_from_store(
-    store: &genasis_templates::AgentStore,
-    lang: &str,
-) -> Result<Tera> {
+pub fn build_tera_from_store(store: &genasis_templates::AgentStore, lang: &str) -> Result<Tera> {
     let mut tera = Tera::default();
     let subdir = format!("overlays/{lang}");
-    let files = store.get_dir_files(&subdir, ".patch.md.tera").map_err(|e| {
-        Error::Overlay(format!("overlays/{lang}/ load from catalog: {e}"))
-    })?;
+    let files = store
+        .get_dir_files(&subdir, ".patch.md.tera")
+        .map_err(|e| Error::Overlay(format!("overlays/{lang}/ load from catalog: {e}")))?;
     if files.is_empty() {
         return Err(Error::Overlay(format!(
             "no overlay templates in catalog overlays/{lang}/ — run `genasis agents fetch`"

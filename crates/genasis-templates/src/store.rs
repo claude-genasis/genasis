@@ -178,7 +178,9 @@ mod tests {
         let d = tempdir().unwrap();
         create_mock_catalog(d.path());
         let store = AgentStore::from_dir(d.path().to_path_buf()).unwrap();
-        let files = store.get_dir_files("overlays/en", ".patch.md.tera").unwrap();
+        let files = store
+            .get_dir_files("overlays/en", ".patch.md.tera")
+            .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].0, "frontend.patch.md.tera");
         assert!(files[0].1.contains("{{ project_name }}"));

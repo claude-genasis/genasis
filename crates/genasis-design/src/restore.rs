@@ -105,10 +105,7 @@ mod tests {
         .unwrap();
 
         // Sanity — we are now external.
-        assert_eq!(
-            State::load(dir.path()).unwrap().mode,
-            Mode::External
-        );
+        assert_eq!(State::load(dir.path()).unwrap().mode, Mode::External);
 
         let out = run(dir.path(), "docs/design-system").unwrap();
         assert!(out.design_system_md_restored);
