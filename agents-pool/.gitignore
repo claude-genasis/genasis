@@ -1,0 +1,5 @@
+# Crawled source repos (large, ephemeral)
+sources/
+
+# Verified intermediate (rebuilt by verify.sh)
+verified/

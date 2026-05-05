@@ -1,0 +1,42 @@
+name: Release Agents Catalog
+
+on:
+  push:
+    tags:
+      - 'agents-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#agents-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package agents catalog tarball
+        run: |
+          cd agents
+          tar -czf "../agents-v${{ steps.version.outputs.version }}.tar.gz" .
+          cd ..
+          sha256sum "agents-v${{ steps.version.outputs.version }}.tar.gz" > "agents-v${{ steps.version.outputs.version }}.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Agents Catalog v${{ steps.version.outputs.version }}"
+          body: |
+            Agents catalog release v${{ steps.version.outputs.version }}.
+
+            Install: `genasis agents fetch --version ${{ steps.version.outputs.version }}`
+            Update: `genasis agents update`
+
+            Contains 9 base agents (best-of-breed from ECC, wshobson, VoltAgent, dl-ezo)
+            + Plane/MM overlay patches (en/ko) + 16 commands + 6 hooks.
+          files: |
+            agents-v${{ steps.version.outputs.version }}.tar.gz
+            agents-v${{ steps.version.outputs.version }}.tar.gz.sha256
