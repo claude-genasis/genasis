@@ -9,6 +9,10 @@
 - Path alias `@/*` resolves from project root.
 - HTML root lang is `ko` (Korean is the primary user-facing language).
 - Use `next` 15.5.x (15.1.x has CVE-2025-66478); confirm via `npm view next versions`.
+- DB lives at `db/index.ts` — call `getDb()` (singleton, lazy) for a connected, migrated `Database` instance; tables are created idempotently with `CREATE TABLE IF NOT EXISTS`.
+- `lib/token.ts` exports `generateToken()` for 24-byte (32-char) base64url tokens — use this for any new token field.
+- `DATABASE_PATH` env var overrides the default `./data/trial.db`; the `data/` dir is gitignored and auto-created at first connect.
+- Native modules: `better-sqlite3` is a native addon and must be available at server-runtime (Node, not Edge). Always import DB-touching modules from server components / route handlers, never from `"use client"` files.
 
 ## [2026-05-06] - US-001
 - Implemented: Next.js 15 App Router skeleton at /work/genasis/trial-app/
@@ -29,4 +33,24 @@
   - `next-env.d.ts` is auto-rewritten by Next.js on dev/build to add a `routes.d.ts` reference — don't fight it.
   - Initial install of `next@15.1.4` triggered CVE warning; bumped to 15.5.15. Future stories should verify the lockfile still pins a patched version after any dep changes.
   - Use Korean copy in user-facing strings (lang="ko"), but keep internal comments/identifiers in English.
+---
+
+## [2026-05-06] - US-002
+- Implemented: SQLite persistence layer for trial submissions.
+- Files changed:
+  - package.json (added `better-sqlite3@12.9.0` as dependency, `@types/better-sqlite3@7.6.13` as devDependency)
+  - package-lock.json (resolved transitive deps)
+  - db/index.ts (singleton `getDb()` / `closeDb()`, WAL pragma, idempotent migration creating `submissions` table + indexes on token & status, CHECK constraint on status enum)
+  - lib/token.ts (`generateToken()` returning 32-char base64url from 24 random bytes via `node:crypto`)
+- Quality:
+  - `npm run typecheck` → pass
+  - Local smoke test: insert + select round-trip with generated token, default `pending` status applied; tested DATABASE_PATH override
+- **Learnings for future iterations:**
+  - `crypto.randomBytes(24).toString("base64url")` yields a 32-char URL-safe token. ACs mention "24-byte" — that's bytes of entropy, not output chars. Don't switch to `hex` (gives 48 chars) or shorten the byte count.
+  - `better-sqlite3` is synchronous and is a native addon. It must run on the Node runtime; if a future story exports route segments, set `export const runtime = "nodejs"` (default in App Router but worth being explicit on routes that touch DB).
+  - The `submissions` table stores `tech_stack` and `credentials_json` as TEXT (JSON-serialized strings). Callers must `JSON.stringify`/`parse` themselves — there's no ORM-style hydration helper. Add helpers in db/index.ts when 3+ call sites need the same shape.
+  - `mkdirSync(dirname(path), { recursive: true })` is required because the configured `DATABASE_PATH` may point to a not-yet-existing dir; `better-sqlite3` doesn't create parent dirs on its own.
+  - DB singleton pattern: store the instance in a module-scoped `let` and return it on subsequent calls. In Next.js dev mode, hot-reload may re-evaluate the module — accept that and let it reopen; don't cache on `globalThis` unless we observe a real connection-leak.
+  - `/data` is gitignored — never commit DB files, but the runtime will recreate the dir on first connect.
+  - Status enum is enforced both at the type level (`SubmissionStatus`) and at the DB level (CHECK constraint). Keep them in sync if values are added.
 ---

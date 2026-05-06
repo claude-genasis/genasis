@@ -31,8 +31,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "better-sqlite3@12.9.0 + @types/better-sqlite3@7.6.13 installed. db/index.ts exposes singleton getDb()/closeDb() with WAL journaling and CHECK-constrained status enum. lib/token.ts exports generateToken() returning 32-char base64url (24 random bytes). DATABASE_PATH env var honored, defaults to ./data/trial.db with mkdirSync recursive. Smoke-tested end-to-end (insert + select). /data is gitignored; runtime mkdirSync creates it on first connect."
     },
     {
       "id": "US-003",
