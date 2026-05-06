@@ -47,8 +47,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "AppBar at app/components/AppBar.tsx renders brand 'Genasis Trial' (left) and tab links '체험하기' / '신청하기' (right) using next/link with ?tab=demo|signup query. Active tab styled via aria-current='page' + dark background. Landing page app/page.tsx is async server component reading searchParams (Next 15 Promise) and renders DemoSection or SignupSection accordingly. Defaults to demo when tab is missing/unknown. Verified via curl on /?(default) and /?tab=signup — both 200, correct aria-current on the active tab. typecheck passes."
     },
     {
       "id": "US-004",

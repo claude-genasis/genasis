@@ -13,6 +13,9 @@
 - `lib/token.ts` exports `generateToken()` for 24-byte (32-char) base64url tokens — use this for any new token field.
 - `DATABASE_PATH` env var overrides the default `./data/trial.db`; the `data/` dir is gitignored and auto-created at first connect.
 - Native modules: `better-sqlite3` is a native addon and must be available at server-runtime (Node, not Edge). Always import DB-touching modules from server components / route handlers, never from `"use client"` files.
+- Next.js 15: `searchParams` (and `params`) in server page components is a `Promise<...>` — type as `Promise<{ key?: string | string[] }>` and `await` before reading. Forgetting this triggers a Next 15 dev warning and breaks types under strict mode.
+- Shared UI components live at `app/components/<Name>.tsx`. Import with the `@/app/components/<Name>` path alias.
+- Tab/active-state navigation pattern: pass `activeTab` from server page → component prop → render `<Link>` with `aria-current="page"` on the active item. No client component needed for plain link-based tab switching.
 
 ## [2026-05-06] - US-001
 - Implemented: Next.js 15 App Router skeleton at /work/genasis/trial-app/
@@ -53,4 +56,19 @@
   - DB singleton pattern: store the instance in a module-scoped `let` and return it on subsequent calls. In Next.js dev mode, hot-reload may re-evaluate the module — accept that and let it reopen; don't cache on `globalThis` unless we observe a real connection-leak.
   - `/data` is gitignored — never commit DB files, but the runtime will recreate the dir on first connect.
   - Status enum is enforced both at the type level (`SubmissionStatus`) and at the DB level (CHECK constraint). Keep them in sync if values are added.
+---
+
+## [2026-05-06] - US-003
+- Implemented: App bar with 체험하기 / 신청하기 tab navigation; landing page renders the active section.
+- Files changed:
+  - app/components/AppBar.tsx (new — server component; brand link + two `<Link>` tabs with `aria-current="page"` on active; sticky header with backdrop blur)
+  - app/page.tsx (now async server component that awaits `searchParams`, derives `activeTab` from `?tab=demo|signup`, defaults to `demo`, renders `DemoSection` or `SignupSection`)
+- Quality:
+  - `npm run typecheck` → pass
+  - Browser verification via curl: `GET /` → 200 with `aria-current="page"` on 체험하기 tab and `id="demo-heading"`; `GET /?tab=signup` → 200 with `aria-current="page"` on 신청하기 tab and `id="signup-heading"`
+- **Learnings for future iterations:**
+  - In Next.js 15, the `searchParams` prop on a page server component is a `Promise`; type it as `Promise<{ key?: string | string[] }>` and `await` it. Same applies to dynamic route `params`.
+  - For simple URL-driven tab/state UIs, a plain `<Link href={{ pathname, query }}>` is enough — no need to lift state into a client component or use `useSearchParams`. This keeps the page fully server-rendered (which AC will require for /status pages too).
+  - Keep `TrialTab` (or similar union types) co-located with the component that owns the prop, and re-export — page consumers can `import { type TrialTab } from "@/app/components/AppBar"` instead of duplicating the union.
+  - Active-state styling via `aria-current="page"` is testable via curl/grep — preferable to relying purely on Tailwind class strings, which are noisy in the rendered HTML.
 ---
