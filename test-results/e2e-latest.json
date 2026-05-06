@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "date": "2026-05-06",
+  "timestamp": "2026-05-06T07:20:34Z",
+  "genasis_version": "0.0.1",
+  "mode": "mock",
+  "plane_url": "https://plane.realstory.blog",
+  "mm_url": "https://mm.realstory.blog",
+  "tests": {
+    "total": 9,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 5
+  },
+  "duration_seconds": 1
+}
