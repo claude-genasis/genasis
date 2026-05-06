@@ -45,6 +45,9 @@ crates/genasis-cli/scripts/node_modules/
 # agents/base/ does NOT belong in public repo — base agents are
 # distributed only via release tarballs built by agents-pool.
 agents/base/
+
+# genasis init decision record (per-project, user-specific)
+.genasis-init-decision.json
 crates/genasis-cli/scripts/package-lock.json
 
 # Migration backups produced by `genasis migrate-from-genesis`
