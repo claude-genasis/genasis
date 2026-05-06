@@ -1,0 +1,32 @@
+# Ralph Progress Log — GenasisTrialApp (ralph/trial-webapp)
+
+## Codebase Patterns
+- Next.js project root is `/work/genasis/trial-app/` (not `apps/trial-app/` as PRD wording suggests; ralph workspace lives in `ralph/` sibling dir).
+- App Router structure: `app/layout.tsx` is the root layout, `app/page.tsx` the landing page, `app/globals.css` holds Tailwind directives.
+- TypeScript strict mode is enabled; run `npm run typecheck` (alias for `tsc --noEmit`) for type validation.
+- Tailwind v3 (`tailwind.config.ts` + `postcss.config.js`); content scan is restricted to `app/**` and `lib/**`.
+- `tsconfig.json` excludes `node_modules` and `ralph/` so the ralph workspace doesn't pollute typechecking.
+- Path alias `@/*` resolves from project root.
+- HTML root lang is `ko` (Korean is the primary user-facing language).
+- Use `next` 15.5.x (15.1.x has CVE-2025-66478); confirm via `npm view next versions`.
+
+## [2026-05-06] - US-001
+- Implemented: Next.js 15 App Router skeleton at /work/genasis/trial-app/
+- Files changed:
+  - package.json (next 15.5.15, react 19, tailwind 3.4.17, typescript 5.7.2)
+  - tsconfig.json (strict, paths @/*, excludes ralph/)
+  - next.config.ts (reactStrictMode)
+  - tailwind.config.ts, postcss.config.js, app/globals.css
+  - app/layout.tsx (metadata title 'Genasis Trial', lang="ko")
+  - app/page.tsx (placeholder home)
+  - .gitignore, next-env.d.ts
+- Quality:
+  - `npm run typecheck` → pass
+  - `npm run dev` → localhost:3000 returns 200 with title 'Genasis Trial' rendered
+- **Learnings for future iterations:**
+  - The PRD was written assuming `apps/trial-app/` but the working directory is actually `/work/genasis/trial-app/`. All future "apps/trial-app/X" path references in ACs translate to "/work/genasis/trial-app/X".
+  - The ralph workspace lives in `ralph/` next to the Next.js source — DO NOT include it in tsconfig globs (already excluded) or the bundler.
+  - `next-env.d.ts` is auto-rewritten by Next.js on dev/build to add a `routes.d.ts` reference — don't fight it.
+  - Initial install of `next@15.1.4` triggered CVE warning; bumped to 15.5.15. Future stories should verify the lockfile still pins a patched version after any dep changes.
+  - Use Korean copy in user-facing strings (lang="ko"), but keep internal comments/identifiers in English.
+---

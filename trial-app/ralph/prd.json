@@ -1,0 +1,231 @@
+{
+  "project": "GenasisTrialApp",
+  "branchName": "ralph/trial-webapp",
+  "description": "Genasis Trial Web App — interactive agentic-team demo (kanban + chat) plus a signup form for hosted Plane + Mattermost trial environments. Launched by `genasis init --trial`, deployed at trial.realstory.blog.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Bootstrap Next.js 15 trial app skeleton",
+      "description": "As a developer, I need a working Next.js 15 (App Router) project with Tailwind CSS so subsequent UI stories have a foundation.",
+      "acceptanceCriteria": [
+        "New Next.js 15 App Router project created at apps/trial-app/",
+        "Tailwind CSS v3+ configured with globals.css and tailwind.config.ts",
+        "TypeScript strict mode enabled in tsconfig.json",
+        "Root layout (app/layout.tsx) renders with default font and metadata title 'Genasis Trial'",
+        "`npm run dev` serves localhost:3000 with a placeholder home page",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Bootstrapped Next.js 15.5.15 (App Router) at /work/genasis/trial-app/. Tailwind v3.4.17, TS strict, Korean lang root. Dev server verified rendering 'Genasis Trial' on localhost:3000. PRD-stated path 'apps/trial-app/' realized as project root /work/genasis/trial-app/."
+    },
+    {
+      "id": "US-002",
+      "title": "Add SQLite persistence layer for trial submissions",
+      "description": "As a developer, I need a SQLite store so trial submissions and credential updates persist across requests.",
+      "acceptanceCriteria": [
+        "better-sqlite3 dependency added and initialized at db/index.ts",
+        "submissions table created via migration: id, token (unique), name, email, phone, project_name, team_size, tech_stack (json), message, status (pending|provisioned|revoked, default pending), credentials_json (nullable), created_at, updated_at",
+        "Token generator utility (crypto.randomBytes 24-byte url-safe) at lib/token.ts",
+        "DB file path configurable via DATABASE_PATH env var, defaults to ./data/trial.db",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Build app bar with 체험하기 / 신청하기 tab navigation",
+      "description": "As a user, I want a top app bar with two tabs so I can switch between the demo and the signup form on the landing page.",
+      "acceptanceCriteria": [
+        "App bar component at app/components/AppBar.tsx with brand 'Genasis Trial' on the left",
+        "Two tab buttons '체험하기' and '신청하기' on the right; active tab visually highlighted",
+        "Tab state controlled via URL query param ?tab=demo|signup, default demo",
+        "Landing page app/page.tsx renders the active tab section based on the query param",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Build static kanban board UI component",
+      "description": "As a user, I want to see a three-column kanban board (Todo / In Progress / Done) so the demo has a visible workspace.",
+      "acceptanceCriteria": [
+        "KanbanBoard component at app/components/KanbanBoard.tsx accepts a `cards: { id, title, column }[]` prop",
+        "Three columns rendered with Tailwind: Todo (gray), In Progress (blue), Done (green)",
+        "Each card shows '#<id> <title>' and is rendered with rounded border + shadow",
+        "Layout fixed-height, columns scroll independently when overflow",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Build static chat thread UI component",
+      "description": "As a user, I want a chat thread panel so the demo can show agent messages.",
+      "acceptanceCriteria": [
+        "ChatThread component at app/components/ChatThread.tsx accepts a `messages: { time, actor, text }[]` prop",
+        "Messages render as time-prefixed bubbles with actor label (e.g. '14:01 [pm]')",
+        "Auto-scrolls to the latest message when messages array grows",
+        "Typing indicator placeholder visible when an optional `typing` prop is true",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement scripted demo sprint state machine",
+      "description": "As a user, I want the demo to play an 8-step sprint with animated kanban moves and chat messages so I can see agentic team collaboration in action.",
+      "acceptanceCriteria": [
+        "Demo script at lib/demo-script.ts encodes the 8 steps from PRD §4.1 (PM → Frontend → Code-reviewer → QA)",
+        "useDemoSprint hook drives state transitions on the configured timing (2s/3s/6s/7s/9s/10s/12s offsets)",
+        "Kanban card movement animates via Framer Motion or CSS transition (300ms)",
+        "Chat messages append with a 600ms typing indicator before each",
+        "[▶ Run Demo Sprint] button starts/restarts the sprint; [Reset] returns to initial state",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Build trial signup form UI",
+      "description": "As a prospective trial user, I want to fill out a request form so I can apply for a hosted Plane + Mattermost trial.",
+      "acceptanceCriteria": [
+        "SignupForm component at app/components/SignupForm.tsx with fields: name (required), email (required, format-validated), phone (optional), project_name (required), team_size (required select: solo/small/medium), tech_stack (optional multi-select: React, Next.js, Vue, Node, Python, Rust, Go, Mobile), message (optional textarea)",
+        "Required-field validation with inline error messages in Korean",
+        "Submit button disabled until required fields valid",
+        "Info banner '관리자 협의 후 기간 제한 없이 이용 가능합니다.' rendered below form",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add /api/submit route with Mattermost notification",
+      "description": "As a prospective trial user, when I submit the form I expect my request to be saved and the maintainer notified in Mattermost.",
+      "acceptanceCriteria": [
+        "POST /api/submit at app/api/submit/route.ts validates payload with zod",
+        "Inserts a submissions row with a freshly generated token and status='pending'",
+        "Posts to Mattermost via REST API using MM_BOT_TOKEN + MM_TRIAL_CHANNEL_ID env vars in the format from PRD §4.3",
+        "Returns 200 { token, statusUrl: `/status/${token}` } on success; 400 on validation error; 500 on MM failure (but submission row is still saved)",
+        "Form redirects to /status/<token> on success",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Build /status/[token] page (pending state)",
+      "description": "As a trial applicant, I want to revisit a status page using my token so I can check whether my request has been provisioned.",
+      "acceptanceCriteria": [
+        "Route app/status/[token]/page.tsx loads the submission by token (server component)",
+        "If token not found: render 404 page with Korean copy",
+        "If status='pending': show 'Pending — 관리자 검토 중입니다' card with submitted summary",
+        "Page is server-rendered (no client fetch for initial state)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add /api/webhook for admin credential delivery",
+      "description": "As a maintainer, I want to POST credentials back to the trial app so the applicant can see them on their status page.",
+      "acceptanceCriteria": [
+        "POST /api/webhook at app/api/webhook/route.ts authenticated via WEBHOOK_SHARED_SECRET header",
+        "Accepts payload: { token, plane: { url, login, password, api_key, workspace_slug }, mattermost: { url, login, password, bot_tokens: { role: token, ... } } }",
+        "Updates submissions row: credentials_json populated, status='provisioned', updated_at refreshed",
+        "Returns 200 on success; 401 on bad secret; 404 on unknown token; 400 on schema mismatch",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Render credentials block on status page when provisioned",
+      "description": "As a trial applicant, when my request is provisioned I want to see all credentials and a copy-ready genasis.toml block.",
+      "acceptanceCriteria": [
+        "When status='provisioned', /status/[token] renders Plane URL/login, Plane API key + workspace slug, Mattermost URL/login, and a bot token list",
+        "Sensitive fields (password, api_key, tokens) masked by default with a 'Show' toggle",
+        "Genasis.toml snippet block generated from credentials with a 'Copy' button (uses navigator.clipboard)",
+        "Snippet includes [plane], [mattermost], and [agents] sections wired to provisioned values",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add Dockerfile and deployment config for trial.realstory.blog",
+      "description": "As a maintainer, I want a reproducible container build so the trial app deploys to trial.realstory.blog.",
+      "acceptanceCriteria": [
+        "Multi-stage Dockerfile at apps/trial-app/Dockerfile (deps → build → runner) producing a Node 20-alpine runtime image",
+        "next.config.js sets output:'standalone' for minimal runtime image",
+        ".dockerignore excludes node_modules, .next, .git, data/",
+        "docker-compose.yml at apps/trial-app/ mounts ./data for SQLite persistence and exposes port 3000",
+        "README.md documents required env vars: MM_BOT_TOKEN, MM_TRIAL_CHANNEL_ID, WEBHOOK_SHARED_SECRET, DATABASE_PATH",
+        "`docker build` succeeds locally"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add `--trial` flag to `genasis init` CLI",
+      "description": "As a developer running `genasis init --trial`, I want the CLI to bootstrap a blank project and offer to launch the trial demo app.",
+      "acceptanceCriteria": [
+        "Clap arg `--trial` added to the `init` subcommand in src/commands/init.rs",
+        "When --trial is passed: after standard init, prompt 'Launch trial demo app? (Y/n)' (uses dialoguer Confirm with default true)",
+        "On confirm: spawn the trial app as a background process (look up bin via TRIAL_APP_BIN env, fall back to `npm --prefix apps/trial-app run start`) and `open` http://localhost:3000",
+        "Prints 'Trial app running on http://localhost:3000 — Ctrl+C to stop' and a hint that the PID is recorded in .genasis/trial.pid",
+        "When --trial NOT passed, behavior is unchanged",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add `genasis example` subcommand for sample artifacts",
+      "description": "As a tutorial user, I want `genasis example prd|design|prd2` to drop ready-to-use sample documents into my project so I can practice agent workflows.",
+      "acceptanceCriteria": [
+        "New `example` subcommand in src/commands/example.rs accepting one of: prd, design, prd2",
+        "Templates stored at templates/examples/{prd.md.tera, design-system.md.tera, prd2.md.tera}; rendered into project root as PRD.md, design-system.md, PRD2.md",
+        "Refuses to overwrite an existing file unless `--force` is passed (returns error with helpful message)",
+        "`genasis example --help` lists the three subcommands",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
