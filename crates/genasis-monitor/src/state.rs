@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 
 use crate::collector::jsonl::UsageSnapshot;
+use crate::collector::plane::{AgentIssue, SprintSnapshot};
 use crate::collector::sessions::ClaudeSession;
-use crate::collector::plane::{SprintSnapshot, AgentIssue};
 
 #[derive(Debug, Default, Clone)]
 pub struct AppState {
@@ -30,10 +30,17 @@ pub struct AppState {
     pub agent_issues: Vec<AgentIssue>,
     pub agent_role_uuids: HashMap<String, String>, // role → plane UUID
 
+    // Token savings & MCP (incremented by hooks / JSONL scan)
+    pub rtk_saved_tokens: u64,
+    pub mcp_calls: u64,
+    pub mcp_cache_hits: u64,
+    pub anthropic_cache_hit_pct: f64,
+
     // Network counters (incremented by CLI hooks)
     pub plane_calls: u64,
     pub mm_calls: u64,
     pub gh_calls: u64,
+    pub network_bytes: u64,
 
     // Deploy
     pub deploy: DeployState,
@@ -84,6 +91,7 @@ pub enum WidgetFocus {
     Deploy,
     Sessions,
     Log,
+    Design,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -95,4 +103,5 @@ pub struct DeployState {
     pub dev_refreshed: bool,
     pub prod_refreshed: bool,
     pub last_build_sha: Option<String>,
+    pub last_build_ts: Option<u64>,
 }

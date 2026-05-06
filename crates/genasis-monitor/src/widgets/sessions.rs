@@ -16,10 +16,7 @@ use crate::state::AppState;
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(65),
-            Constraint::Percentage(35),
-        ])
+        .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
         .split(area);
 
     render_sessions_list(frame, chunks[0], state);
@@ -44,12 +41,13 @@ fn render_sessions_list(frame: &mut Frame, area: Rect, state: &AppState) {
     let mut lines: Vec<Line> = Vec::new();
 
     // Header
-    lines.push(Line::from(vec![
-        Span::styled(
-            format!("{:<7} {:<12} {:>5} {:>6}  {}", "PID", "role", "ctx%", "age", "state"),
-            Style::default().fg(Color::DarkGray),
+    lines.push(Line::from(vec![Span::styled(
+        format!(
+            "{:<7} {:<12} {:>5} {:>6}  {}",
+            "PID", "role", "ctx%", "age", "state"
         ),
-    ]));
+        Style::default().fg(Color::DarkGray),
+    )]));
 
     for session in &state.sessions {
         let state_color = match session.state {
@@ -63,7 +61,8 @@ fn render_sessions_list(frame: &mut Frame, area: Rect, state: &AppState) {
             SessionState::Error => "✗",
         };
         let role = session.role.as_deref().unwrap_or("-");
-        let ctx = session.context_pct
+        let ctx = session
+            .context_pct
             .map(|p| format!("{:.0}%", p))
             .unwrap_or_else(|| "-".into());
         let age = format_age(session.age_secs);
@@ -74,7 +73,11 @@ fn render_sessions_list(frame: &mut Frame, area: Rect, state: &AppState) {
             Span::raw(format!("{:>5} ", ctx)),
             Span::raw(format!("{:>6}  ", age)),
             Span::styled(
-                format!("{} {}", state_icon, format!("{:?}", session.state).to_lowercase()),
+                format!(
+                    "{} {}",
+                    state_icon,
+                    format!("{:?}", session.state).to_lowercase()
+                ),
                 Style::default().fg(state_color),
             ),
         ]));
@@ -137,18 +140,15 @@ fn render_usage_bars(frame: &mut Frame, area: Rect, state: &AppState) {
     // Cost
     let cost_text = format!(
         " ${:.2} / ${:.0}",
-        state.usage.five_h_cost_usd,
-        state.limit_overage_usd,
+        state.usage.five_h_cost_usd, state.limit_overage_usd,
     );
-    let cost_line = Paragraph::new(cost_text)
-        .style(Style::default().fg(Color::Yellow));
+    let cost_line = Paragraph::new(cost_text).style(Style::default().fg(Color::Yellow));
     frame.render_widget(cost_line, chunks[3]);
 
     // Reset countdown
     let countdown = format_countdown(state.usage.five_h_reset_countdown());
     let reset_text = format!(" Reset: {}", countdown);
-    let reset_line = Paragraph::new(reset_text)
-        .style(Style::default().fg(Color::DarkGray));
+    let reset_line = Paragraph::new(reset_text).style(Style::default().fg(Color::DarkGray));
     frame.render_widget(reset_line, chunks[4]);
 }
 

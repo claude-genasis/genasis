@@ -20,7 +20,9 @@ pub struct SprintSnapshot {
 
 impl SprintSnapshot {
     pub fn progress_pct(&self) -> f32 {
-        if self.total == 0 { return 0.0; }
+        if self.total == 0 {
+            return 0.0;
+        }
         self.done as f32 / self.total as f32 * 100.0
     }
 }
@@ -93,19 +95,23 @@ pub async fn poll_sprint(
         .await
         .map_err(|e| format!("Plane JSON parse: {e}"))?;
 
-    let cycles = body.get("results")
+    let cycles = body
+        .get("results")
         .and_then(|r| r.as_array())
         .cloned()
         .unwrap_or_default();
 
     // Find the active (current) cycle
     let active = cycles.iter().find(|c| {
-        c.get("is_active").and_then(|a| a.as_bool()).unwrap_or(false)
+        c.get("is_active")
+            .and_then(|a| a.as_bool())
+            .unwrap_or(false)
     });
 
     let mut sprint = SprintSnapshot::default();
     if let Some(cycle) = active {
-        sprint.name = cycle.get("name")
+        sprint.name = cycle
+            .get("name")
             .and_then(|n| n.as_str())
             .unwrap_or("(unnamed)")
             .to_string();
@@ -135,12 +141,11 @@ pub async fn poll_sprint(
         .await
         .map_err(|e| format!("Plane issues error: {e}"))?;
 
-    let issues_body: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Issues JSON: {e}"))?;
+    let issues_body: serde_json::Value =
+        resp.json().await.map_err(|e| format!("Issues JSON: {e}"))?;
 
-    let issues = issues_body.get("results")
+    let issues = issues_body
+        .get("results")
         .and_then(|r| r.as_array())
         .cloned()
         .unwrap_or_default();
@@ -148,7 +153,8 @@ pub async fn poll_sprint(
     let mut agent_issues = Vec::new();
 
     for issue in &issues {
-        let state_name = issue.get("state_detail")
+        let state_name = issue
+            .get("state_detail")
             .and_then(|s| s.get("group"))
             .and_then(|g| g.as_str())
             .unwrap_or("");
@@ -170,8 +176,13 @@ pub async fn poll_sprint(
 
         // Extract assignee → agent role mapping
         if let Some(assignees) = issue.get("assignees").and_then(|a| a.as_array()) {
-            let title = issue.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-            let id = issue.get("sequence_id")
+            let title = issue
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+            let id = issue
+                .get("sequence_id")
                 .and_then(|s| s.as_u64())
                 .map(|s| format!("#{s}"))
                 .unwrap_or_default();

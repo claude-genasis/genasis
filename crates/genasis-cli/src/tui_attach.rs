@@ -1,10 +1,19 @@
-//! Attach-time visualisation TUI (Ratatui). Wired in M2.
-//! See blueprint.md §Q1 — shows detected team assets, GitHub-fetched overlay
-//! assets, the marker-fence injection diagram, and a dry-run diff panel.
+//! Thin entry point for the init/attach wizard TUI.
+//! Delegates to `genasis_tui::wizard::app::run()`.
+
+use std::path::PathBuf;
 
 use anyhow::Result;
+use genasis_tui::wizard::state::WizardMode;
 
-#[allow(dead_code)]
-pub fn run_attach_tui() -> Result<()> {
-    anyhow::bail!("tui_attach: not yet implemented (M2 placeholder)")
+pub async fn run_init_tui(project_root: PathBuf, non_interactive: bool) -> Result<()> {
+    genasis_tui::wizard::app::run(WizardMode::Init, project_root, non_interactive)
+        .await
+        .map_err(Into::into)
+}
+
+pub async fn run_attach_tui(project_root: PathBuf, non_interactive: bool) -> Result<()> {
+    genasis_tui::wizard::app::run(WizardMode::Attach, project_root, non_interactive)
+        .await
+        .map_err(Into::into)
 }

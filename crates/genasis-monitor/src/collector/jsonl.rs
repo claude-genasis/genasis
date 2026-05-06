@@ -37,7 +37,7 @@ pub struct UsageSnapshot {
     pub week_sonnet_cache_create: u64,
 
     // Rate limit status
-    pub five_h_status: String,   // "allowed" | "warning" | "limited"
+    pub five_h_status: String, // "allowed" | "warning" | "limited"
     pub five_h_reset_epoch: u64,
     pub week_status: String,
     pub week_reset_epoch: u64,
@@ -51,7 +51,7 @@ pub struct UsageSnapshot {
     pub ctx_model: String,
 
     // Plan info
-    pub plan: String,      // "Max (20x)" etc
+    pub plan: String, // "Max (20x)" etc
     pub tier: String,
 
     // Scan metadata
@@ -62,28 +62,36 @@ pub struct UsageSnapshot {
 impl UsageSnapshot {
     /// Calculate 5h window usage percentage against a budget.
     pub fn five_h_pct(&self, budget: u64) -> f32 {
-        if budget == 0 { return 0.0; }
+        if budget == 0 {
+            return 0.0;
+        }
         let used = self.five_h_input_tokens + self.five_h_output_tokens;
         (used as f64 / budget as f64 * 100.0) as f32
     }
 
     /// Calculate 7d all-model usage percentage.
     pub fn week_all_pct(&self, budget: u64) -> f32 {
-        if budget == 0 { return 0.0; }
+        if budget == 0 {
+            return 0.0;
+        }
         let used = self.week_input_tokens + self.week_output_tokens;
         (used as f64 / budget as f64 * 100.0) as f32
     }
 
     /// Calculate 7d sonnet-only usage percentage.
     pub fn week_sonnet_pct(&self, budget: u64) -> f32 {
-        if budget == 0 { return 0.0; }
+        if budget == 0 {
+            return 0.0;
+        }
         let used = self.week_sonnet_input + self.week_sonnet_output;
         (used as f64 / budget as f64 * 100.0) as f32
     }
 
     /// Context window usage percentage.
     pub fn ctx_pct(&self) -> f32 {
-        if self.ctx_window_size == 0 { return 0.0; }
+        if self.ctx_window_size == 0 {
+            return 0.0;
+        }
         let used = self.ctx_input + self.ctx_output + self.ctx_cache_read;
         (used as f64 / self.ctx_window_size as f64 * 100.0) as f32
     }
@@ -152,12 +160,7 @@ pub fn scan_dir(dir: &Path) -> UsageSnapshot {
 }
 
 /// Parse a single JSONL file and accumulate into the snapshot.
-fn scan_single_file(
-    path: &Path,
-    snapshot: &mut UsageSnapshot,
-    five_h_start: u64,
-    week_start: u64,
-) {
+fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64, week_start: u64) {
     let file = match fs::File::open(path) {
         Ok(f) => f,
         Err(_) => return,
@@ -169,7 +172,9 @@ fn scan_single_file(
             Ok(l) => l,
             Err(_) => continue,
         };
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
 
         let event: serde_json::Value = match serde_json::from_str(&line) {
             Ok(v) => v,
@@ -177,18 +182,36 @@ fn scan_single_file(
         };
 
         let event_type = event.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        let timestamp = event.get("timestamp")
+        let timestamp = event
+            .get("timestamp")
             .and_then(|t| t.as_u64())
-            .or_else(|| event.get("timestampMs").and_then(|t| t.as_u64()).map(|ms| ms / 1000))
+            .or_else(|| {
+                event
+                    .get("timestampMs")
+                    .and_then(|t| t.as_u64())
+                    .map(|ms| ms / 1000)
+            })
             .unwrap_or(0);
 
         match event_type {
             "usage" | "api_response" => {
                 let usage = event.get("usage").unwrap_or(&event);
-                let input = usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-                let output = usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-                let cache_read = usage.get("cache_read_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-                let cache_create = usage.get("cache_creation_input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+                let input = usage
+                    .get("input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let output = usage
+                    .get("output_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_read = usage
+                    .get("cache_read_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_create = usage
+                    .get("cache_creation_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
                 let model = usage.get("model").and_then(|v| v.as_str()).unwrap_or("");
                 let is_sonnet = model.contains("sonnet");
 
@@ -225,8 +248,14 @@ fn scan_single_file(
                 }
             }
             "rate_limit_event" => {
-                let status = event.get("status").and_then(|s| s.as_str()).unwrap_or("").to_string();
-                let reset = event.get("resetsAt").and_then(|r| r.as_u64())
+                let status = event
+                    .get("status")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let reset = event
+                    .get("resetsAt")
+                    .and_then(|r| r.as_u64())
                     .or_else(|| event.get("expires_at").and_then(|r| r.as_u64()))
                     .unwrap_or(0);
                 let window = event.get("window").and_then(|w| w.as_str()).unwrap_or("");
@@ -250,7 +279,9 @@ fn scan_single_file(
                 }
             }
             "context_window" => {
-                let size = event.get("windowSize").and_then(|s| s.as_u64())
+                let size = event
+                    .get("windowSize")
+                    .and_then(|s| s.as_u64())
                     .or_else(|| event.get("context_window").and_then(|s| s.as_u64()))
                     .unwrap_or(0);
                 if size > 0 {
@@ -277,12 +308,14 @@ pub fn read_credentials() -> (String, String) {
         Err(_) => return ("unknown".into(), "-".into()),
     };
 
-    let plan = creds.get("plan")
+    let plan = creds
+        .get("plan")
         .or_else(|| creds.get("planName"))
         .and_then(|p| p.as_str())
         .unwrap_or("unknown")
         .to_string();
-    let tier = creds.get("tier")
+    let tier = creds
+        .get("tier")
         .or_else(|| creds.get("serviceTier"))
         .and_then(|t| t.as_str())
         .unwrap_or("-")

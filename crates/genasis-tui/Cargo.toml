@@ -14,4 +14,7 @@ crossterm.workspace = true
 tui-textarea.workspace = true
 tui-input.workspace = true
 serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+which.workspace = true
 genasis-core.workspace = true

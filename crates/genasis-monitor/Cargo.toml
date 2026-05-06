@@ -22,5 +22,6 @@ genasis-tui.workspace = true
 genasis-providers.workspace = true
 genasis-i18n.workspace = true
 genasis-design.workspace = true
+reqwest.workspace = true
 sysinfo = "0.33"
 dirs = "5"

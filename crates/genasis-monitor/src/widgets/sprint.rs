@@ -11,12 +11,18 @@ use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let dday = state
+        .sprint
         .d_day
         .map(|d| format!("D-{d}"))
         .unwrap_or_else(|| "—".into());
     let body = format!(
         "Cycle: {}\nD-day: {}\nTodo:{}  In:{}  Review:{}  Done:{}",
-        state.sprint_name, dday, state.todo, state.in_progress, state.in_review, state.done
+        state.sprint.name,
+        dday,
+        state.sprint.todo,
+        state.sprint.in_progress,
+        state.sprint.in_review,
+        state.sprint.done
     );
     let title = format!(" {} (1) ", tr("monitor.widget.sprint"));
     let p = Paragraph::new(body)

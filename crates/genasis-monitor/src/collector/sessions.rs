@@ -36,10 +36,7 @@ impl Default for SessionState {
 }
 
 /// Detect all running Claude Code processes and classify them.
-pub fn detect_sessions(
-    project_root: &Path,
-    worktree_prefix: &str,
-) -> Vec<ClaudeSession> {
+pub fn detect_sessions(project_root: &Path, worktree_prefix: &str) -> Vec<ClaudeSession> {
     let mut sys = System::new_with_specifics(
         RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
     );
@@ -54,7 +51,11 @@ pub fn detect_sessions(
 
     for (pid, process) in sys.processes() {
         let cmd = process.cmd();
-        let cmd_str: String = cmd.iter().map(|s| s.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");
+        let cmd_str: String = cmd
+            .iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
 
         // Look for Claude Code processes
         if !is_claude_process(&cmd_str) {
@@ -74,7 +75,11 @@ pub fn detect_sessions(
         let role = infer_role_from_path(&cwd, project_root, worktree_prefix);
 
         let start_time = process.start_time();
-        let age = if start_time > 0 { now.saturating_sub(start_time) } else { 0 };
+        let age = if start_time > 0 {
+            now.saturating_sub(start_time)
+        } else {
+            0
+        };
 
         let state = if process.status() == sysinfo::ProcessStatus::Zombie {
             SessionState::Error
@@ -99,11 +104,8 @@ pub fn detect_sessions(
 
 /// Check if a process command line looks like a Claude Code session.
 fn is_claude_process(cmd: &str) -> bool {
-    cmd.contains("claude") && (
-        cmd.contains("--session") ||
-        cmd.contains("code") ||
-        cmd.contains("claude-code")
-    )
+    cmd.contains("claude")
+        && (cmd.contains("--session") || cmd.contains("code") || cmd.contains("claude-code"))
 }
 
 /// Check if a path belongs to this project (main dir or worktree).
@@ -118,11 +120,7 @@ fn is_project_path(cwd: &str, project_root: &Path, worktree_prefix: &str) -> boo
 ///
 /// Convention: worktrees are at `/tmp/{project}-{role}/` or
 /// the main project root is the `master` / `pm` role.
-fn infer_role_from_path(
-    cwd: &str,
-    project_root: &Path,
-    worktree_prefix: &str,
-) -> Option<String> {
+fn infer_role_from_path(cwd: &str, project_root: &Path, worktree_prefix: &str) -> Option<String> {
     let root_str = project_root.to_string_lossy().to_string();
     if cwd == root_str || cwd.starts_with(&format!("{}/", root_str)) {
         return Some("master".into());
@@ -171,8 +169,12 @@ mod tests {
 
     #[test]
     fn is_claude_process_matches() {
-        assert!(is_claude_process("node /usr/bin/claude --session abc123 code"));
-        assert!(is_claude_process("/home/user/.local/bin/claude-code --session xyz"));
+        assert!(is_claude_process(
+            "node /usr/bin/claude --session abc123 code"
+        ));
+        assert!(is_claude_process(
+            "/home/user/.local/bin/claude-code --session xyz"
+        ));
         assert!(!is_claude_process("node /usr/bin/npm install"));
         assert!(!is_claude_process("vim claude.md"));
     }
@@ -181,8 +183,16 @@ mod tests {
     fn is_project_path_works() {
         let root = Path::new("/work/myproject");
         assert!(is_project_path("/work/myproject", root, "/tmp/myproject-"));
-        assert!(is_project_path("/work/myproject/src", root, "/tmp/myproject-"));
-        assert!(is_project_path("/tmp/myproject-frontend", root, "/tmp/myproject-"));
+        assert!(is_project_path(
+            "/work/myproject/src",
+            root,
+            "/tmp/myproject-"
+        ));
+        assert!(is_project_path(
+            "/tmp/myproject-frontend",
+            root,
+            "/tmp/myproject-"
+        ));
         assert!(!is_project_path("/work/other", root, "/tmp/myproject-"));
     }
 

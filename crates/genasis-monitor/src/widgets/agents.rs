@@ -7,28 +7,27 @@ use ratatui::Frame;
 
 use genasis_i18n::tr;
 
-use crate::state::{AgentStatus, AppState};
+use crate::collector::plane::IssueState;
+use crate::state::AppState;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
-    let items: Vec<ListItem> = if state.agents.is_empty() {
+    let items: Vec<ListItem> = if state.agent_issues.is_empty() {
         vec![ListItem::new(
             "(no agent activity collected yet — wire SessionStart hook)",
         )]
     } else {
         state
-            .agents
+            .agent_issues
             .iter()
             .map(|a| {
-                let dot = match a.status {
-                    AgentStatus::Working => "●",
-                    AgentStatus::InReview => "◐",
-                    AgentStatus::Idle => "◌",
+                let dot = match a.state {
+                    IssueState::InProgress => "●",
+                    IssueState::InReview => "◐",
+                    IssueState::Todo | IssueState::Done => "◌",
                 };
                 ListItem::new(format!(
-                    "{dot} {:<10} last={}s ago  {}",
-                    a.role,
-                    a.last_active_secs_ago,
-                    a.current_issue.as_deref().unwrap_or("idle")
+                    "{dot} {:<10} {}  {}",
+                    a.role, a.issue_id, a.issue_title,
                 ))
             })
             .collect()

@@ -101,16 +101,16 @@ async fn run_loop<B: ratatui::backend::Backend>(
         // Render
         terminal
             .draw(|frame| {
-                let area = frame.area();
+                let area = frame.size();
 
                 let main = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
-                        Constraint::Length(6),  // Sprint + Tokens
-                        Constraint::Length(8),  // Agents
-                        Constraint::Length(5),  // Deploy + Network + Design
-                        Constraint::Length(8),  // Sessions + Usage bars
-                        Constraint::Min(3),     // Log tail
+                        Constraint::Length(6), // Sprint + Tokens
+                        Constraint::Length(8), // Agents
+                        Constraint::Length(5), // Deploy + Network + Design
+                        Constraint::Length(8), // Sessions + Usage bars
+                        Constraint::Min(3),    // Log tail
                     ])
                     .split(area);
 
@@ -165,6 +165,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
                     KeyCode::Char('4') => state.focus = WidgetFocus::Deploy,
                     KeyCode::Char('5') => state.focus = WidgetFocus::Sessions,
                     KeyCode::Char('6') => state.focus = WidgetFocus::Log,
+                    KeyCode::Char('7') => state.focus = WidgetFocus::Design,
                     KeyCode::Tab => {
                         state.focus = match state.focus {
                             WidgetFocus::Sprint => WidgetFocus::Tokens,
@@ -172,7 +173,8 @@ async fn run_loop<B: ratatui::backend::Backend>(
                             WidgetFocus::Agents => WidgetFocus::Deploy,
                             WidgetFocus::Deploy => WidgetFocus::Sessions,
                             WidgetFocus::Sessions => WidgetFocus::Log,
-                            WidgetFocus::Log => WidgetFocus::Sprint,
+                            WidgetFocus::Log => WidgetFocus::Design,
+                            WidgetFocus::Design => WidgetFocus::Sprint,
                         };
                     }
                     _ => {}
