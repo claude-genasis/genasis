@@ -1682,8 +1682,57 @@ genasis debug
 `docs/ADR/ADR-012-...` (영어 mirror) 에서 전체 결정 근거·대안·결과·
 구현 계획(M15–M17) 상세 기술.
 
-### 21.8 DoD (Phase F)
+### 21.8 DoD (Phase F — Debug History)
 
 - ☐ M15: manifest 생성 + 드리프트 감지 + `debug status/collect/log/reset`
 - ☐ M16: `debug submit` + repo `debug-history/` 구조 + CI workflow + `/debug-review` 스킬
 - ☐ M17: 분석 자동화 + clusters.md + 아카이빙 + 문서
+
+---
+
+## 22. Trial 체험 + 튜토리얼 시스템
+
+### 22.1 배경
+
+genasis를 처음 접하는 사용자가 서버 설치 없이 즉시 에이전트 팀 경험을
+할 수 있어야 한다. "설치 → 체험 → PRD 작성 → 스프린트 → 모니터링" 5단계로
+완전 마스터 가능한 빠른 경로를 제공한다.
+
+### 22.2 Trial 데모 앱
+
+`trial.realstory.blog`에 호스팅되는 웹 앱:
+- **체험하기 탭**: 칸반 보드 + 채팅 스레드로 스프린트 시뮬레이션 재생
+  (PM → frontend → reviewer → QA, 8단계 스크립트, 12초 자동 재생)
+- **신청하기 탭**: Plane + Mattermost 체험 환경 신청 → MM #genasis-trial
+  채널에 알림 → 관리자 응답 → 인증 정보 제공
+- `genasis init --trial` 실행 시 localhost:3000에서 자동 실행
+
+### 22.3 `genasis example` 서브커맨드
+
+에이전트가 즉시 작업할 수 있는 샘플 문서 생성:
+- `genasis example prd` — todo-app PRD (인증, CRUD, 반응형 UI)
+- `genasis example design` — 디자인 시스템 토큰 (색상, 타이포, 간격)
+- `genasis example prd2` — 기능 확장 PRD (로그인, 백오피스, 사용자 관리)
+
+### 22.4 튜토리얼 구조
+
+**빠른 체험 (5단계)**:
+1. 설치 (`install.sh`)
+2. Trial 초기화 (`genasis init --trial`)
+3. 샘플 PRD 생성 (`genasis example prd`)
+4. 에이전트 팀 가동 (`genasis init`)
+5. 모니터링 (`genasis monitor`)
+
+**더 해보기 (선택적 연습)**:
+6. PRD2로 기능 확장
+7. 디자인 시스템 교체
+8. 전문 에이전트 추가
+9. 새 프로젝트 시작
+10. 기존 프로젝트에 붙이기
+
+### 22.5 DoD
+
+- ☐ G.5: 데모 앱 (채팅 + 칸반 시뮬레이션)
+- ☐ G.6: `genasis init --trial` CLI 연동
+- ☐ G.7: `genasis example` 서브커맨드 + 3개 템플릿
+- ☐ G.8: 튜토리얼 문서 (en/ko) + README 재구성

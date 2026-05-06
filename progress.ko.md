@@ -909,6 +909,42 @@ PRD: `agents-pool/prd/trial-webapp.md` (private).
 - 사용자 오버라이드 (`genasis design override add`)
 - EPIC 모드 (영향 UI 영역 자동 이슈 생성)
 
+### G.5 — 체험 데모 앱 (채팅 + 칸반 시뮬레이션)
+
+trial.realstory.blog의 인터랙티브 웹 앱:
+- [ ] 데모 칸반 보드 (Todo/InProgress/Done 컬럼, 카드 애니메이션)
+- [ ] 데모 채팅 스레드 (스크립트 에이전트 메시지 + 타이핑 인디케이터)
+- [ ] 8단계 스프린트 시뮬레이션 (PM → frontend → reviewer → QA)
+- [ ] [데모 시작] / [초기화] 버튼
+- [ ] 신청 폼 (이름, 이메일, 전화, 프로젝트, 팀 규모) → MM #genasis-trial
+- [ ] 토큰 기반 인증 정보 표시 페이지
+- [ ] trial.realstory.blog 배포
+
+PRD: `agents-pool/prd/trial-webapp.md` (v2).
+
+### G.6 — `genasis init --trial` CLI 연동
+
+- [ ] `cmd_init.rs`에 `--trial` 플래그 추가
+- [ ] 흐름: 빈 프로젝트 생성 → 에이전트 부트스트랩 → "체험 앱 실행?" → 브라우저 열기
+- [ ] 체험 앱은 localhost:3000에서 백그라운드 프로세스로 실행
+- [ ] i18n 키 (en/ko)
+
+### G.7 — `genasis example` 서브커맨드
+
+- [ ] `genasis example prd` — 샘플 PRD.md 생성 (인증, CRUD, 반응형 UI를 갖춘 todo-app)
+- [ ] `genasis example design` — 샘플 design-system.md 생성 (색상/타이포/간격 토큰)
+- [ ] `genasis example prd2` — PRD2.md 생성 (로그인, 관리자 백오피스, 사용자 관리)
+- [ ] `cmd_example.rs` — 새 CLI 서브커맨드
+- [ ] 템플릿: `agents/examples/{prd.md,design-system.md,prd2.md}`
+- [ ] i18n: 각 예제 문서의 en/ko 버전
+
+### G.8 — 튜토리얼 문서
+
+- [ ] `docs/TUTORIAL.md` (영어) — 5단계 빠른 경로 + 5개 연습
+- [ ] `docs/ko/TUTORIAL.md` (한국어 미러)
+- [ ] README 재구성: "빠른 체험" (5단계 → 튜토리얼 링크) + "단계별 가이드" (전체 제어)
+- [ ] CLAUDE.md 미러 테이블에 튜토리얼 쌍 추가
+
 ---
 
 ## 진행 중 메모

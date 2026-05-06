@@ -52,70 +52,97 @@ Genasis는 하나의 Rust 바이너리로 AI 에이전트를 **진짜 팀원**�
 
 ---
 
-## Step 1 — Genasis 설치
+## 빠른 체험 — 5분 만에 에이전트 팀 가동
+
+**5단계면 에이전트 팀이 스프린트를 돌립니다.** 서버 설치 불필요.
+
+**1. 설치**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
+**2. Trial 모드로 초기화** — 인터랙티브 데모 + 체험 신청 화면이 브라우저에 열립니다
+
+```bash
+mkdir my-project && cd my-project && genasis init --trial
+```
+
+**3. 샘플 PRD 생성** — 에이전트가 바로 작업할 수 있는 요구사항 문서
+
+```bash
+genasis example prd
+```
+
+**4. 에이전트 팀 가동**
+
+```bash
+genasis init
+```
+
+**5. 스프린트 모니터링**
+
+```bash
+genasis monitor
+```
+
+끝입니다. 에이전트 팀이 PRD에서 코드까지 스프린트를 완주했습니다.
+디자인 교체, PRD 확장, 에이전트 추가 등 실습은
+[**전체 튜토리얼**](docs/ko/TUTORIAL.md)을 참조하세요.
+
 <details>
-<summary>소스에서 직접 빌드</summary>
+<summary>소스에서 직접 빌드 (install.sh 대신)</summary>
 
 ```bash
 git clone https://github.com/claude-genasis/genasis.git && cd genasis && ./build.sh
 ```
 
-`build.sh`가 Rust 설치(필요시) → 빌드 → `~/.local/bin/`에 복사까지 한번에 처리합니다.
-
 </details>
 
-## Step 2 — Plane & Mattermost 준비
+---
 
-Genasis 에이전트는 **Plane** (이슈 관리)과 **Mattermost** (팀 채팅)를 통해 사람과 협업합니다. 에이전트 팀을 연결하기 전에 둘 다 준비해야 합니다.
+## 단계별 가이드
 
-### 방법 A — Trial 서버 이용 (가장 빠름)
+모든 단계를 직접 통제하고 싶은 팀을 위한 안내입니다.
 
-[**trial.realstory.blog**](https://trial.realstory.blog)에서 공유 체험 환경을 신청할 수 있습니다.
+### 1. 설치
 
-- Plane 워크스페이스 + Mattermost 팀 사전 구성
-- 저장소 관리자에게 접근 요청 → 수 분 내 접속 정보 전달
-- 관리자와 협의하에 기간 제한 없이 지속 이용 가능
-- 평가, 데모, 소규모 팀 시작에 적합
+```bash
+curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
+```
 
-접속 정보를 받으면 **Step 3**으로 바로 이동하세요.
+### 2. Plane & Mattermost 준비
 
-### 방법 B — 직접 설치 (완전한 통제)
+Genasis 에이전트는 **Plane** (이슈 관리)과 **Mattermost** (팀 채팅)를 통해 협업합니다.
 
-Docker Compose로 Plane + Mattermost를 직접 운영합니다. [`servers/README.md`](servers/README.md)의 가이드를 따르세요:
+**방법 A — Trial 서버 (가장 빠름, 설치 불필요)**
+
+[**trial.realstory.blog**](https://trial.realstory.blog)에서 공유 환경을 신청합니다.
+관리자에게 접근 요청 → 수 분 내 접속 정보. 협의 하에 기간 제한 없이 이용 가능.
+
+**방법 B — 직접 설치 (완전한 통제)**
 
 ```bash
 cd servers && docker compose up -d
 ```
 
-이렇게 하면:
-- **Plane** — `http://localhost:8080` (워크스페이스 + 프로젝트 생성)
-- **Mattermost** — `http://localhost:8065` (팀 생성)
+Plane `localhost:8080`, Mattermost `localhost:8065`.
+상세: [`servers/README.md`](servers/README.md).
 
-두 서버가 실행 중이면 다음이 필요합니다:
-- Plane API 키 (Settings → API Tokens)
-- Mattermost 관리자 토큰 (System Console → Integrations → Bot Accounts)
-
-프로젝트의 `genasis.toml` 또는 환경변수로 설정합니다:
+설치 후 인증 정보 설정:
 
 ```bash
 export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
 ```
 
-## Step 3 — 에이전트 팀 연결
+### 3. 연결 및 시작
 
 ```bash
 genasis init
 ```
 
-Plane 프로젝트 프로비저닝, Mattermost 스크럼 채널 생성, 에이전트 봇 설치, 오버레이 부착까지 한번에 수행합니다. 에이전트가 바로 활성화됩니다.
-
-## Step 4 — 확인
+### 4. 검증
 
 ```bash
 genasis doctor

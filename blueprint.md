@@ -60,6 +60,9 @@ Claude Code agent team. The overlay covers:
   drift detection + opt-in submission + data-only contributor governance
   + maintainer auto-development via Claude Code. Read together with
   `docs/ADR/ADR-012-debug-history-feedback-loop.md`.
+- **§22 Trial Experience + Tutorial System** — interactive demo app
+  (chat + kanban simulation), `genasis init --trial`, `genasis example`
+  subcommand, 5-step tutorial → advanced exercises.
 
 ## §21 — Debug History: Field Drift Feedback Loop (Phase F)
 

@@ -52,71 +52,98 @@ Genasis turns AI agents into **real team members** with a single Rust binary:
 
 ---
 
-## Step 1 — Install Genasis
+## Quick Path — Try Genasis in 5 Minutes
+
+**5 steps to a running agentic team.** No server setup needed.
+
+**1. Install**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
+**2. Initialize with trial mode** — opens an interactive demo + trial signup in your browser
+
+```bash
+mkdir my-project && cd my-project && genasis init --trial
+```
+
+**3. Generate a sample PRD** for your agents to work on
+
+```bash
+genasis example prd
+```
+
+**4. Start your agentic team**
+
+```bash
+genasis init
+```
+
+**5. Monitor the sprint**
+
+```bash
+genasis monitor
+```
+
+That's it. Your agentic team just ran a sprint from PRD to code.
+For hands-on exercises (design swap, PRD expansion, adding agents),
+see the [**full tutorial**](docs/TUTORIAL.md).
+
 <details>
-<summary>Build from source instead</summary>
+<summary>Build from source (instead of install.sh)</summary>
 
 ```bash
 git clone https://github.com/claude-genasis/genasis.git && cd genasis && ./build.sh
 ```
 
-`build.sh` installs Rust (if needed), builds the binary, and copies it to `~/.local/bin/`.
-
 </details>
 
-## Step 2 — Set Up Plane & Mattermost
+---
 
-Genasis agents collaborate through **Plane** (issue tracking) and **Mattermost** (team chat). You need both running before connecting your agentic team.
+## Step-by-Step Guide
 
-### Option A — Use the Trial Server (fastest)
+For teams that want full control over every step.
 
-A shared trial environment is available at [**trial.realstory.blog**](https://trial.realstory.blog).
+### 1. Install
 
-- Pre-provisioned Plane workspace + Mattermost team
-- Request access by contacting the repository maintainer
-- Credentials delivered within minutes
-- Available for ongoing use as long as agreed with the maintainer — no time limit by default
-- Ideal for evaluation, demos, and small teams getting started
+```bash
+curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
+```
 
-Once you have your credentials, skip to **Step 3**.
+### 2. Set Up Plane & Mattermost
 
-### Option B — Self-host (full control)
+Genasis agents collaborate through **Plane** (issue tracking) and **Mattermost** (team chat).
 
-Run your own Plane + Mattermost with Docker Compose. See [`servers/README.md`](servers/README.md) for the one-command setup:
+**Option A — Trial Server (fastest, no setup)**
+
+A shared environment is available at [**trial.realstory.blog**](https://trial.realstory.blog).
+Request access from the repository maintainer — credentials within minutes.
+Available for ongoing use by agreement; no hard time limit.
+
+**Option B — Self-host (full control)**
 
 ```bash
 cd servers && docker compose up -d
 ```
 
-This gives you:
-- **Plane** at `http://localhost:8080` — create a workspace and project
-- **Mattermost** at `http://localhost:8065` — create a team
+Plane at `localhost:8080`, Mattermost at `localhost:8065`.
+See [`servers/README.md`](servers/README.md) for details.
 
-After both are running, you'll need:
-- Plane API key (Settings → API Tokens)
-- Mattermost admin token (System Console → Integrations → Bot Accounts)
-
-Configure them in your project's `genasis.toml` or as environment variables:
+After setup, configure credentials:
 
 ```bash
 export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
 ```
 
-## Step 3 — Connect Your Agentic Team
+### 3. Connect & Launch
 
 ```bash
 genasis init
 ```
 
-This provisions your Plane project, creates the Mattermost scrum channel, installs agent bots, and attaches the overlay to your agent files. Agents are now live.
-
-## Step 4 — Verify
+### 4. Verify
 
 ```bash
 genasis doctor

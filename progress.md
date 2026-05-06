@@ -944,6 +944,42 @@ External guide files (linked from README):
 - User overrides (`genasis design override add`)
 - EPIC mode (auto-issues for impacted UI areas)
 
+### F.5 — Trial demo app (chat + kanban simulation)
+
+Interactive web app at trial.realstory.blog with:
+- [ ] Demo kanban board (Todo/InProgress/Done columns, animated card moves)
+- [ ] Demo chat thread (scripted agent messages with typing indicator)
+- [ ] Pre-scripted 8-step sprint simulation (PM → frontend → reviewer → QA)
+- [ ] [Run Demo Sprint] / [Reset] buttons
+- [ ] Signup form (name, email, phone, project, team size) → MM #genasis-trial
+- [ ] Status page with token-based credential display
+- [ ] Deploy to trial.realstory.blog
+
+PRD: `agents-pool/prd/trial-webapp.md` (v2).
+
+### F.6 — `genasis init --trial` CLI integration
+
+- [ ] `--trial` flag for `cmd_init.rs`
+- [ ] Flow: create blank project → bootstrap agents → ask "Launch trial app?" → open browser
+- [ ] Trial app runs as background process on localhost:3000
+- [ ] i18n keys for trial prompt (en/ko)
+
+### F.7 — `genasis example` subcommand
+
+- [ ] `genasis example prd` — generate sample PRD.md (todo-app with auth, CRUD, responsive UI)
+- [ ] `genasis example design` — generate sample design-system.md (color/typography/spacing tokens)
+- [ ] `genasis example prd2` — generate PRD2.md (login, admin backoffice, user management)
+- [ ] `cmd_example.rs` — new CLI subcommand
+- [ ] Templates in `agents/examples/{prd.md,design-system.md,prd2.md}`
+- [ ] i18n: en/ko versions of each example document
+
+### F.8 — Tutorial documentation
+
+- [ ] `docs/TUTORIAL.md` (English) — 5-step quick path + 5 exercises
+- [ ] `docs/ko/TUTORIAL.md` (Korean mirror)
+- [ ] README restructured: "Quick Path" (5 steps → tutorial link) + "Step-by-Step Guide" (full control)
+- [ ] Mirror pair added to CLAUDE.md table
+
 ---
 
 ## Releases
