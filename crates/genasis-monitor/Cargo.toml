@@ -25,3 +25,6 @@ genasis-design.workspace = true
 reqwest.workspace = true
 sysinfo = "0.33"
 dirs = "5"
+
+[dev-dependencies]
+tempfile.workspace = true

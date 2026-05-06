@@ -245,12 +245,12 @@ struct AgentsConfig {
 
 fn load_agents_config(project_root: &std::path::Path) -> AgentsConfig {
     let cfg_path = project_root.join(CONFIG_FILE_NAME);
-    let cfg = cfg_path
+    let _cfg = cfg_path
         .is_file()
         .then(|| Config::load(&cfg_path).ok())
         .flatten();
 
-    // TODO: read from cfg.agents once Config struct gains [agents] section.
+    // TODO: read from _cfg.agents once Config struct gains [agents] section.
     AgentsConfig {
         version: std::env::var("GENASIS_AGENTS_VERSION").unwrap_or_else(|_| "1.0.0".to_string()),
         registry: std::env::var("GENASIS_AGENTS_REGISTRY")

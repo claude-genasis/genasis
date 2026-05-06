@@ -5,7 +5,7 @@
 //!
 //! Reference: `/work/secusy/scripts/agent_monitor.py` MonitorCollector.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
