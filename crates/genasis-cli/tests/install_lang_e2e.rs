@@ -18,14 +18,40 @@
 //! `lang_decide.rs` and exercise the binary path here for the
 //! flag-driven and non-tty cases that don't need a PTY.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_genasis"))
 }
 
-fn fresh_project() -> tempfile::TempDir {
+/// Create a minimal agents catalog that `genasis_templates::load()` accepts.
+fn create_mock_catalog(cache_dir: &Path) {
+    let v = cache_dir.join("v1.0.0");
+    std::fs::create_dir_all(v.join("base")).unwrap();
+    std::fs::create_dir_all(v.join("overlays/en")).unwrap();
+    std::fs::create_dir_all(v.join("overlays/ko")).unwrap();
+    std::fs::write(
+        v.join("manifest.json"),
+        r#"{"version":"1.0.0","roles":["frontend"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        v.join("base/frontend.md"),
+        "---\nname: frontend\n---\n# Frontend\n",
+    )
+    .unwrap();
+    // Minimal overlay template per locale
+    for lang in ["en", "ko"] {
+        std::fs::write(
+            v.join(format!("overlays/{lang}/frontend.patch.md.tera")),
+            "## Genasis Overlay\nproject={{ project_name }}\n",
+        )
+        .unwrap();
+    }
+}
+
+fn fresh_project() -> (tempfile::TempDir, tempfile::TempDir) {
     let tmp = tempfile::tempdir().expect("tempdir");
     std::fs::create_dir_all(tmp.path().join(".claude/agents")).unwrap();
     // Minimal frontmatter agent so attach has something to fence.
@@ -40,13 +66,26 @@ fn fresh_project() -> tempfile::TempDir {
         "[project]\nname = \"e2etest\"\ndomain = \"example.com\"\n",
     )
     .unwrap();
-    tmp
+
+    // Mock agents catalog cache
+    let cache = tempfile::tempdir().expect("cache tempdir");
+    create_mock_catalog(cache.path());
+
+    (tmp, cache)
+}
+
+/// Build a Command with the mock catalog env vars pre-set.
+fn cmd_with_cache(cache: &Path) -> Command {
+    let mut c = Command::new(binary());
+    c.env("GENASIS_AGENTS_VERSION", "1.0.0")
+        .env("GENASIS_AGENTS_CACHE_DIR", cache.to_str().unwrap());
+    c
 }
 
 #[test]
 fn flag_en_drives_attach_without_prompt() {
-    let tmp = fresh_project();
-    let out = Command::new(binary())
+    let (tmp, cache) = fresh_project();
+    let out = cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -74,8 +113,8 @@ fn flag_en_drives_attach_without_prompt() {
 
 #[test]
 fn flag_ko_drives_attach_without_prompt() {
-    let tmp = fresh_project();
-    let out = Command::new(binary())
+    let (tmp, cache) = fresh_project();
+    let out = cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -103,8 +142,8 @@ fn flag_ko_drives_attach_without_prompt() {
 
 #[test]
 fn both_is_rejected_with_exit_2_and_banner() {
-    let tmp = fresh_project();
-    let out = Command::new(binary())
+    let (tmp, cache) = fresh_project();
+    let out = cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -127,8 +166,8 @@ fn both_is_rejected_with_exit_2_and_banner() {
 
 #[test]
 fn non_tty_fallback_uses_lang_env_and_announces_it() {
-    let tmp = fresh_project();
-    let out = Command::new(binary())
+    let (tmp, cache) = fresh_project();
+    let out = cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -161,9 +200,9 @@ fn non_tty_fallback_uses_lang_env_and_announces_it() {
 
 #[test]
 fn lang_status_reports_active_locale() {
-    let tmp = fresh_project();
+    let (tmp, cache) = fresh_project();
     // Seed i18n config first.
-    Command::new(binary())
+    cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -177,7 +216,7 @@ fn lang_status_reports_active_locale() {
         .output()
         .expect("spawn");
     // Now query.
-    let out = Command::new(binary())
+    let out = cmd_with_cache(cache.path())
         .args(["lang", "--project", tmp.path().to_str().unwrap(), "status"])
         .output()
         .expect("spawn");
@@ -195,8 +234,8 @@ fn lang_status_reports_active_locale() {
 
 #[test]
 fn lang_switch_no_op_when_already_on_target() {
-    let tmp = fresh_project();
-    Command::new(binary())
+    let (tmp, cache) = fresh_project();
+    cmd_with_cache(cache.path())
         .args([
             "attach",
             "--project",
@@ -209,7 +248,7 @@ fn lang_switch_no_op_when_already_on_target() {
         ])
         .output()
         .expect("spawn");
-    let out = Command::new(binary())
+    let out = cmd_with_cache(cache.path())
         .args([
             "lang",
             "--project",
