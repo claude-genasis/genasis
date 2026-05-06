@@ -1,13 +1,12 @@
 //! genasis-monitor — runtime Ratatui dashboard.
 //!
-//! Widgets: sprint counts, agent activity, RTK token savings, MCP/cache stats,
-//! network bytes, deploy LED with REFRESHED badge, log tail.
+//! Collectors gather data from Plane API, Claude sessions, JSONL logs,
+//! and TCP port probes. Widgets render the data every 250ms.
 //!
-//! Actions: build, deploy, rollback, mark visited.
-//!
-//! M9 fills these in.
+//! See agents-pool/prd/monitor-app.md for the full PRD.
 
 pub mod actions;
 pub mod app;
+pub mod collector;
 pub mod state;
 pub mod widgets;

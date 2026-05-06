@@ -1,37 +1,72 @@
 //! Shared state for the monitor TUI.
+//!
+//! Updated by collectors on their respective intervals;
+//! read by the render loop every 250ms.
 
 use std::collections::HashMap;
 
+use crate::collector::jsonl::UsageSnapshot;
+use crate::collector::sessions::ClaudeSession;
+use crate::collector::plane::{SprintSnapshot, AgentIssue};
+
 #[derive(Debug, Default, Clone)]
 pub struct AppState {
-    pub sprint_name: String,
-    pub d_day: Option<i64>,
-    pub todo: u32,
-    pub in_progress: u32,
-    pub in_review: u32,
-    pub done: u32,
-    pub rtk_saved_tokens: u64,
-    pub mcp_calls: u64,
-    pub mcp_cache_hits: u64,
-    pub anthropic_cache_hit_pct: f32,
-    pub network_bytes: u64,
+    // Sprint (from Plane API, 30s poll)
+    pub sprint: SprintSnapshot,
+
+    // Token usage (from JSONL scan, 60-120s TTL)
+    pub usage: UsageSnapshot,
+
+    // Limits (configurable via env)
+    pub limit_5h_tokens: u64,
+    pub limit_week_all_tokens: u64,
+    pub limit_week_sonnet_tokens: u64,
+    pub limit_overage_usd: f64,
+
+    // Claude sessions (from /proc, 1s poll)
+    pub sessions: Vec<ClaudeSession>,
+
+    // Agent roles → issue assignments (from Plane API)
+    pub agent_issues: Vec<AgentIssue>,
+    pub agent_role_uuids: HashMap<String, String>, // role → plane UUID
+
+    // Network counters (incremented by CLI hooks)
     pub plane_calls: u64,
     pub mm_calls: u64,
     pub gh_calls: u64,
-    pub agents: Vec<AgentActivity>,
+
+    // Deploy
     pub deploy: DeployState,
+
+    // Design
     pub design: DesignWidgetState,
+
+    // Dev server ports per role
+    pub role_ports: HashMap<String, u16>,
+    pub port_status: HashMap<String, bool>,
+
+    // Log tail
     pub log_tail: Vec<String>,
+
+    // UI state
     pub focus: WidgetFocus,
+
+    // Plan info
+    pub plan_name: String,
+    pub plan_tier: String,
+
+    // Catalog version
+    pub agents_version: String,
+
+    // Data freshness
+    pub last_plane_poll: u64,
+    pub last_jsonl_scan: u64,
+    pub last_session_scan: u64,
 }
 
-/// Snapshot of the active design system. Populated from
-/// `docs/.design-state.toml` at app boot and refreshed after Enter on the
-/// Design widget. The widget renders pristine and external modes
-/// differently — empty fields mean pristine.
+/// Snapshot of the active design system.
 #[derive(Debug, Default, Clone)]
 pub struct DesignWidgetState {
-    /// "pristine" | "external".
     pub mode: String,
     pub slug: String,
     pub applied_at: String,
@@ -46,26 +81,9 @@ pub enum WidgetFocus {
     Sprint,
     Tokens,
     Agents,
-    Network,
     Deploy,
+    Sessions,
     Log,
-    Design,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct AgentActivity {
-    pub role: String,
-    pub last_active_secs_ago: u64,
-    pub current_issue: Option<String>,
-    pub status: AgentStatus,
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum AgentStatus {
-    #[default]
-    Idle,
-    Working,
-    InReview,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -76,7 +94,5 @@ pub struct DeployState {
     pub prod_up: bool,
     pub dev_refreshed: bool,
     pub prod_refreshed: bool,
-    pub last_build_ts: Option<i64>,
     pub last_build_sha: Option<String>,
-    pub manifest_hash: HashMap<String, String>,
 }
