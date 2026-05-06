@@ -57,7 +57,7 @@ Genasis는 하나의 Rust 바이너리로 AI 에이전트를 **진짜 팀원**�
 ## 빠른 시작
 
 ```bash
-# 1. 설치
+# 1. 설치 (사전 빌드된 바이너리 다운로드)
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 
 # 2. 에이전트 선택 + 설치
@@ -68,6 +68,28 @@ genasis init                   # API 키 입력 → 완료
 
 # 에이전트 팀이 작동 중. Plane을 열면 에이전트가 티켓을 가져가는 것을 볼 수 있습니다.
 ```
+
+<details>
+<summary>소스에서 직접 빌드 (컨트리뷰터 / 프리릴리즈)</summary>
+
+```bash
+# 사전 조건: Rust stable (1.78+)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 클론 및 빌드
+git clone https://github.com/claude-genasis/genasis.git
+cd genasis
+cargo build --release
+
+# 바이너리: target/release/genasis
+# PATH에 설치:
+cp target/release/genasis ~/.local/bin/
+
+# 확인
+genasis version
+```
+
+</details>
 
 ## 에이전트가 사람과 협업하는 방식
 

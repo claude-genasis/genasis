@@ -18,11 +18,11 @@
 #   --version=vX.Y.Z        Pin a specific release (default: latest).
 #   --skip-prereqs          Bypass prerequisite check (not recommended).
 #
-# OWNER must be replaced with the actual GitHub owner before publishing.
+# OWNER defaults to claude-genasis. Override with GENASIS_OWNER env var.
 # =============================================================================
 set -eu
 
-OWNER="${GENASIS_OWNER:-OWNER}"
+OWNER="${GENASIS_OWNER:-claude-genasis}"
 REPO="genasis"
 RELEASE_VERSION="latest"
 PREFIX=""
@@ -253,7 +253,7 @@ detect_platform() {
 
     case "$ARCH_RAW" in
         x86_64|amd64) ARCH="x86_64" ;;
-        aarch64|arm64) ARCH="arm64" ;;
+        aarch64|arm64) ARCH="aarch64" ;;
         *) die "unsupported architecture: $ARCH_RAW" ;;
     esac
 

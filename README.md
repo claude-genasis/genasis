@@ -58,7 +58,7 @@ Genasis turns AI agents into **real team members** with a single Rust binary:
 ## Quickstart
 
 ```bash
-# 1. Install
+# 1. Install (downloads pre-built binary)
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 
 # 2. Browse and install agents
@@ -69,6 +69,28 @@ genasis init                   # paste your API keys → done
 
 # Your agentic team is live. Open Plane — agents are picking up tickets.
 ```
+
+<details>
+<summary>Build from source (contributors / pre-release)</summary>
+
+```bash
+# Prerequisites: Rust stable (1.78+)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Clone and build
+git clone https://github.com/claude-genasis/genasis.git
+cd genasis
+cargo build --release
+
+# The binary is at target/release/genasis
+# Install to PATH:
+cp target/release/genasis ~/.local/bin/
+
+# Verify
+genasis version
+```
+
+</details>
 
 ## How Agents Work Alongside Humans
 
