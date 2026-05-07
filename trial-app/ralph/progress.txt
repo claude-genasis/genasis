@@ -134,3 +134,33 @@
   - The `typingActor` API change on ChatThread (`typing: boolean` → `typingActor: string | null`) is a clear extension of US-005's contract. There was only one in-tree call site (the static placeholder in `app/page.tsx`), removed in this iteration. Future stories that need a generic "someone is typing" without a specific actor can pass any string (e.g., `"agent"`) and the fallback badge color renders.
   - Tailwind 3 keyframes require both `theme.extend.keyframes` (CSS @keyframes equivalent) AND `theme.extend.animation` (the named utility). Camel-case in keyframe name maps to kebab-case in the utility class (`cardEnter` → `animate-card-enter`).
 ---
+
+## [2026-05-07] - US-007
+- Implemented: Trial signup form UI with inline Korean validation, blur-touch reveal, and disabled-until-valid submit.
+- Files changed:
+  - app/components/SignupForm.tsx (NEW — `"use client"`; FormState shape `{ name, email, phone, projectName, teamSize: "solo"|"small"|"medium"|"", techStack: string[], message }`; `validate()` returns `Errors` keyed on FormState fields with Korean messages; `Touched` set tracks per-field blur; `showError(key)` = `touched[key] && errors[key]`; submit handler `e.preventDefault()` then if invalid sets all required fields touched else placeholder TODO for US-008; `noValidate` on the form suppresses native browser tooltips so our inline copy is the only error UX; per-field `data-testid="field-<key>"` on inputs/select/textarea, `data-testid="error-<key>"` on errors, plus `data-testid="signup-form"`/`signup-submit"`/`signup-info-banner"`)
+  - app/page.tsx (SignupSection now renders `<SignupForm />` and the blurb explains the admin-review flow; max-w-5xl → max-w-3xl tightens the form column)
+- Quality:
+  - `npm run typecheck` → pass
+  - Browser verification via curl on `/?tab=signup`:
+    - `data-testid="signup-form"` present.
+    - All 7 field testids render: field-name / field-email / field-phone / field-projectName / field-teamSize / field-techStack / field-message.
+    - 8 tech-stack checkboxes render: techstack-react / nextjs / vue / node / python / rust / go / mobile.
+    - Team-size `<option>` values: solo / small / medium.
+    - Required inputs (name/email/projectName/teamSize) all have both `required` HTML attribute AND `aria-required="true"`.
+    - On initial empty state: NO `data-testid="error-*"` rendered (touched is empty), NO `aria-invalid` attribute on any input — clean SSR with no premature error noise.
+    - `signup-submit` button has bare `disabled` HTML attribute (correct for empty/invalid form).
+    - Info banner `data-testid="signup-info-banner"` with text "관리자 협의 후 기간 제한 없이 이용 가능합니다." rendered immediately below the submit button.
+    - Active tab is 신청하기 (`aria-current="page"`).
+  - **Manual browser verification needed**: blur-then-error transition on a single field, error clearing as the user types a valid value, submit button toggling enabled when all required fields valid, multi-select chip selection on tech stack, click-on-Submit-while-invalid marking all required fields touched. No browser MCP is available in this environment.
+- **Learnings for future iterations:**
+  - Validate-on-render pattern: compute `errors = validate(form)` on every render rather than mirroring it in state. The `errors` object is small (≤4 keys), recompute is cheap, and there is no risk of stale errors. State only tracks `form` and `touched`.
+  - `noValidate` on the `<form>` prevents the browser from showing its own validation tooltips and lets our `aria-invalid` + inline `<p role="alert">` be the single source of truth. Keep this for any future form added in this app.
+  - Conditional `aria-invalid={Boolean(showError(...)) || undefined}` — the `|| undefined` is intentional: setting `aria-invalid={false}` still emits the attribute (which screen readers may interpret as "explicitly valid"). Setting `undefined` strips it from the DOM until an actual error exists.
+  - Split `data-testid` conventions: `field-<camelCaseKey>` for inputs (mirrors FormState shape), `error-<camelCaseKey>` for inline errors, `techstack-<lowercase-no-dot>` for individual tech checkboxes (slug derived via `option.toLowerCase().replace(/\./g, "")` so "Next.js" → `nextjs`). Keep the slug helper local to the file; if a second checkbox grid lands, extract.
+  - The form is a single client component — no server-side bridging needed for US-007. Submission to `/api/submit` lands in US-008; the placeholder `handleSubmit` already preventDefaults so no full-page navigation occurs when a user accidentally hits Enter on a valid form.
+  - Disabled-state styling pattern (used by both `signup-submit` and `demo-run-button`): `disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600` plus dark-mode variants. Centralize in a shared `buttonClass` constant if a third button lands.
+  - `signup-info-banner` lives INSIDE the `<form>` but BELOW the submit button per PRD §3 sketch. Banner rendering is unconditional — no validity gating.
+  - Tech-stack chip toggle uses functional setState `(prev) => ({ ...prev, techStack: prev.techStack.includes(opt) ? ... : ...})` to avoid stale-closure issues when users click two chips quickly. The Set-shaped semantics are preserved by the JS array filter/spread idiom.
+  - Section width: keeping the form at `max-w-2xl` (672 px) inside a `max-w-3xl` section centers the form nicely without making lines too long. The existing demo section is `max-w-6xl` because the kanban+chat needs the room — they should stay distinct.
+---

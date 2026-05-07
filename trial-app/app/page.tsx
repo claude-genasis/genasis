@@ -1,5 +1,6 @@
 import { AppBar, type TrialTab } from "@/app/components/AppBar";
 import { DemoBoard } from "@/app/components/DemoBoard";
+import { SignupForm } from "@/app/components/SignupForm";
 
 function resolveTab(raw: string | string[] | undefined): TrialTab {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -45,14 +46,16 @@ function SignupSection() {
   return (
     <section
       aria-labelledby="signup-heading"
-      className="mx-auto max-w-5xl space-y-3"
+      className="mx-auto max-w-3xl space-y-4"
     >
       <h1 id="signup-heading" className="text-2xl font-semibold">
         신청하기
       </h1>
       <p className="text-sm text-neutral-500">
-        호스팅된 Plane + Mattermost 체험 환경을 신청할 수 있는 폼이 곧 제공됩니다.
+        호스팅된 Plane + Mattermost 체험 환경을 신청해주세요. 관리자가 검토 후
+        자격증명을 보내드립니다.
       </p>
+      <SignupForm />
     </section>
   );
 }

@@ -14,7 +14,7 @@
 | US-004 | Static kanban board UI | ✅ Done | 2026-05-07 |
 | US-005 | Static chat thread UI | ✅ Done | 2026-05-07 |
 | US-006 | Scripted demo sprint state machine | ✅ Done | 2026-05-07 |
-| US-007 | Signup form UI | ⬜ TODO | — |
+| US-007 | Signup form UI | ✅ Done | 2026-05-07 |
 | US-008 | `/api/submit` + Mattermost POST | ⬜ TODO | — |
 | US-009 | `/status/[token]` (pending state) | ⬜ TODO | — |
 | US-010 | `/api/webhook` for credentials | ⬜ TODO | — |
@@ -64,6 +64,15 @@
 - `app/page.tsx` `DemoSection`을 `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]` 2단 레이아웃으로 변경, 칸반 옆에 마운트. placeholder 메시지 3개(`DEMO_INITIAL_MESSAGES`)는 US-006에서 `lib/demo-script.ts` 로 이전.
 - 검증: `npm run typecheck` ✓, `curl /?tab=demo` → chat-thread / message-list / 3개 message-index / 액터 배지 / 14:0X 타임스탬프 / `#scrum-demo` 헤더 / typing indicator 모두 렌더, 칸반도 그대로 ✓.
 
+### US-007 — Trial signup form UI
+- `app/components/SignupForm.tsx` (`"use client"`). FormState — `name`/`email`/`phone`/`projectName`/`teamSize: "solo"|"small"|"medium"|""`/`techStack: string[]`/`message`. `validate()`이 한국어 에러 메시지를 키별로 반환하고, `Touched` Set 으로 blur 한 필드만 인라인 에러 노출.
+- `noValidate` 폼 + `aria-invalid={showError(key) || undefined}` 로 브라우저 툴팁 무력화하고 자체 인라인 에러를 단일 소스로.
+- 필수 필드 모두 채울 때까지 Submit 버튼 disabled. 클릭 시(invalid라면) required 4 필드 일괄 touched 마킹 → 인라인 에러 일제히 노출. 실제 POST 는 US-008 에서.
+- 기술 스택은 8개 체크박스(`techstack-react/nextjs/vue/node/python/rust/go/mobile`) 칩 토글 — 선택 시 다크 반전.
+- 안내 배너 "ℹ trial.realstory.blog … 관리자 협의 후 기간 제한 없이 이용 가능합니다." 가 Submit 버튼 아래 노출(`data-testid="signup-info-banner"`).
+- `app/page.tsx` `SignupSection` 이 `<SignupForm />` 마운트, max-w-3xl 로 폭 조정.
+- 검증: typecheck ✓; curl `/?tab=signup` → `signup-form` / 7 `field-*` / 8 `techstack-*` / team_size 옵션(solo/small/medium) / `required`+`aria-required="true"` (필수 4필드) / 초기엔 `error-*` 0 개·`aria-invalid` 미부착 / submit 버튼 bare `disabled` / 한국어 안내 배너 / 활성 탭 "신청하기" 모두 정상 ✓. 인터랙티브(blur→에러, 입력→에러 해제, valid→Submit 활성)는 브라우저 MCP 부재로 manual verification.
+
 ### US-006 — Scripted demo sprint state machine
 - `lib/demo-script.ts`(데이터, 서버/클라이언트 어디서나 import 가능) — `KanbanOp`/`DemoStep` 타입, `INITIAL_CARDS=[]`, `INITIAL_MESSAGES=[]`, `TYPING_LEAD_MS=600`, 8 step 배열(0/2/3/6/7/9/10/12 s 오프셋, PM → frontend → code-reviewer → frontend → qa).
 - `lib/use-demo-sprint.ts`(`"use client"`) — `useDemoSprint()` 훅. `useRef`에 timer handle 배열을 두고 `run()`/`reset()`/cleanup에서 `clearTimers()`. 함수형 setState로 stale closure 방지. 각 step에 대해 `offsetMs - 600 ms` 시점에 `typingActor` 설정, `offsetMs` 시점에 카드/메시지 갱신 + `typingActor=null`.
@@ -89,6 +98,8 @@
 - 데모 시나리오 데이터는 `lib/demo-script.ts`에 단일화. 새 시나리오/스텝/액터 추가 시 이 파일만 수정. 훅 로직(`lib/use-demo-sprint.ts`)은 데이터에 의존하지 않게 forEach + setTimeout 패턴 유지.
 - 컬럼 이동 애니메이션은 React reconciliation(서로 다른 부모 → unmount/remount) + Tailwind `animate-card-enter`로 충분. Framer Motion 같은 무거운 deps 추가 금지.
 - 타이머 기반 클라이언트 훅은 `useRef<ReturnType<typeof setTimeout>[]>`에 모든 핸들 보관 → `run()`/`reset()`/unmount cleanup 에서 일괄 `clearTimeout`. 함수형 setState 로 stale closure 회피.
+- 폼 검증 패턴(US-007): `errors = validate(form)`은 매 렌더 재계산. state 는 `form` + `touched` 둘만 보관. `aria-invalid`는 `showError(key) || undefined` — false 가 아닌 undefined 로 두어 DOM 에서 어트리뷰트 자체를 제거(스크린리더가 "explicitly valid"로 잘못 해석하지 않게).
+- `<form noValidate>` + 자체 인라인 에러로 단일 소스. 브라우저 기본 툴팁은 끔.
 
 ## 아키텍처 전환 — Trial Bridge (US-015~US-022)
 
@@ -142,14 +153,15 @@
 
 ## 다음 이터레이션 계획
 
-다음 우선순위(가장 빠른 `passes: false`)는 **US-007 — Build trial signup form UI**.
+다음 우선순위(가장 빠른 `passes: false`)는 **US-008 — `/api/submit` route with Mattermost notification**.
 구현 명세:
-- `app/components/SignupForm.tsx` (`"use client"`) — name(필수)·email(필수, 형식)·phone·project_name(필수)·team_size(필수 select: solo/small/medium)·tech_stack(선택 multi-select: React/Next.js/Vue/Node/Python/Rust/Go/Mobile)·message 필드.
-- 한국어 인라인 에러, required 미충족 시 Submit 비활성.
-- 폼 아래 안내 배너: "관리자 협의 후 기간 제한 없이 이용 가능합니다."
-- 검증: typecheck, curl 로 모든 필드/Submit 비활성/배너 텍스트 SSR 렌더 확인.
+- `POST /api/submit` (`app/api/submit/route.ts`) — zod 로 페이로드 검증, 토큰 생성, `submissions` 테이블에 INSERT (status='pending').
+- Mattermost REST API POST: `MM_BOT_TOKEN` + `MM_TRIAL_CHANNEL_ID` env var 사용, PRD §4.3 의 Markdown 포맷.
+- 응답 200 `{ token, statusUrl: "/status/<token>" }`; 400 (zod 실패); 500 (MM 실패하지만 row 는 저장).
+- `SignupForm` 의 `handleSubmit` 을 `fetch('/api/submit')` + 성공 시 `router.push(statusUrl)` 으로 연결.
+- 검증: typecheck, vitest 로 route handler 의 zod·DB·MM 모킹 테스트 (set up vitest if needed).
 
-이후 순서: US-008 (`/api/submit` + MM 통지) → US-009/010/011 (status + webhook) → US-012/013/014 (deploy + CLI) → US-015~022 (trial bridge).
+이후 순서: US-009/010/011 (status + webhook) → US-012/013/014 (deploy + CLI) → US-015~022 (trial bridge).
 
 ## 참고
 
