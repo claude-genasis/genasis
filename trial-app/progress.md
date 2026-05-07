@@ -15,7 +15,7 @@
 | US-005 | Static chat thread UI | ✅ Done | 2026-05-07 |
 | US-006 | Scripted demo sprint state machine | ✅ Done | 2026-05-07 |
 | US-007 | Signup form UI | ✅ Done | 2026-05-07 |
-| US-008 | `/api/submit` + Mattermost POST | ⬜ TODO | — |
+| US-008 | `/api/submit` + Mattermost POST | ✅ Done | 2026-05-07 |
 | US-009 | `/status/[token]` (pending state) | ⬜ TODO | — |
 | US-010 | `/api/webhook` for credentials | ⬜ TODO | — |
 | US-011 | Status page credentials + `genasis.toml` snippet | ⬜ TODO | — |
@@ -64,6 +64,20 @@
 - `app/page.tsx` `DemoSection`을 `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]` 2단 레이아웃으로 변경, 칸반 옆에 마운트. placeholder 메시지 3개(`DEMO_INITIAL_MESSAGES`)는 US-006에서 `lib/demo-script.ts` 로 이전.
 - 검증: `npm run typecheck` ✓, `curl /?tab=demo` → chat-thread / message-list / 3개 message-index / 액터 배지 / 14:0X 타임스탬프 / `#scrum-demo` 헤더 / typing indicator 모두 렌더, 칸반도 그대로 ✓.
 
+### US-008 — `/api/submit` route + Mattermost notification
+- 의존성: `zod@4.4.3` 추가.
+- `db/index.ts` `insertSubmission()` 헬퍼 추가 — `INSERT … RETURNING *` 한 번으로 영속+조회.
+- `app/api/submit/route.ts` (`runtime="nodejs"`, `dynamic="force-dynamic"`):
+  - zod 스키마(SignupForm 의 FormState 와 동일 키). 검증 실패 시 400 + `{error:"validation_failed", issues:[{path,message},...]}`.
+  - JSON 파싱 실패 시 400 + `{error:"invalid_json"}`.
+  - 토큰 생성 → `submissions` 행 INSERT(status='pending', tech_stack JSON 직렬화) — **MM 호출 전에**.
+  - `notifyMattermost()` 는 tagged union `sent|skipped|failed` 반환. `MM_BOT_TOKEN` + `MM_TRIAL_CHANNEL_ID` 둘 다 unset → `skipped` (로컬 dev 친화), 한쪽이라도 set + 호출 실패 → `failed`.
+  - PRD §4.3 형식의 마크다운 메시지(🆕 + bullet 들).
+  - 응답: skipped/sent → 200 `{token, statusUrl: "/status/<token>", notification}`; failed → 500 `{error, reason, token, statusUrl}` (행은 이미 저장).
+- `SignupForm.tsx` `handleSubmit`을 fetch + `router.push(statusUrl)` 으로 연결. `submitting` 토글 → 버튼 disabled, 라벨 "전송 중…". 트랜스포트 실패 시 `signup-submit-error` 알림 배너. 500 응답이라도 `statusUrl` 있으면 그대로 redirect (사용자 입장에선 어쨌든 신청은 들어감).
+- 검증: `npm run typecheck` ✓; isolated `DATABASE_PATH=/tmp/trial-test-*.db`로 dev 띄워 4 케이스 모두 curl 로 확인 (invalid JSON 400, validation 400 with issues 4건, valid+MM unset 200 skipped, valid+MM bogus 500 reason="fetch failed", DB 에 두 행 모두 status='pending' 저장).
+- 인터랙티브(클릭 → 실제 fetch + redirect, 전송 중 라벨, 트랜스포트 에러 배너)는 manual verification.
+
 ### US-007 — Trial signup form UI
 - `app/components/SignupForm.tsx` (`"use client"`). FormState — `name`/`email`/`phone`/`projectName`/`teamSize: "solo"|"small"|"medium"|""`/`techStack: string[]`/`message`. `validate()`이 한국어 에러 메시지를 키별로 반환하고, `Touched` Set 으로 blur 한 필드만 인라인 에러 노출.
 - `noValidate` 폼 + `aria-invalid={showError(key) || undefined}` 로 브라우저 툴팁 무력화하고 자체 인라인 에러를 단일 소스로.
@@ -100,6 +114,11 @@
 - 타이머 기반 클라이언트 훅은 `useRef<ReturnType<typeof setTimeout>[]>`에 모든 핸들 보관 → `run()`/`reset()`/unmount cleanup 에서 일괄 `clearTimeout`. 함수형 setState 로 stale closure 회피.
 - 폼 검증 패턴(US-007): `errors = validate(form)`은 매 렌더 재계산. state 는 `form` + `touched` 둘만 보관. `aria-invalid`는 `showError(key) || undefined` — false 가 아닌 undefined 로 두어 DOM 에서 어트리뷰트 자체를 제거(스크린리더가 "explicitly valid"로 잘못 해석하지 않게).
 - `<form noValidate>` + 자체 인라인 에러로 단일 소스. 브라우저 기본 툴팁은 끔.
+- 외부 API 통합(MM 등)은 tagged union `Result = sent|skipped|failed` 패턴으로 — try/catch 노이즈 없이 라우트 핸들러에서 응답 코드 분기.
+- 외부 부수효과(MM 알림 등) 호출은 **DB 영속화 이후**. 알림 실패해도 행은 남도록.
+- env-var 정책: 둘 다 unset = 스킵(로컬 dev 친화), 한쪽이라도 set 후 실패 = 500. 이후 추가될 외부 통합도 이 패턴 따를 것.
+- DB 라우트는 `runtime="nodejs"` + `dynamic="force-dynamic"` 명시 필수. Edge 런타임은 better-sqlite3 (네이티브) 못 쓰고, POST body 읽는 라우트는 정적 prerender 불가.
+- `INSERT … RETURNING *` (better-sqlite3 12.x + SQLite 3.45+ 지원)으로 follow-up SELECT 없이 영속+조회 한 번에.
 
 ## 아키텍처 전환 — Trial Bridge (US-015~US-022)
 
@@ -153,15 +172,15 @@
 
 ## 다음 이터레이션 계획
 
-다음 우선순위(가장 빠른 `passes: false`)는 **US-008 — `/api/submit` route with Mattermost notification**.
+다음 우선순위(가장 빠른 `passes: false`)는 **US-009 — `/status/[token]` page (pending state)**.
 구현 명세:
-- `POST /api/submit` (`app/api/submit/route.ts`) — zod 로 페이로드 검증, 토큰 생성, `submissions` 테이블에 INSERT (status='pending').
-- Mattermost REST API POST: `MM_BOT_TOKEN` + `MM_TRIAL_CHANNEL_ID` env var 사용, PRD §4.3 의 Markdown 포맷.
-- 응답 200 `{ token, statusUrl: "/status/<token>" }`; 400 (zod 실패); 500 (MM 실패하지만 row 는 저장).
-- `SignupForm` 의 `handleSubmit` 을 `fetch('/api/submit')` + 성공 시 `router.push(statusUrl)` 으로 연결.
-- 검증: typecheck, vitest 로 route handler 의 zod·DB·MM 모킹 테스트 (set up vitest if needed).
+- `app/status/[token]/page.tsx` — 서버 컴포넌트. `params: Promise<{token:string}>` await, DB 에서 token 으로 submission 조회.
+- 토큰 미발견 → 404 (`notFound()`).
+- `status='pending'` → "관리자 검토 중입니다" 카드 + 신청 요약(name, email, project_name, team_size, tech_stack 배열, message) 렌더.
+- 초기 상태는 서버 렌더 only — 클라이언트 fetch 없이 SSR 만으로 완결.
+- 검증: typecheck, curl 로 알려진 토큰 → 200 + 한국어 pending 카피, 임의 토큰 → 404.
 
-이후 순서: US-009/010/011 (status + webhook) → US-012/013/014 (deploy + CLI) → US-015~022 (trial bridge).
+이후 순서: US-010 (`/api/webhook`) → US-011 (자격증명 표시 + `genasis.toml` 스니펫) → US-012/013/014 (deploy + Rust CLI) → US-015~022 (trial bridge).
 
 ## 참고
 

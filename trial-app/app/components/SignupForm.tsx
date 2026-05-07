@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,8 +79,11 @@ const optionalMarker = (
 );
 
 export function SignupForm() {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(INITIAL);
   const [touched, setTouched] = useState<Touched>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const errors = validate(form);
   const isValid = Object.keys(errors).length === 0;
@@ -101,7 +105,7 @@ export function SignupForm() {
   const showError = (key: keyof FormState) =>
     Boolean(touched[key]) && Boolean(errors[key]);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isValid) {
       setTouched({
@@ -112,7 +116,42 @@ export function SignupForm() {
       });
       return;
     }
-    // TODO(US-008): POST to /api/submit
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || undefined,
+          projectName: form.projectName.trim(),
+          teamSize: form.teamSize,
+          techStack: form.techStack,
+          message: form.message.trim() || undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        statusUrl?: string;
+        error?: string;
+      };
+      if (data.statusUrl) {
+        router.push(data.statusUrl);
+        return;
+      }
+      if (!res.ok) {
+        setSubmitError(
+          data.error === "validation_failed"
+            ? "입력값을 확인해주세요."
+            : "신청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        );
+      }
+    } catch {
+      setSubmitError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -322,12 +361,21 @@ export function SignupForm() {
       <div className="space-y-3 pt-1">
         <button
           type="submit"
-          disabled={!isValid}
+          disabled={!isValid || submitting}
           data-testid="signup-submit"
           className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
         >
-          Submit Request
+          {submitting ? "전송 중…" : "Submit Request"}
         </button>
+        {submitError ? (
+          <p
+            data-testid="signup-submit-error"
+            role="alert"
+            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+          >
+            {submitError}
+          </p>
+        ) : null}
         <p
           data-testid="signup-info-banner"
           role="note"

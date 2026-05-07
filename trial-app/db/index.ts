@@ -73,3 +73,38 @@ export function closeDb(): void {
     dbInstance = null;
   }
 }
+
+export interface InsertSubmissionInput {
+  token: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  projectName: string;
+  teamSize: string;
+  techStack: string[];
+  message: string | null;
+}
+
+export function insertSubmission(input: InsertSubmissionInput): SubmissionRow {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO submissions
+      (token, name, email, phone, project_name, team_size, tech_stack, message)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING *
+  `);
+  const row = stmt.get(
+    input.token,
+    input.name,
+    input.email,
+    input.phone,
+    input.projectName,
+    input.teamSize,
+    JSON.stringify(input.techStack),
+    input.message,
+  ) as SubmissionRow | undefined;
+  if (!row) {
+    throw new Error("insertSubmission: RETURNING * yielded no row");
+  }
+  return row;
+}

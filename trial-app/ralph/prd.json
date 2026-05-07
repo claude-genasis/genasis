@@ -128,8 +128,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-009",
