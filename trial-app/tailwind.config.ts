@@ -11,6 +11,21 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      keyframes: {
+        cardEnter: {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(8px) scale(0.96)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0) scale(1)",
+          },
+        },
+      },
+      animation: {
+        "card-enter": "cardEnter 300ms ease-out",
+      },
     },
   },
   plugins: [],

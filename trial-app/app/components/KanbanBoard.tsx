@@ -66,7 +66,7 @@ export function KanbanBoard({ cards }: { cards: KanbanCard[] }) {
                 <li
                   key={card.id}
                   data-card-id={card.id}
-                  className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors dark:border-neutral-700 dark:bg-neutral-900"
+                  className="animate-card-enter rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors dark:border-neutral-700 dark:bg-neutral-900"
                 >
                   <span className="mr-2 font-mono text-xs text-neutral-500 dark:text-neutral-400">
                     #{card.id}

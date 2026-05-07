@@ -1,18 +1,5 @@
 import { AppBar, type TrialTab } from "@/app/components/AppBar";
-import { ChatThread, type ChatMessage } from "@/app/components/ChatThread";
-import { KanbanBoard, type KanbanCard } from "@/app/components/KanbanBoard";
-
-const DEMO_INITIAL_CARDS: KanbanCard[] = [
-  { id: 1, title: "Add login page", column: "todo" },
-  { id: 2, title: "Wire up auth API", column: "todo" },
-  { id: 3, title: "Draft README", column: "todo" },
-];
-
-const DEMO_INITIAL_MESSAGES: ChatMessage[] = [
-  { time: "14:01", actor: "pm", text: "Created issue #1 — Add login page" },
-  { time: "14:02", actor: "pm", text: "#1 assigned to frontend" },
-  { time: "14:03", actor: "frontend", text: "Starting work on #1" },
-];
+import { DemoBoard } from "@/app/components/DemoBoard";
 
 function resolveTab(raw: string | string[] | undefined): TrialTab {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -47,12 +34,9 @@ function DemoSection() {
         체험하기
       </h1>
       <p className="text-sm text-neutral-500">
-        에이전트 팀의 칸반과 채팅 흐름을 미리 보여드립니다. 인터랙티브 데모는 곧 이어집니다.
+        에이전트 팀이 한 스프린트를 진행하는 모습을 미리 보여드립니다. 아래 Run 버튼을 누르면 PM·Frontend·Code-reviewer·QA가 #1 이슈를 함께 처리하는 흐름이 칸반과 채팅에서 동시에 재생됩니다.
       </p>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(280px,360px)]">
-        <KanbanBoard cards={DEMO_INITIAL_CARDS} />
-        <ChatThread messages={DEMO_INITIAL_MESSAGES} typing />
-      </div>
+      <DemoBoard />
     </section>
   );
 }

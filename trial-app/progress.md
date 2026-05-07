@@ -13,7 +13,7 @@
 | US-003 | App bar + 체험/신청 탭 | ✅ Done | 2026-05-06 |
 | US-004 | Static kanban board UI | ✅ Done | 2026-05-07 |
 | US-005 | Static chat thread UI | ✅ Done | 2026-05-07 |
-| US-006 | Scripted demo sprint state machine | ⬜ TODO | — |
+| US-006 | Scripted demo sprint state machine | ✅ Done | 2026-05-07 |
 | US-007 | Signup form UI | ⬜ TODO | — |
 | US-008 | `/api/submit` + Mattermost POST | ⬜ TODO | — |
 | US-009 | `/status/[token]` (pending state) | ⬜ TODO | — |
@@ -57,12 +57,22 @@
 - 검증: `npm run typecheck` ✓, `curl /?tab=demo` → board / 3 columns / 3 cards 모두 렌더 ✓.
 
 ### US-005 — Static ChatThread
-- `app/components/ChatThread.tsx` `"use client"` 컴포넌트. props `messages: { time, actor, text }[]`, optional `typing`, `channel`.
+- `app/components/ChatThread.tsx` `"use client"` 컴포넌트. props `messages: { time, actor, text }[]`, optional `typing`(US-006에서 `typingActor: string | null`로 교체), `channel`.
 - `<ol aria-live="polite">` + `useRef` + `useEffect`로 새 메시지/타이핑 상태 변화 시 부드럽게 bottom 스크롤.
 - 액터별 배지 색 매핑(`ACTOR_BADGE` — pm/frontend/backend/code-reviewer/qa/designer/architect/devops/ux/human + fallback). 미지정 액터는 중립색.
-- `typing=true`일 때 staggered animate-bounce 3-dot 인디케이터 렌더 (`data-testid="chat-typing-indicator"`).
-- `app/page.tsx` `DemoSection`을 `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]` 2단 레이아웃으로 변경, 칸반 옆에 마운트. placeholder 메시지 3개(`DEMO_INITIAL_MESSAGES`).
+- `typing=true`(US-006 이후 `typingActor`)일 때 staggered animate-bounce 3-dot 인디케이터 렌더 (`data-testid="chat-typing-indicator"`).
+- `app/page.tsx` `DemoSection`을 `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]` 2단 레이아웃으로 변경, 칸반 옆에 마운트. placeholder 메시지 3개(`DEMO_INITIAL_MESSAGES`)는 US-006에서 `lib/demo-script.ts` 로 이전.
 - 검증: `npm run typecheck` ✓, `curl /?tab=demo` → chat-thread / message-list / 3개 message-index / 액터 배지 / 14:0X 타임스탬프 / `#scrum-demo` 헤더 / typing indicator 모두 렌더, 칸반도 그대로 ✓.
+
+### US-006 — Scripted demo sprint state machine
+- `lib/demo-script.ts`(데이터, 서버/클라이언트 어디서나 import 가능) — `KanbanOp`/`DemoStep` 타입, `INITIAL_CARDS=[]`, `INITIAL_MESSAGES=[]`, `TYPING_LEAD_MS=600`, 8 step 배열(0/2/3/6/7/9/10/12 s 오프셋, PM → frontend → code-reviewer → frontend → qa).
+- `lib/use-demo-sprint.ts`(`"use client"`) — `useDemoSprint()` 훅. `useRef`에 timer handle 배열을 두고 `run()`/`reset()`/cleanup에서 `clearTimers()`. 함수형 setState로 stale closure 방지. 각 step에 대해 `offsetMs - 600 ms` 시점에 `typingActor` 설정, `offsetMs` 시점에 카드/메시지 갱신 + `typingActor=null`.
+- `app/components/DemoBoard.tsx` (`"use client"`) — Run / Reset 버튼 + 한국어 상태 라인(`data-testid="demo-status"`) + 기존 KanbanBoard·ChatThread 렌더. `data-status` 속성에 hook 의 `status`를 그대로 노출.
+- `app/components/KanbanBoard.tsx` 카드 `<li>`에 `animate-card-enter` 추가 — 컬럼 이동 시 React가 unmount/remount → 새 컬럼에서 300 ms `cardEnter` keyframe(opacity 0→1, translateY 8px→0, scale 0.96→1) 재생.
+- `app/components/ChatThread.tsx` API 교체: `typing: boolean` → `typingActor: string | null`. 인디케이터에 액터 배지 + 점 3개 + "입력 중…" 텍스트.
+- `tailwind.config.ts` `theme.extend.keyframes.cardEnter` + `theme.extend.animation.card-enter` 추가.
+- `app/page.tsx` 인라인 `DEMO_INITIAL_*` 제거, `<DemoBoard />`로 단일화.
+- 검증: `npm run typecheck` ✓, `curl /?tab=demo` → idle 초기 상태(0 카드 / 0 메시지 / typing 인디케이터 없음 / Run 활성·Reset 비활성 / 상태 라인 "대기 중 …") 모두 정상 ✓; 스크립트 데이터(`Add login page` 등)가 `.next/static/webpack/*.js` 클라이언트 번들에 포함됨 ✓; Node로 타이머 스케줄을 dry-run하여 8 step 후 cards=[done], messages.length=8, typingActor=null 확인 ✓. 인터랙티브 재생(클릭 후 카드/메시지 진행)은 브라우저 MCP 가 없어 수동 확인 필요.
 
 ## 핵심 코드베이스 패턴 (재진입자용)
 
@@ -76,7 +86,9 @@
 - DOM 검증을 위해 `data-*` 어트리뷰트(`data-column`, `data-card-id`, `data-testid`, `data-message-index`, `data-actor`) 사용. Tailwind 클래스 문자열보다 안정적.
 - 컬럼별 시각적 인코딩(gray=Todo, blue=InProgress, green=Done)은 `KanbanBoard.tsx`의 `COLUMNS` 상수에서 관리 — 호출부에서 색을 다시 정하지 말 것. 액터 배지 색은 `ChatThread.tsx`의 `ACTOR_BADGE`.
 - React 19는 인접 텍스트 노드(`#{var}` 같은 식) 사이에 `<!-- -->` HTML 코멘트를 삽입함. curl/grep 검증 시 텍스트만 grep하지 합쳐 grep하지 말 것.
-- 칸반·채팅 placeholder 데이터(`DEMO_INITIAL_CARDS`, `DEMO_INITIAL_MESSAGES`)는 현재 `app/page.tsx`에 인라인. US-006의 스크립트 sprint가 들어오면 모두 `lib/demo-script.ts`로 이전.
+- 데모 시나리오 데이터는 `lib/demo-script.ts`에 단일화. 새 시나리오/스텝/액터 추가 시 이 파일만 수정. 훅 로직(`lib/use-demo-sprint.ts`)은 데이터에 의존하지 않게 forEach + setTimeout 패턴 유지.
+- 컬럼 이동 애니메이션은 React reconciliation(서로 다른 부모 → unmount/remount) + Tailwind `animate-card-enter`로 충분. Framer Motion 같은 무거운 deps 추가 금지.
+- 타이머 기반 클라이언트 훅은 `useRef<ReturnType<typeof setTimeout>[]>`에 모든 핸들 보관 → `run()`/`reset()`/unmount cleanup 에서 일괄 `clearTimeout`. 함수형 setState 로 stale closure 회피.
 
 ## 아키텍처 전환 — Trial Bridge (US-015~US-022)
 
@@ -130,14 +142,14 @@
 
 ## 다음 이터레이션 계획
 
-다음 우선순위(가장 빠른 `passes: false`)는 **US-006 — Scripted demo sprint state machine**.
+다음 우선순위(가장 빠른 `passes: false`)는 **US-007 — Build trial signup form UI**.
 구현 명세:
-- `lib/demo-script.ts`에 8단계 스프린트 스크립트(PM → Frontend → Code-reviewer → QA, 0/2/3/6/7/9/10/12s 오프셋) 인코딩. 칸반/채팅 placeholder 상수도 여기로 이전.
-- `useDemoSprint` 클라이언트 훅: 타임라인을 따라 카드 전환과 메시지 append를 발화. 600ms typing indicator를 메시지 직전에 보여줌.
-- `[▶ Run Demo Sprint]` / `[Reset]` 컨트롤 버튼.
-- 검증: 브라우저에서 한 사이클 재생, 카드가 Todo→InProgress→InReview→Done 순서로 이동, 채팅 메시지 8건 누적.
+- `app/components/SignupForm.tsx` (`"use client"`) — name(필수)·email(필수, 형식)·phone·project_name(필수)·team_size(필수 select: solo/small/medium)·tech_stack(선택 multi-select: React/Next.js/Vue/Node/Python/Rust/Go/Mobile)·message 필드.
+- 한국어 인라인 에러, required 미충족 시 Submit 비활성.
+- 폼 아래 안내 배너: "관리자 협의 후 기간 제한 없이 이용 가능합니다."
+- 검증: typecheck, curl 로 모든 필드/Submit 비활성/배너 텍스트 SSR 렌더 확인.
 
-이후 순서: US-007 (signup form) → US-008..014 → US-015~022 (trial bridge).
+이후 순서: US-008 (`/api/submit` + MM 통지) → US-009/010/011 (status + webhook) → US-012/013/014 (deploy + CLI) → US-015~022 (trial bridge).
 
 ## 참고
 

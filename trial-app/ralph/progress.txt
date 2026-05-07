@@ -108,3 +108,29 @@
   - Layout grid: `lg:grid-cols-[1fr_minmax(280px,360px)]` keeps the chat panel from collapsing on narrow viewports while letting the kanban board take the rest of the width. Below `lg`, both stack vertically.
   - Like US-004's `DEMO_INITIAL_CARDS`, `DEMO_INITIAL_MESSAGES` lives in `app/page.tsx` for now — both should move into `lib/demo-script.ts` when US-006 lands the scripted state machine.
 ---
+
+## [2026-05-07] - US-006
+- Implemented: Scripted 8-step demo sprint state machine. Run / Reset controls drive the kanban + chat live.
+- Files changed:
+  - tailwind.config.ts (added `cardEnter` keyframe + `card-enter` 300ms ease-out animation under `theme.extend`)
+  - app/components/KanbanBoard.tsx (cards now carry `animate-card-enter`; new mounts — including cross-column moves — fade-in + scale 96→100 over 300ms)
+  - app/components/ChatThread.tsx (BREAKING: replaced `typing: boolean` with `typingActor: string | null`; indicator now shows the actor's color badge plus dots plus "입력 중…"; auto-scroll deps switched to `[messages.length, typingActor]`)
+  - lib/demo-script.ts (NEW — pure data + types: `KanbanOp`, `DemoStep`, `INITIAL_CARDS=[]`, `INITIAL_MESSAGES=[]`, `TYPING_LEAD_MS=600`, `DEMO_STEPS` with 8 entries at 0/2/3/6/7/9/10/12 s, `DEMO_DURATION_MS`)
+  - lib/use-demo-sprint.ts (NEW — `"use client"`; `useDemoSprint()` returns `{ cards, messages, typingActor, status, completedSteps, run, reset }`; uses a `useRef` of timer handles, `clearTimers()` helper, cleanup on unmount; `run()` clears prior timers then schedules typing-on at `offsetMs - 600` and the step fire at `offsetMs` for each step)
+  - app/components/DemoBoard.tsx (NEW — `"use client"`; renders Run/Reset buttons + Korean status line + the existing KanbanBoard / ChatThread; data-testids `demo-board`, `demo-run-button`, `demo-reset-button`, `demo-status`; data-status mirrors the hook's `status`)
+  - app/page.tsx (dropped inline `DEMO_INITIAL_*` constants and the side-by-side static layout; DemoSection now renders `<DemoBoard />` and the Korean blurb explains what Run does)
+- Quality:
+  - `npm run typecheck` → pass
+  - Browser verification via curl on `/?tab=demo`: `data-testid="demo-board"` with `data-status="idle"`; `demo-run-button` rendered without bare `disabled` attribute (interactive); `demo-reset-button` rendered WITH bare `disabled` attribute (correctly disabled at idle); status line "대기 중 — Run 버튼을 누르면 8단계 데모가 재생됩니다."; 0 `data-card-id` and 0 `data-message-index` (initial empty state); typing indicator absent at idle; `Add login page` and `PR #1 ready for review` strings appear in `.next/static/webpack/*.js` (script data shipped to the client bundle).
+  - Logic dry-run (`node --input-type=module` simulating the timer schedule) confirmed final state after all 8 steps: 1 card in `done` column, 8 messages, `completedSteps=8`, `typingActor=null`.
+  - **Manual browser verification needed** for the live animation pass: dragless card transition (mount-time fade-in via `animate-card-enter`), per-actor typing badge during the 600 ms lead-in, sequential message arrival, status line counter advancing through `1/8 → 8/8`. No browser MCP is available in this environment.
+- **Learnings for future iterations:**
+  - For "card moves between columns" animation: relying on React's reconciliation (different parent → unmount/remount) plus a Tailwind keyframe (`animate-card-enter`) is dramatically simpler than Framer Motion's FLIP layout animations. Cards fade-in at their new column; the old position simply disappears. Trade-off: it's not a continuous "slide across" effect, but it reads as movement and avoids a heavy dep.
+  - To detect "newly arrived" cards, do NOT track prevColumn in state — let React's parent-change-causes-remount semantics do it for free. The card's `key={card.id}` is scoped to its column's `<ol>`, so any column change is a remount.
+  - Timer choreography pattern: keep ALL `setTimeout` handles in a `useRef<ReturnType<typeof setTimeout>[]>([])`. `clearTimers()` flushes them in `reset()`, in `run()` (before scheduling new ones), and on unmount cleanup. Functional `setState` updates avoid stale-closure bugs.
+  - `Math.max(0, offsetMs - TYPING_LEAD_MS)` clamps the typing-on schedule for the first step (offset 0). Without it, you'd schedule a negative-delay timer; some runtimes coerce to 0, but being explicit avoids surprises.
+  - Splitting demo data (`lib/demo-script.ts`) from the hook (`lib/use-demo-sprint.ts`) keeps the data importable by future server components or unit tests without dragging React into the import graph. The hook file is `"use client"` and re-imports from the data file.
+  - Status state machine: `idle | running | complete`. `idle` ↔ `running` via `run()`; `running` → `complete` on the last step's fire; `complete` → `idle` via `reset()`; from any state, `run()` resets and starts. The Reset button's disabled rule is `status === "idle"`, the Run button's is `status === "running"`.
+  - The `typingActor` API change on ChatThread (`typing: boolean` → `typingActor: string | null`) is a clear extension of US-005's contract. There was only one in-tree call site (the static placeholder in `app/page.tsx`), removed in this iteration. Future stories that need a generic "someone is typing" without a specific actor can pass any string (e.g., `"agent"`) and the fallback badge color renders.
+  - Tailwind 3 keyframes require both `theme.extend.keyframes` (CSS @keyframes equivalent) AND `theme.extend.animation` (the named utility). Camel-case in keyframe name maps to kebab-case in the utility class (`cardEnter` → `animate-card-enter`).
+---

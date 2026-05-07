@@ -26,11 +26,11 @@ const FALLBACK_BADGE =
 
 export function ChatThread({
   messages,
-  typing = false,
+  typingActor = null,
   channel = "scrum-demo",
 }: {
   messages: ChatMessage[];
-  typing?: boolean;
+  typingActor?: string | null;
   channel?: string;
 }) {
   const scrollRef = useRef<HTMLOListElement>(null);
@@ -39,7 +39,7 @@ export function ChatThread({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages.length, typing]);
+  }, [messages.length, typingActor]);
 
   return (
     <div
@@ -84,16 +84,27 @@ export function ChatThread({
             </li>
           );
         })}
-        {typing ? (
+        {typingActor ? (
           <li
             data-testid="chat-typing-indicator"
+            data-actor={typingActor}
             aria-live="polite"
-            aria-label="Agent is typing"
-            className="flex items-center gap-1.5 px-1 py-2 text-neutral-400 dark:text-neutral-500"
+            aria-label={`${typingActor} is typing`}
+            className="flex items-center gap-2 px-1 py-2 text-sm"
           >
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${ACTOR_BADGE[typingActor] ?? FALLBACK_BADGE}`}
+            >
+              [{typingActor}]
+            </span>
+            <span className="flex items-center gap-1.5 text-neutral-400 dark:text-neutral-500">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+            </span>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              입력 중…
+            </span>
           </li>
         ) : null}
       </ol>
