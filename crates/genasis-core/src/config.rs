@@ -24,6 +24,32 @@ pub struct Config {
     pub token_economics: Option<TokenEconomicsConfig>,
     pub i18n: Option<I18nConfig>,
     pub design: Option<DesignConfig>,
+    /// Trial bridge — points the Plane and Mattermost providers at a
+    /// running trial-app instead of real Plane/MM servers, so users can
+    /// exercise the agentic workflow without installing either tool.
+    pub trial: Option<TrialConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TrialConfig {
+    /// Whether the trial bridge is active. When `true`, the `flavor =
+    /// "trial"` setting on `[plane]` / `[mattermost]` becomes the
+    /// effective backend; when `false`, the trial-app is ignored even if
+    /// `flavor = "trial"`.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Base URL of the running trial-app (e.g. `http://localhost:3000`).
+    #[serde(default = "default_trial_url")]
+    pub url: String,
+    /// Shared secret sent in the `X-Genasis-Trial-Secret` header by
+    /// server-to-server callers (the genasis Rust providers). Must
+    /// match `TRIAL_SHARED_SECRET` on the trial-app side.
+    #[serde(default)]
+    pub shared_secret: String,
+}
+
+fn default_trial_url() -> String {
+    "http://localhost:3000".to_string()
 }
 
 /// Locale configuration recorded by `genasis init` / `attach` and read by

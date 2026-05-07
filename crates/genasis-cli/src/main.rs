@@ -6,6 +6,7 @@ mod cmd_db;
 mod cmd_design;
 mod cmd_detach;
 mod cmd_doctor;
+mod cmd_example;
 mod cmd_init;
 mod cmd_lang;
 mod cmd_mm;
@@ -61,6 +62,9 @@ enum Cmd {
     Version(cmd_version::Args),
     /// Inspect or change the active agent-context language
     Lang(cmd_lang::Args),
+    /// Drop a sample document (PRD/design-system/PRD2) into the project
+    /// root so the agentic team has something immediately actionable.
+    Example(cmd_example::Args),
 }
 
 #[tokio::main]
@@ -92,6 +96,7 @@ async fn main() -> Result<()> {
         Cmd::Monitor(a) => cmd_monitor::run(a).await,
         Cmd::Version(a) => cmd_version::run(a).await,
         Cmd::Lang(a) => cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await,
+        Cmd::Example(a) => cmd_example::run(a),
     }
 }
 

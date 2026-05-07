@@ -1,9 +1,10 @@
 import Link from "next/link";
 
-export type TrialTab = "demo" | "signup";
+export type TrialTab = "demo" | "live" | "signup";
 
 const TABS: { key: TrialTab; label: string }[] = [
   { key: "demo", label: "체험하기" },
+  { key: "live", label: "라이브 트라이얼" },
   { key: "signup", label: "신청하기" },
 ];
 

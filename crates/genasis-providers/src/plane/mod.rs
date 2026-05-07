@@ -14,6 +14,7 @@ use genasis_core::error::Result;
 pub mod agent_aware;
 pub mod detect;
 pub mod factory;
+pub mod trial;
 pub mod upstream;
 pub mod user_provisioner;
 

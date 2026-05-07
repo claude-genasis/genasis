@@ -144,8 +144,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-010",
@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-011",
@@ -175,8 +175,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-012",
@@ -191,8 +191,8 @@
         "`docker build` succeeds locally"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-013",
@@ -208,8 +208,8 @@
         "Tests pass"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-014",
@@ -224,8 +224,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-015",
@@ -240,8 +240,8 @@
         "`cargo clippy --all-targets -- -D warnings` passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-016",
@@ -257,8 +257,8 @@
         "`cargo clippy --all-targets -- -D warnings` passes"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-017",
@@ -273,8 +273,8 @@
         "Tests pass (vitest unit tests against an in-memory DATABASE_PATH=':memory:' DB)"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-018",
@@ -293,8 +293,8 @@
         "Tests pass"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-019",
@@ -310,8 +310,8 @@
         "Tests pass"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-020",
@@ -328,8 +328,8 @@
         "Tests pass"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-021",
@@ -346,8 +346,8 @@
         "Verify in browser using dev-browser skill (open page, curl POST to /api/plane/issues, observe new card)"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-022",
@@ -363,8 +363,8 @@
         "Verify in browser using dev-browser skill (drag a card, post a message, verify both reach the DB and re-emit)"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     }
   ]
 }

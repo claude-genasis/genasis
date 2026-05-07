@@ -1,0 +1,19 @@
+services:
+  trial-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: genasis-trial-app:latest
+    container_name: genasis-trial-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_PATH: /data/trial.db
+      MM_BOT_TOKEN: ${MM_BOT_TOKEN:-}
+      MM_TRIAL_CHANNEL_ID: ${MM_TRIAL_CHANNEL_ID:-}
+      MM_BASE_URL: ${MM_BASE_URL:-https://mm.realstory.blog}
+      WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:-}
+      TRIAL_SHARED_SECRET: ${TRIAL_SHARED_SECRET:-}
+    volumes:
+      - ./data:/data

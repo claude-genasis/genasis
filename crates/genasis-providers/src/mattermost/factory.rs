@@ -6,6 +6,7 @@ use genasis_core::error::{Error, Result};
 
 use super::agent_aware::AgentAwareMattermost;
 use super::detect::{detect, DetectedFlavor};
+use super::trial::TrialMattermost;
 use super::upstream::UpstreamMattermost;
 use super::MattermostProvider;
 
@@ -14,6 +15,10 @@ pub enum FlavorChoice {
     Upstream,
     AgentAware,
     Auto,
+    /// Forwards every call to a running trial-app instance over HTTP.
+    /// `base_url` becomes the trial-app URL; `admin_token` becomes the
+    /// shared secret sent in `X-Genasis-Trial-Secret`.
+    Trial,
 }
 
 impl FlavorChoice {
@@ -22,8 +27,9 @@ impl FlavorChoice {
             "upstream" => Ok(Self::Upstream),
             "agent-aware" | "agent_aware" => Ok(Self::AgentAware),
             "auto" => Ok(Self::Auto),
+            "trial" => Ok(Self::Trial),
             other => Err(Error::Config(format!(
-                "unknown mattermost flavor `{other}` (allowed: upstream, agent-aware, auto)"
+                "unknown mattermost flavor `{other}` (allowed: upstream, agent-aware, auto, trial)"
             ))),
         }
     }
@@ -44,6 +50,7 @@ pub async fn build(
     Ok(match resolved {
         FlavorChoice::Upstream => Arc::new(UpstreamMattermost::new(base_url, admin_token)),
         FlavorChoice::AgentAware => Arc::new(AgentAwareMattermost::new(base_url, admin_token)),
+        FlavorChoice::Trial => Arc::new(TrialMattermost::new(base_url, admin_token)),
         FlavorChoice::Auto => unreachable!("auto resolved above"),
     })
 }
@@ -63,6 +70,7 @@ mod tests {
             FlavorChoice::AgentAware
         );
         assert_eq!(FlavorChoice::parse("auto").unwrap(), FlavorChoice::Auto);
+        assert_eq!(FlavorChoice::parse("trial").unwrap(), FlavorChoice::Trial);
         assert!(FlavorChoice::parse("xxx").is_err());
     }
 }

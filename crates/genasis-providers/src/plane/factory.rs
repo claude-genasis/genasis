@@ -6,6 +6,7 @@ use genasis_core::error::{Error, Result};
 
 use super::agent_aware::AgentAwarePlane;
 use super::detect::{detect, DetectedFlavor};
+use super::trial::TrialPlane;
 use super::upstream::UpstreamPlane;
 use super::PlaneProvider;
 
@@ -14,6 +15,10 @@ pub enum FlavorChoice {
     Upstream,
     AgentAware,
     Auto,
+    /// Forwards every call to a running trial-app instance over HTTP.
+    /// `base_url` becomes the trial-app URL; `api_key` becomes the
+    /// shared secret sent in `X-Genasis-Trial-Secret`.
+    Trial,
 }
 
 impl FlavorChoice {
@@ -22,8 +27,9 @@ impl FlavorChoice {
             "upstream" => Ok(Self::Upstream),
             "agent-aware" | "agent_aware" => Ok(Self::AgentAware),
             "auto" => Ok(Self::Auto),
+            "trial" => Ok(Self::Trial),
             other => Err(Error::Config(format!(
-                "unknown plane flavor `{other}` (allowed: upstream, agent-aware, auto)"
+                "unknown plane flavor `{other}` (allowed: upstream, agent-aware, auto, trial)"
             ))),
         }
     }
@@ -47,6 +53,7 @@ pub async fn build(
         FlavorChoice::AgentAware => {
             Arc::new(AgentAwarePlane::new(base_url, workspace_slug, api_key))
         }
+        FlavorChoice::Trial => Arc::new(TrialPlane::new(base_url, api_key)),
         FlavorChoice::Auto => unreachable!("auto resolved above"),
     })
 }
@@ -66,6 +73,7 @@ mod tests {
             FlavorChoice::AgentAware
         );
         assert_eq!(FlavorChoice::parse("auto").unwrap(), FlavorChoice::Auto);
+        assert_eq!(FlavorChoice::parse("trial").unwrap(), FlavorChoice::Trial);
     }
 
     #[test]

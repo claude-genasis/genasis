@@ -74,6 +74,26 @@ export function closeDb(): void {
   }
 }
 
+export interface PlaneCredentials {
+  url: string;
+  login: string;
+  password: string;
+  api_key: string;
+  workspace_slug: string;
+}
+
+export interface MattermostCredentials {
+  url: string;
+  login: string;
+  password: string;
+  bot_tokens: Record<string, string>;
+}
+
+export interface Credentials {
+  plane: PlaneCredentials;
+  mattermost: MattermostCredentials;
+}
+
 export interface InsertSubmissionInput {
   token: string;
   name: string;
@@ -83,6 +103,31 @@ export interface InsertSubmissionInput {
   teamSize: string;
   techStack: string[];
   message: string | null;
+}
+
+export function getSubmissionByToken(token: string): SubmissionRow | undefined {
+  const db = getDb();
+  return db
+    .prepare("SELECT * FROM submissions WHERE token = ?")
+    .get(token) as SubmissionRow | undefined;
+}
+
+export function updateSubmissionCredentials(
+  token: string,
+  credentials: Credentials,
+): SubmissionRow | undefined {
+  const db = getDb();
+  const stmt = db.prepare(`
+    UPDATE submissions
+    SET credentials_json = ?,
+        status = 'provisioned',
+        updated_at = datetime('now')
+    WHERE token = ?
+    RETURNING *
+  `);
+  return stmt.get(JSON.stringify(credentials), token) as
+    | SubmissionRow
+    | undefined;
 }
 
 export function insertSubmission(input: InsertSubmissionInput): SubmissionRow {

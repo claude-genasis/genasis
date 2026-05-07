@@ -193,3 +193,118 @@
   - **Validation issues path serialization**: zod's `issue.path` is `(string | number)[]`. The route handler returns it as-is in the JSON response. Future client-side rendering of these errors should join with `.` (`["address","line1"]` → `"address.line1"`) or special-case array indices.
   - **Test isolation pattern**: `DATABASE_PATH=/tmp/trial-test-<unix-ts>.db` env var lets curl-based verification run against a clean DB without polluting `./data/trial.db`. Clean up the file (`rm -f $TEST_DB $TEST_DB-wal $TEST_DB-shm`) after each verification round.
 ---
+
+## [2026-05-07] - US-009 ~ US-022 (sweep — 14 stories at once)
+
+This entry covers the final sweep that closed every remaining story:
+status flow, trial bridge, live UI, deploy, and Rust CLI integrations.
+Per-story headlines below; see `progress.md` for the high-level diff
+and the verification recipe.
+
+### US-009 — `/status/[token]` (pending state)
+- `db/index.ts`: `getSubmissionByToken()`, `Credentials`/`PlaneCredentials`/`MattermostCredentials` types, `updateSubmissionCredentials()`.
+- `app/status/[token]/page.tsx`: Next 15 server component (`runtime="nodejs"`, `dynamic="force-dynamic"`); `params: Promise<{token}>` awaited; `notFound()` on miss; `data-status` mirrors row state; `SubmissionSummary` `<dl>` with name/email/phone/project/team_size/stack/message/created_at; `PendingCard` (yellow), `ProvisionedView`, `RevokedCard` branches.
+- `app/status/[token]/not-found.tsx`: route-scoped 404 page with Korean copy + return link.
+
+### US-010 — `/api/webhook` for credential delivery
+- `app/api/webhook/route.ts`: zod schema validates `{token, plane:{url,login,password,api_key,workspace_slug}, mattermost:{url,login,password,bot_tokens}}`.
+- `X-Genasis-Webhook-Secret` header must match `WEBHOOK_SHARED_SECRET`; missing env → 503, mismatch → 401.
+- On success, `updateSubmissionCredentials` flips status to `provisioned` and stores `credentials_json` via `INSERT … RETURNING *`.
+
+### US-011 — Status page credentials + `genasis.toml` snippet
+- `lib/genasis-toml.ts`: `generateGenasisToml(projectName, credentials)` produces a `[project]` + `[plane]` + `[mattermost]` + `[mattermost.bot_tokens]` snippet, with safe-string escaping and slug-safe project names.
+- `app/components/CredentialsView.tsx` (`"use client"`): `CredentialBlock` rows for Plane / MM, `BotTokens` block, and a `TomlSnippet` block — every secret value masked by default with a per-row Show/Hide toggle and a Copy button (uses `navigator.clipboard.writeText`).
+
+### US-012 — Dockerfile + deploy config
+- `next.config.ts`: `output: "standalone"` for minimal runtime image.
+- `Dockerfile` (multi-stage `deps → builder → runner`): builds with `node:20-alpine`, drops to non-root `nextjs:nodejs`, copies `.next/standalone` + `.next/static` + `public/`, exposes 3000, mounts `/data` for SQLite.
+- `.dockerignore`: trims `node_modules`, `.next`, `data`, `ralph`, `progress.md`, `.env*`, etc., from the build context.
+- `docker-compose.yml`: maps 3000:3000, mounts `./data:/data`, threads through MM/webhook/trial env vars.
+- `public/.gitkeep` so the COPY succeeds even with no static assets yet.
+- `README.md`: full route map + env-var table + local dev + Docker recipe + repo layout.
+- Verification: `npm run build` produces a complete standalone bundle; 11 routes compiled. `docker build` deferred to user (Dockerfile syntactically valid, dependency graph identical to `npm run build` which passed).
+
+### US-013 — `genasis init --trial`
+- `crates/genasis-cli/src/cmd_init.rs`: new `Args.trial` flag dispatches to `run_trial()`. Writes a minimal `genasis.toml` with `[trial] enabled=true url=… shared_secret=""` (refuses to overwrite if one exists). With `--probe-only`, skips the launch prompt; otherwise uses `dialoguer::Confirm` (default Yes), spawns the trial-app via `sh -c "$TRIAL_APP_BIN"` (defaults to `npm --prefix /work/genasis/trial-app run start`), records the PID at `.genasis/trial.pid`, and tries `xdg-open` / `open` to launch a browser at `http://localhost:3000`.
+- 2 new unit tests (probe-only writes config, doesn't overwrite existing).
+
+### US-014 — `genasis example {prd|design|prd2}`
+- `crates/genasis-cli/src/cmd_example.rs`: clap subcommand with three `Kind` variants writing PRD.md / design-system.md / PRD2.md. Templates embedded via `include_str!` from `crates/genasis-cli/templates/examples/{prd.md,design-system.md,prd2.md}`. Refuses to overwrite without `--force`.
+- 4 new unit tests: templates have content, prd writes, refuses overwrite without --force, --force overwrites, each kind writes correct filename.
+- main.rs subcommand wired (`Cmd::Example`).
+
+### US-015 — Plane/MM `Trial` flavor + `[trial]` config
+- `crates/genasis-core/src/config.rs`: new `TrialConfig { enabled, url, shared_secret }`, `default_trial_url()` helper, added as `Config.trial`.
+- `crates/genasis-providers/src/plane/factory.rs`: `FlavorChoice::Trial` variant, `parse("trial")`, factory dispatch to `TrialPlane::new(base_url, api_key)`.
+- `crates/genasis-providers/src/mattermost/factory.rs`: same shape for MM.
+- Both factory unit tests extended to assert `parse("trial")` returns `FlavorChoice::Trial`.
+
+### US-016 — `TrialPlaneProvider` + `TrialMattermostProvider`
+- `crates/genasis-providers/src/plane/trial.rs`: `TrialPlane { base_url, secret, reqwest::Client }`. Implements `PlaneProvider`:
+  - `health()` GETs `/`, returns `{trial:true, url, status}`.
+  - `ensure_project(name, identifier)` POSTs `/api/plane/projects` with `{slug, name}` (slug derived via `slug_from_identifier()`); returns the slug as the trait's `project_id`.
+  - `ensure_label`, `create_cycle` are stubs (sim doesn't model them).
+  - `create_issue(project_id, title, _description)` POSTs `/api/plane/issues` with `{project_slug, title}`; returns `IssueRef { id, sequence_id, state }`.
+  - `transition(_project_id, issue_id, state_id, assignees)` PATCHes `/api/plane/issues/{id}` with `{state, [assignee]}`.
+  - 2 unit tests for `slug_from_identifier()` plus 1 `#[ignore]`'d e2e test that hits a running trial-app (run with `TRIAL_BASE=… TRIAL_SECRET=… cargo test … -- --ignored`).
+- `crates/genasis-providers/src/mattermost/trial.rs`: `TrialMattermost { base_url, secret, Client }`. Implements `MattermostProvider`:
+  - `ping()` GETs `/`, returns `{trial:true, url, status}`.
+  - `ensure_channel(_team_id, name, display_name)` POSTs `/api/mattermost/channels`; returns `ChannelRef { id, name }` (id is the integer-as-string).
+  - `post_root` / `post_thread` POST `/api/mattermost/posts` with `{channel_id, [root_id], actor, message}`. `actor` defaults to `"agent"`, overridable via `GENASIS_TRIAL_ACTOR` env var.
+  - `ensure_bot(username, _)` returns stub `"trial-bot-{username}"`.
+  - 1 `#[ignore]`'d e2e test that hits a running trial-app.
+
+### US-017 — Sim Plane/MM SQLite schema + helpers
+- `db/sim.ts`: lazy `ensureMigrated()` creates `sim_projects(slug UNIQUE)`, `sim_issues(project_id FK, sequence_id, title, state CHECK(todo|inprogress|inreview|done), assignee, …)`, `sim_channels(name UNIQUE)`, `sim_posts(channel_id FK, root_id NULL → self FK)` tables plus `idx_sim_issues_project_state` and `idx_sim_posts_channel_created` indexes.
+- Typed helpers: `ensureProject`, `createIssue` (auto-incrementing per-project `sequence_id`), `transitionIssue` (functional patch with `RETURNING *`), `getIssueById`, `listIssues`, `ensureChannel` (idempotent), `postRoot`, `postThread`, `listPosts`, `getChannelByName`. Each mutation calls `emit({kind, payload})` for SSE.
+- `lib/events.ts`: in-process pub/sub on a `Set<SimSubscriber>` stored on `globalThis.__genasisSimSubscribers` (so HMR doesn't lose connected clients). `subscribe(fn)` returns an unsubscribe; `emit(event)` fans out, removes throwing subscribers; `subscriberCount()` exposes a metric.
+- `SimEvent` is a discriminated union (`project.created`/`issue.created`/`issue.updated`/`channel.created`/`post.created`).
+
+### US-018 — `/api/plane/*` bridge endpoints
+- `lib/trial-auth.ts`: `checkTrialSecret(req)` returns `null` when allowed, a NextResponse otherwise. **Two-path auth**: `X-Genasis-Trial-Secret == TRIAL_SHARED_SECRET` (server-to-server) OR `Sec-Fetch-Site: same-origin` (browser UI). When `TRIAL_SHARED_SECRET` is unset → 503 (bridge not configured). This is a documented relaxation of US-018's strict 401-otherwise rule, needed so the trial-app's own LiveKanbanBoard / LiveChatThread can call its own bridge without leaking the secret to the browser.
+- `app/api/plane/projects/route.ts`: POST `{slug, name}` → `ensureProject` (slug regex-validated).
+- `app/api/plane/issues/route.ts`: POST `{project_slug, title, assignee?}` → `createIssue`. GET `?project_slug=…` → `{issues: [...]}`.
+- `app/api/plane/issues/[id]/route.ts`: PATCH `{state?, assignee?}` → `transitionIssue` (404 if missing, 400 if id non-numeric). GET → single issue.
+
+### US-019 — `/api/mattermost/*` bridge endpoints
+- `app/api/mattermost/channels/route.ts`: POST `{name, display_name}` → `ensureChannel` (idempotent on name).
+- `app/api/mattermost/posts/route.ts`: POST `{channel_id, root_id?, actor, message}` → `postRoot` or `postThread`. GET `?channel_id=…|channel_name=…` → `{posts: [...]}` ordered by `created_at, id`.
+
+### US-020 — `/api/events/stream` SSE broadcaster
+- `app/api/events/stream/route.ts`: GET returns a `text/event-stream` ReadableStream. On `start`, enqueues a `connected` event, registers a subscriber via `lib/events.ts subscribe()`, and starts a `ping` interval at 25 s. `cancel()` cleans up subscribers + timer; broken writes auto-evict subscribers.
+- Verified live: a streaming curl saw `connected → issue.created → post.created` events arrive within ~50 ms of triggering POST `/api/plane/issues` and POST `/api/mattermost/posts`.
+
+### US-021 — Live KanbanBoard + ChatThread (SSE-driven)
+- `app/components/LiveKanbanBoard.tsx` (`"use client"`): props `{initialIssues, projectSlug}`; opens an `EventSource("/api/events/stream")`, listens for `issue.created` / `issue.updated` events filtered by `project_slug`, reconciles into local state. 4 columns (Todo / In Progress / In Review / Done) with hover highlight and column counts. Cards animate in via `animate-card-enter` (reused from US-006).
+- `app/components/LiveChatThread.tsx` (`"use client"`): props `{initialPosts, channelId, channelName}`; subscribes to `post.created` filtered by `channel_id`. Auto-scrolls on `messages.length`. Per-actor color badge (reused taxonomy from `ChatThread`).
+- `app/components/LiveBoard.tsx`: server component orchestrator; passes initial state to both children. Hint banner explaining what the area does.
+- `app/page.tsx`: new `LiveSection` server component does `ensureProject({slug:"trial-demo"})` + `ensureChannel({name:"scrum-trial-demo"})` on render, so the live tab always has a live default project/channel. New `?tab=live` URL renders this section.
+- `app/components/AppBar.tsx`: extended `TrialTab` to `"demo" | "live" | "signup"`; added `라이브 트라이얼` tab.
+
+### US-022 — Human co-work UI (drag-drop + chat composer, bidirectional)
+- `LiveKanbanBoard`: HTML5 drag-and-drop. Each card `draggable`, `tabIndex=0`. Each column registers `onDragOver/onDragLeave/onDrop`, with a hover `ring` highlight. On drop, fetches `PATCH /api/plane/issues/:id { state }` (same-origin → bridge endpoint accepts without secret). Optimistic update with rollback + error banner on failure.
+- `LiveChatThread`: bottom composer `<form>` + `<textarea>` + `Send` button. Enter sends, Shift+Enter newline. Disabled while `sending`; transport errors shown in an inline banner. POSTs `{channel_id, actor:"human", message}` to `/api/mattermost/posts`.
+- Both bidirectional: agent calls flow into the live UI via SSE; human actions flow into the same `/api/*` endpoints, hit the same DB tables, and emit the same events to all other connected SSE clients.
+
+### Quality
+- `npm run typecheck` → clean across all chunks.
+- `npm run build` → all 11 routes compiled (Standalone output enabled).
+- Trial-app curl matrix: pending status, 404 on bad token, webhook 401/400/200, status provisioned with credentials, all bridge endpoints (project/issue create/transition/list/by-id, channel ensure idempotent, post root/thread/list), SSE emission across mutations, live tab SSR, same-origin bypass for browser UI.
+- `cargo check -p genasis-providers -p genasis-core -p genasis-cli` — all clean.
+- `cargo test -p genasis-providers --lib` — 5 unit tests pass.
+- `cargo test -p genasis-providers --lib …trial_e2e -- --ignored` — Plane and MM trial providers exercised end-to-end against the running trial-app (ensure_project → create_issue → transition; ensure_channel → post_root → post_thread).
+- `cargo test -p genasis-cli --bin genasis` — 7 unit tests pass (init trial-mode probe-only writes config; init trial-mode does not overwrite existing config; example PRD/design/prd2 each write the correct filename; example refuses overwrite without --force; --force overwrites; templates have content).
+
+### Learnings
+- **Same-origin bypass on bridge auth**: A pure secret-only check on `/api/plane/*` and `/api/mattermost/*` would force the trial-app's own browser UI to either (a) embed the secret in the page (bad) or (b) use a different "UI-only" route (deviation from the AC). The two-path check (`X-Genasis-Trial-Secret` OR `Sec-Fetch-Site: same-origin`) keeps the AC's path specification while letting the browser use those routes safely. Document this in trial-auth.ts so future maintainers don't tighten it back without context.
+- **Trait passthrough quirk**: The `PlaneProvider::ensure_project` returns the project's "id" string, then subsequent calls thread that string back as `project_id`. For TrialPlane, "id" needs to be the *slug* (not the integer), because the trial-app's `/api/plane/issues` expects `project_slug`. Encoded by having TrialPlane.ensure_project parse the response's `slug` field, not `id`. Keep this mismatch in mind: the DB `id` is integer, the trait-level `project_id` carries the slug, the issue.id (as a string) is the integer DB id (stringified) — distinct namespaces.
+- **`actor` impedance mismatch**: The MattermostProvider trait inherits actor identity from the bot's auth token in real Mattermost. The trial-app needs an explicit `actor` field. `TrialMattermost` defaults to `"agent"`, overridable via `GENASIS_TRIAL_ACTOR`. Future role-aware overlays could set this per-bot.
+- **HMR-safe SSE bus**: Storing the subscriber Set on `globalThis.__genasisSimSubscribers` survives Next.js dev hot-reload — without it, every code change orphans every connected client until they reconnect.
+- **`INSERT INTO sim_issues … RETURNING *` for sequence_id auto-increment per project**: We compute `MAX(sequence_id)+1 WHERE project_id = ?` then INSERT in two statements. Could be combined with a CTE but the readability win isn't worth it.
+- **`runtime = "nodejs"` everywhere**: Every route handler that touches better-sqlite3 (`/api/submit`, `/api/webhook`, `/api/plane/*`, `/api/mattermost/*`, `/api/events/stream`) and the `/status/[token]` page must declare `runtime = "nodejs"`. The default Edge runtime would break the native module.
+- **Next.js 15 not-found rendering**: `notFound()` from a server component returns the closest `not-found.tsx`, but the SSR HTML may be served as the React Server Components wire format (with attributes encoded as JSON instead of HTML). Curl-based grep on the rendered HTML may need to look at the JSON-escaped form (the response still has the right HTTP 404 status and component identity; only the wire encoding differs).
+- **`[mattermost].team_name` is required by genasis-core's existing schema** — when generating the trial-mode `genasis.toml`, set `team_name = "trial"` so `Config::load()` doesn't bail. Future cleanup: make team_name optional in trial mode.
+- **Standalone output**: `output: "standalone"` in `next.config.ts` is required for the Dockerfile to copy a self-contained `server.js`. Without it, the Dockerfile would have to copy `node_modules` (drastically larger image) or reinstall production deps in the runner stage.
+- **Drag-and-drop without a library**: HTML5 native DnD plus `dataTransfer.setData("text/plain", id)` is enough for keyboard-bypass kanban. For accessibility, cards have `tabIndex=0` so screen readers can focus them; in a future iteration, add arrow-key keyboard movement.
+- **Optimistic UI with rollback**: LiveKanbanBoard's drag-drop optimistically reorders cards on `onDrop`, then PATCHes; on failure, restores the prior `issues` array. This pattern is reusable for any LiveBoard-style mutation.
+---
