@@ -72,3 +72,19 @@
   - Keep `TrialTab` (or similar union types) co-located with the component that owns the prop, and re-export — page consumers can `import { type TrialTab } from "@/app/components/AppBar"` instead of duplicating the union.
   - Active-state styling via `aria-current="page"` is testable via curl/grep — preferable to relying purely on Tailwind class strings, which are noisy in the rendered HTML.
 ---
+
+## [2026-05-07] - US-004
+- Implemented: Static KanbanBoard UI component mounted in the demo section.
+- Files changed:
+  - app/components/KanbanBoard.tsx (new — server component; props `cards: { id, title, column }[]`; 3-column grid Todo/InProgress/Done with `headerClass` per column; cards rounded + shadow; column scrolls with `overflow-y-auto`; per-card `data-card-id` + per-column `data-column` for testability)
+  - app/page.tsx (added `DEMO_INITIAL_CARDS` placeholder array with 3 todo cards and rendered `<KanbanBoard />` inside `DemoSection`)
+- Quality:
+  - `npm run typecheck` → pass
+  - Browser verification via curl on `/?tab=demo`: board element with `data-testid="kanban-board"` present; all three `data-column` values (todo, inprogress, done); `data-card-id` 1/2/3; titles "Add login page", "Wire up auth API", "Draft README"; column header labels "Todo", "In Progress", "Done"; 체험하기 tab active (`aria-current="page"`).
+- **Learnings for future iterations:**
+  - Use `data-*` attributes (`data-column`, `data-card-id`, `data-testid`) on rendered DOM nodes — far more stable for grep/curl-based browser verification than Tailwind class strings, which churn whenever styles are tweaked.
+  - Per-column visual encoding (gray=Todo, blue=In Progress, green=Done) is split into `headerClass` + `countClass` constants on a `COLUMNS` array. When US-006 animates kanban moves, keep the column→color mapping in this same constant rather than hardcoding it at the call site.
+  - Card rendering uses `<ol>` + `<li>` (not `<div>`) so screen readers announce the count; combined with `role="list"` on the board container.
+  - Fixed board height (`h-[420px]`) is intentional so adding/removing cards in animations doesn't reflow the page. If this changes, revisit how the chat thread will sit alongside in the eventual two-column layout (US-005/US-006).
+  - The `DEMO_INITIAL_CARDS` placeholder lives in `app/page.tsx` for now — when US-006 lands the scripted state machine, move it (and ALL initial state) into `lib/demo-script.ts`. Don't duplicate the constant.
+---

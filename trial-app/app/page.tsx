@@ -1,4 +1,11 @@
 import { AppBar, type TrialTab } from "@/app/components/AppBar";
+import { KanbanBoard, type KanbanCard } from "@/app/components/KanbanBoard";
+
+const DEMO_INITIAL_CARDS: KanbanCard[] = [
+  { id: 1, title: "Add login page", column: "todo" },
+  { id: 2, title: "Wire up auth API", column: "todo" },
+  { id: 3, title: "Draft README", column: "todo" },
+];
 
 function resolveTab(raw: string | string[] | undefined): TrialTab {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -35,6 +42,7 @@ function DemoSection() {
       <p className="text-sm text-neutral-500">
         에이전트 팀의 칸반과 채팅 흐름을 미리 보여드립니다. 인터랙티브 데모는 곧 이어집니다.
       </p>
+      <KanbanBoard cards={DEMO_INITIAL_CARDS} />
     </section>
   );
 }
