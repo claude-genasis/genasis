@@ -88,3 +88,23 @@
   - Fixed board height (`h-[420px]`) is intentional so adding/removing cards in animations doesn't reflow the page. If this changes, revisit how the chat thread will sit alongside in the eventual two-column layout (US-005/US-006).
   - The `DEMO_INITIAL_CARDS` placeholder lives in `app/page.tsx` for now — when US-006 lands the scripted state machine, move it (and ALL initial state) into `lib/demo-script.ts`. Don't duplicate the constant.
 ---
+
+## [2026-05-07] - US-005
+- Implemented: Static ChatThread UI component mounted alongside the kanban in a 2-column grid.
+- Files changed:
+  - app/components/ChatThread.tsx (new — `"use client"`; props `messages: { time, actor, text }[] + typing?: boolean + channel?: string`; per-actor color badge map (pm/frontend/backend/code-reviewer/qa/designer/architect/devops/ux/human + fallback); `<ol aria-live="polite">` with auto-scroll-to-bottom via `useEffect` keyed on `messages.length` and `typing`; bouncing-dot typing indicator with staggered `[animation-delay:-Xs]` arbitrary-value classes when `typing=true`; per-message `data-message-index`/`data-actor` and `data-testid="chat-thread"`/`data-testid="chat-message-list"`/`data-testid="chat-typing-indicator"` for stable verification)
+  - app/page.tsx (added `DEMO_INITIAL_MESSAGES`; widened max-w-5xl→max-w-6xl; wrapped `<KanbanBoard>` and `<ChatThread>` in `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]`)
+- Quality:
+  - `npm run typecheck` → pass
+  - Browser verification via curl on `/?tab=demo`: chat-thread element present; chat-message-list with `aria-live="polite"`/`aria-label="Chat thread"`; data-message-index 0/1/2 (count = messages.length); data-actor pm and frontend appear; times 14:01/14:02/14:03 render in order; channel header `#scrum-demo`; typing indicator (`data-testid="chat-typing-indicator"`) renders when `typing` prop is true; kanban board still present alongside.
+- **Learnings for future iterations:**
+  - Auto-scroll: `useEffect(() => { el.scrollTo(...) }, [messages.length, typing])` is sufficient for both message arrival AND typing-state flicker. Don't depend on the full `messages` array — re-renders without length change shouldn't re-scroll.
+  - Client component placement: making ChatThread a client component is necessary because of `useRef` + `useEffect` for auto-scroll. SSR still renders the HTML for initial paint; only the scroll behavior is client-only. This keeps server-side curl verification working.
+  - React 19 inserts a `<!-- -->` comment between adjacent text nodes (literal + interpolation, e.g. `#{channel}`) for hydration matching. Don't use a single grep `#scrum-demo` to verify — search for `scrum-demo` alone, or grep for the literal `#` and the channel name separately.
+  - Tailwind 3 supports arbitrary-value modifiers like `[animation-delay:-0.3s]` directly. Combined with the built-in `animate-bounce`, three staggered dots render correctly without custom keyframes.
+  - Per-actor badge colors live in a single `ACTOR_BADGE` map at the top of ChatThread.tsx with a `FALLBACK_BADGE` for unknown actors. When new agent roles appear (US-006/US-021), extend this map rather than scattering color choices.
+  - `aria-live="polite"` on the message list (the `<ol>`) makes screen readers announce new messages naturally; the typing indicator `<li>` has its own `aria-label="Agent is typing"`.
+  - `<time>` elements with non-ISO `dateTime` (e.g., "14:01") are technically invalid; we render the time as plain text in a `<span>` rather than `<time>` to avoid the issue. Future story: if absolute timestamps land, switch back to `<time dateTime={iso}>`.
+  - Layout grid: `lg:grid-cols-[1fr_minmax(280px,360px)]` keeps the chat panel from collapsing on narrow viewports while letting the kanban board take the rest of the width. Below `lg`, both stack vertically.
+  - Like US-004's `DEMO_INITIAL_CARDS`, `DEMO_INITIAL_MESSAGES` lives in `app/page.tsx` for now — both should move into `lib/demo-script.ts` when US-006 lands the scripted state machine.
+---

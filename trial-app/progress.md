@@ -12,7 +12,7 @@
 | US-002 | SQLite persistence layer | ✅ Done | 2026-05-06 |
 | US-003 | App bar + 체험/신청 탭 | ✅ Done | 2026-05-06 |
 | US-004 | Static kanban board UI | ✅ Done | 2026-05-07 |
-| US-005 | Static chat thread UI | ⬜ TODO | — |
+| US-005 | Static chat thread UI | ✅ Done | 2026-05-07 |
 | US-006 | Scripted demo sprint state machine | ⬜ TODO | — |
 | US-007 | Signup form UI | ⬜ TODO | — |
 | US-008 | `/api/submit` + Mattermost POST | ⬜ TODO | — |
@@ -56,6 +56,14 @@
 - `app/page.tsx` `DemoSection`에 placeholder `DEMO_INITIAL_CARDS` (3개) 마운트.
 - 검증: `npm run typecheck` ✓, `curl /?tab=demo` → board / 3 columns / 3 cards 모두 렌더 ✓.
 
+### US-005 — Static ChatThread
+- `app/components/ChatThread.tsx` `"use client"` 컴포넌트. props `messages: { time, actor, text }[]`, optional `typing`, `channel`.
+- `<ol aria-live="polite">` + `useRef` + `useEffect`로 새 메시지/타이핑 상태 변화 시 부드럽게 bottom 스크롤.
+- 액터별 배지 색 매핑(`ACTOR_BADGE` — pm/frontend/backend/code-reviewer/qa/designer/architect/devops/ux/human + fallback). 미지정 액터는 중립색.
+- `typing=true`일 때 staggered animate-bounce 3-dot 인디케이터 렌더 (`data-testid="chat-typing-indicator"`).
+- `app/page.tsx` `DemoSection`을 `grid-cols-1 lg:grid-cols-[1fr_minmax(280px,360px)]` 2단 레이아웃으로 변경, 칸반 옆에 마운트. placeholder 메시지 3개(`DEMO_INITIAL_MESSAGES`).
+- 검증: `npm run typecheck` ✓, `curl /?tab=demo` → chat-thread / message-list / 3개 message-index / 액터 배지 / 14:0X 타임스탬프 / `#scrum-demo` 헤더 / typing indicator 모두 렌더, 칸반도 그대로 ✓.
+
 ## 핵심 코드베이스 패턴 (재진입자용)
 
 - 프로젝트 루트는 `/work/genasis/trial-app/` (PRD 문구의 `apps/trial-app/`은 무시).
@@ -65,8 +73,10 @@
 - `tech_stack`/`credentials_json`은 TEXT(JSON 문자열)로 저장. 호출부에서 `JSON.stringify`/`parse`.
 - 사용자 노출 문자열은 한국어, 코드 식별자/주석은 영어.
 - 활성 상태 스타일은 `aria-current="page"` 기반으로 — curl/grep으로 검증 가능.
-- DOM 검증을 위해 `data-*` 어트리뷰트(`data-column`, `data-card-id`, `data-testid`) 사용. Tailwind 클래스 문자열보다 안정적.
-- 컬럼별 시각적 인코딩(gray=Todo, blue=InProgress, green=Done)은 `KanbanBoard.tsx`의 `COLUMNS` 상수에서 관리 — 호출부에서 색을 다시 정하지 말 것.
+- DOM 검증을 위해 `data-*` 어트리뷰트(`data-column`, `data-card-id`, `data-testid`, `data-message-index`, `data-actor`) 사용. Tailwind 클래스 문자열보다 안정적.
+- 컬럼별 시각적 인코딩(gray=Todo, blue=InProgress, green=Done)은 `KanbanBoard.tsx`의 `COLUMNS` 상수에서 관리 — 호출부에서 색을 다시 정하지 말 것. 액터 배지 색은 `ChatThread.tsx`의 `ACTOR_BADGE`.
+- React 19는 인접 텍스트 노드(`#{var}` 같은 식) 사이에 `<!-- -->` HTML 코멘트를 삽입함. curl/grep 검증 시 텍스트만 grep하지 합쳐 grep하지 말 것.
+- 칸반·채팅 placeholder 데이터(`DEMO_INITIAL_CARDS`, `DEMO_INITIAL_MESSAGES`)는 현재 `app/page.tsx`에 인라인. US-006의 스크립트 sprint가 들어오면 모두 `lib/demo-script.ts`로 이전.
 
 ## 아키텍처 전환 — Trial Bridge (US-015~US-022)
 
@@ -120,13 +130,14 @@
 
 ## 다음 이터레이션 계획
 
-다음 우선순위(가장 빠른 `passes: false`)는 **US-005 — Static chat thread UI**.
-컴포넌트 명세:
-- `app/components/ChatThread.tsx` 서버 컴포넌트, props `messages: { time, actor, text }[]` + 옵션 `typing: boolean`.
-- 메시지 거품: 시간 prefix + `[actor]` 라벨, auto-scroll-to-latest, typing dot indicator placeholder.
-- 검증: typecheck + curl 로 message 행/typing dot 렌더 확인.
+다음 우선순위(가장 빠른 `passes: false`)는 **US-006 — Scripted demo sprint state machine**.
+구현 명세:
+- `lib/demo-script.ts`에 8단계 스프린트 스크립트(PM → Frontend → Code-reviewer → QA, 0/2/3/6/7/9/10/12s 오프셋) 인코딩. 칸반/채팅 placeholder 상수도 여기로 이전.
+- `useDemoSprint` 클라이언트 훅: 타임라인을 따라 카드 전환과 메시지 append를 발화. 600ms typing indicator를 메시지 직전에 보여줌.
+- `[▶ Run Demo Sprint]` / `[Reset]` 컨트롤 버튼.
+- 검증: 브라우저에서 한 사이클 재생, 카드가 Todo→InProgress→InReview→Done 순서로 이동, 채팅 메시지 8건 누적.
 
-이후 순서: US-006 (스크립트 sprint) → US-007 (signup form) → US-008..014 → US-015~022 (trial bridge).
+이후 순서: US-007 (signup form) → US-008..014 → US-015~022 (trial bridge).
 
 ## 참고
 

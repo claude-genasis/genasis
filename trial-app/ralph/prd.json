@@ -79,8 +79,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done 2026-05-07"
     },
     {
       "id": "US-006",
