@@ -226,6 +226,145 @@
       "priority": 14,
       "passes": false,
       "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add `Trial` flavor + `[trial]` config wiring to Plane and Mattermost factories",
+      "description": "As an operator running `genasis dev` without local Plane/Mattermost servers, I want to point the providers at the trial-app via a `[trial]` config block so all collaboration calls flow through one switchable backend.",
+      "acceptanceCriteria": [
+        "Add `FlavorChoice::Trial` variant to crates/genasis-providers/src/plane/factory.rs and src/mattermost/factory.rs (parsed from `trial`)",
+        "Extend genasis.toml config schema: `[trial] enabled = false; url = \"http://localhost:3000\"; shared_secret = \"...\"` (genasis-core/src/config.rs)",
+        "When `[plane] flavor = \"trial\"` (or `[trial] enabled = true` and no plane base_url): factory.build() returns a TrialPlaneProvider; same logic for Mattermost",
+        "Backwards compatible: existing upstream/agent-aware configs unaffected; flavor parser unit tests cover the new variant",
+        "`cargo test -p genasis-providers` passes",
+        "`cargo clippy --all-targets -- -D warnings` passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Implement `TrialPlaneProvider` + `TrialMattermostProvider` HTTP forwarders",
+      "description": "As the trial flavor, I need concrete provider impls that forward every trait method as an authenticated HTTP call to the trial-app, so agent code is unchanged.",
+      "acceptanceCriteria": [
+        "New module crates/genasis-providers/src/plane/trial.rs implementing `PlaneProvider` for `TrialPlaneProvider { url, shared_secret, http_client }`; uses `reqwest` with `application/json` and `X-Genasis-Trial-Secret` header",
+        "New module crates/genasis-providers/src/mattermost/trial.rs implementing `MattermostProvider` similarly",
+        "Each method maps trait params to a JSON body and a path under `/api/plane/...` or `/api/mattermost/...` (POST for mutations, GET for reads)",
+        "Errors from the trial-app are surfaced as `genasis_core::Error::Provider`",
+        "Mocked-server unit tests using `wiremock` cover happy path + 4xx/5xx for each method",
+        "`cargo test -p genasis-providers` passes",
+        "`cargo clippy --all-targets -- -D warnings` passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add simulated Plane/MM state schema + helpers in trial-app",
+      "description": "As the trial-app, I need DB tables that mirror the minimal Plane/MM domain so the bridge endpoints have somewhere to read and write, and the kanban/chat UIs have something to render.",
+      "acceptanceCriteria": [
+        "New migration in db/index.ts adds tables: `sim_projects(id, slug UNIQUE, name, created_at)`, `sim_issues(id, project_id FK, sequence_id, title, state CHECK (todo|inprogress|inreview|done), assignee, created_at, updated_at)`, `sim_channels(id, name UNIQUE, display_name, created_at)`, `sim_posts(id, channel_id FK, root_id NULL, actor, message, created_at)`",
+        "Indexes on `sim_issues(project_id, state)` and `sim_posts(channel_id, created_at)`",
+        "Helpers in db/sim.ts: typed CRUD functions `createIssue`, `transitionIssue`, `listIssues`, `ensureChannel`, `postRoot`, `postThread`, `listPosts`",
+        "All helpers JSON-safe (no Date objects across the boundary)",
+        "Typecheck passes",
+        "Tests pass (vitest unit tests against an in-memory DATABASE_PATH=':memory:' DB)"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Implement `/api/plane/*` bridge endpoints in trial-app",
+      "description": "As the TrialPlaneProvider, I need REST endpoints on the trial-app that accept and persist Plane-style mutations and reads.",
+      "acceptanceCriteria": [
+        "POST /api/plane/projects { slug, name } → { id, slug, name }",
+        "POST /api/plane/issues { project_slug, title, assignee? } → { id, sequence_id, state: 'todo' }",
+        "PATCH /api/plane/issues/:id { state, assignee? } → updated IssueRef shape",
+        "GET /api/plane/issues?project_slug=… → IssueRef[]",
+        "All endpoints require header `X-Genasis-Trial-Secret` matching env `TRIAL_SHARED_SECRET`; 401 otherwise",
+        "Validation via zod with consistent 400 error shape",
+        "All endpoints export `runtime = 'nodejs'` (DB requires native module)",
+        "Vitest route handler tests cover happy path, auth failure, and validation failure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Implement `/api/mattermost/*` bridge endpoints in trial-app",
+      "description": "As the TrialMattermostProvider, I need REST endpoints on the trial-app that accept channel ensure and post create/list calls.",
+      "acceptanceCriteria": [
+        "POST /api/mattermost/channels { name, display_name } → { id, name } (idempotent on name)",
+        "POST /api/mattermost/posts { channel_id, root_id?, actor, message } → { id }",
+        "GET /api/mattermost/posts?channel_id=… → { id, root_id, actor, message, created_at }[]",
+        "Same `X-Genasis-Trial-Secret` auth as US-018; same validation/error shape",
+        "Vitest route handler tests cover happy path, auth, validation",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Add `/api/events/stream` SSE broadcaster for live state changes",
+      "description": "As a connected browser, I want to receive a live event stream of every sim mutation so the kanban/chat refresh without polling.",
+      "acceptanceCriteria": [
+        "GET /api/events/stream returns `text/event-stream`; sends a `connected` event on open and a `ping` every 25 s",
+        "lib/events.ts exposes `emit(event)` and an internal subscriber Set; mutation helpers in db/sim.ts call `emit({ kind, payload })` (kinds: issue.created, issue.updated, post.created, channel.created)",
+        "Event payload is the JSON-safe RowRef from db/sim.ts (no extra projection)",
+        "Backpressure: if a subscriber's writer is closed, it is removed from the set; emit is non-blocking",
+        "Multiple concurrent SSE clients each receive every event",
+        "Vitest test connects two simulated clients, calls a sim helper, asserts both receive the event",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Convert KanbanBoard + ChatThread to live mode subscribed to SSE",
+      "description": "As a user watching the trial-app, I want the kanban and chat panes to reflect agent activity in real time as the bridge endpoints receive calls.",
+      "acceptanceCriteria": [
+        "New `app/components/LiveKanbanBoard.tsx` ('use client') accepts initial cards via prop and reconciles SSE events (issue.created, issue.updated)",
+        "New `app/components/LiveChatThread.tsx` ('use client') accepts initial messages via prop and appends on post.created events",
+        "DemoSection in app/page.tsx now: server-side fetches initial `sim_issues` + `sim_posts` for the default project/channel (via db/sim.ts helpers) and passes them as initial state",
+        "If no sim state exists yet, an empty board with a hint banner '에이전트 호출을 기다리는 중…' is shown",
+        "Static KanbanBoard / ChatThread (US-004/US-005) remain available for the scripted intro (US-006)",
+        "SSE reconnects with exponential backoff on disconnect (max 30 s)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill (open page, curl POST to /api/plane/issues, observe new card)"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Human co-work UI — drag-drop kanban + chat composer on trial-app",
+      "description": "As a human co-working with agents, I want to move cards and post messages directly from the trial-app, with my mutations flowing through the same bridge endpoints so agents see them too.",
+      "acceptanceCriteria": [
+        "LiveKanbanBoard supports drag-and-drop between Todo/InProgress/InReview/Done columns; on drop, calls PATCH /api/plane/issues/:id",
+        "LiveChatThread has a composer (textarea + send button) that POSTs to /api/mattermost/posts as actor='human'",
+        "Optimistic UI: card moves / message appears immediately, reconciled by the SSE event echo",
+        "On 4xx/5xx, the optimistic change reverts and an error toast appears",
+        "Drag is keyboard-accessible (move with arrow keys + space to pick up/drop), composer respects Enter-to-send / Shift+Enter-newline",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill (drag a card, post a message, verify both reach the DB and re-emit)"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
