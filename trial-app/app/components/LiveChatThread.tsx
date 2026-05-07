@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { useLang } from "@/app/components/LangProvider";
 import type { SimPost } from "@/db/sim";
 
 const ACTOR_BADGE: Record<string, string> = {
@@ -47,6 +48,7 @@ export function LiveChatThread({
   channelId,
   channelName,
 }: LiveChatThreadProps) {
+  const { t } = useLang();
   const [posts, setPosts] = useState<SimPost[]>(initialPosts);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -98,9 +100,9 @@ export function LiveChatThread({
       setDraft("");
     } catch (err) {
       setError(
-        err instanceof Error
-          ? `메시지 전송 실패: ${err.message}`
-          : "메시지 전송 실패",
+        t("live.chat.error", {
+          reason: err instanceof Error ? err.message : "unknown",
+        }),
       );
     } finally {
       setSending(false);
@@ -122,14 +124,12 @@ export function LiveChatThread({
   return (
     <div
       data-testid="live-chat-thread"
-      className="flex h-[420px] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
+      data-channel={channelName}
+      className="flex h-full flex-col overflow-hidden bg-white dark:bg-neutral-950"
     >
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-semibold dark:border-neutral-800 dark:bg-neutral-900">
-        <span className="font-mono text-neutral-700 dark:text-neutral-200">
-          #{channelName}
-        </span>
-        <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">
-          {posts.length}개 메시지 · 라이브
+      <header className="flex shrink-0 items-center justify-end border-b border-neutral-200 bg-neutral-50 px-4 py-1.5 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+        <span data-testid="live-chat-count">
+          {t("live.chat.count", { count: posts.length })}
         </span>
       </header>
       <ol
@@ -161,7 +161,7 @@ export function LiveChatThread({
         ))}
         {posts.length === 0 ? (
           <li className="rounded-md border border-dashed border-neutral-200 p-4 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-600">
-            에이전트 호출을 기다리는 중… 직접 아래 입력창에 메시지를 보내볼 수도 있습니다.
+            {t("live.empty.posts")}
           </li>
         ) : null}
       </ol>
@@ -185,7 +185,7 @@ export function LiveChatThread({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="메시지를 입력하고 Enter (Shift+Enter 줄바꿈)"
+            placeholder={t("live.chat.composer.placeholder")}
             className="flex-1 resize-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
             disabled={sending}
             aria-label="Compose message"
@@ -196,7 +196,7 @@ export function LiveChatThread({
             disabled={sending || !draft.trim()}
             className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
           >
-            {sending ? "전송 중…" : "Send"}
+            {sending ? t("live.chat.send.sending") : t("live.chat.send.idle")}
           </button>
         </div>
       </form>

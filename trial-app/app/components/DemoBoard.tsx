@@ -2,10 +2,12 @@
 
 import { ChatThread } from "@/app/components/ChatThread";
 import { KanbanBoard } from "@/app/components/KanbanBoard";
+import { useLang } from "@/app/components/LangProvider";
 import { DEMO_STEPS } from "@/lib/demo-script";
 import { useDemoSprint } from "@/lib/use-demo-sprint";
 
 export function DemoBoard() {
+  const { t } = useLang();
   const {
     cards,
     messages,
@@ -16,19 +18,20 @@ export function DemoBoard() {
     reset,
   } = useDemoSprint();
 
+  const total = DEMO_STEPS.length;
   const runLabel =
     status === "running"
-      ? "재생 중…"
+      ? t("demo.run.running")
       : status === "complete"
-        ? "▶ 다시 재생"
-        : "▶ Run Demo Sprint";
+        ? t("demo.run.complete")
+        : t("demo.run.idle");
 
   const statusLabel =
     status === "idle"
-      ? "대기 중 — Run 버튼을 누르면 8단계 데모가 재생됩니다."
+      ? t("demo.status.idle")
       : status === "running"
-        ? `재생 중 — ${completedSteps} / ${DEMO_STEPS.length} 단계`
-        : `완료 — ${DEMO_STEPS.length} / ${DEMO_STEPS.length} 단계`;
+        ? t("demo.status.running", { completed: completedSteps, total })
+        : t("demo.status.complete", { total });
 
   return (
     <div className="space-y-4" data-testid="demo-board" data-status={status}>
@@ -49,7 +52,7 @@ export function DemoBoard() {
           data-testid="demo-reset-button"
           className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-900"
         >
-          Reset
+          {t("demo.reset")}
         </button>
         <span
           data-testid="demo-status"

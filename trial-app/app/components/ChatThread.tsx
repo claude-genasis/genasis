@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { useLang } from "@/app/components/LangProvider";
+
 export type ChatMessage = {
   time: string;
   actor: string;
@@ -33,6 +35,7 @@ export function ChatThread({
   typingActor?: string | null;
   channel?: string;
 }) {
+  const { t } = useLang();
   const scrollRef = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export function ChatThread({
               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
             </span>
             <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              입력 중…
+              {t("demo.chat.typingSuffix")}
             </span>
           </li>
         ) : null}

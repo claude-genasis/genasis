@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 
+import { useLang } from "@/app/components/LangProvider";
 import type { SimIssue, SimIssueState } from "@/db/sim";
 
 const COLUMNS: {
   key: SimIssueState;
-  label: string;
+  labelKey: string;
   headerClass: string;
   countClass: string;
 }[] = [
   {
     key: "todo",
-    label: "Todo",
+    labelKey: "live.kanban.col.todo",
     headerClass:
       "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
     countClass:
@@ -20,7 +21,7 @@ const COLUMNS: {
   },
   {
     key: "inprogress",
-    label: "In Progress",
+    labelKey: "live.kanban.col.inprogress",
     headerClass:
       "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
     countClass:
@@ -28,7 +29,7 @@ const COLUMNS: {
   },
   {
     key: "inreview",
-    label: "In Review",
+    labelKey: "live.kanban.col.inreview",
     headerClass:
       "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
     countClass:
@@ -36,7 +37,7 @@ const COLUMNS: {
   },
   {
     key: "done",
-    label: "Done",
+    labelKey: "live.kanban.col.done",
     headerClass:
       "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200",
     countClass:
@@ -53,6 +54,7 @@ export function LiveKanbanBoard({
   initialIssues,
   projectSlug,
 }: LiveKanbanBoardProps) {
+  const { t } = useLang();
   const [issues, setIssues] = useState<SimIssue[]>(initialIssues);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [hoverColumn, setHoverColumn] = useState<SimIssueState | null>(null);
@@ -132,9 +134,9 @@ export function LiveKanbanBoard({
     } catch (err) {
       setIssues(before);
       setError(
-        err instanceof Error
-          ? `상태 변경 실패: ${err.message}`
-          : "상태 변경 실패",
+        t("live.kanban.error", {
+          reason: err instanceof Error ? err.message : "unknown",
+        }),
       );
     }
   };
@@ -153,11 +155,12 @@ export function LiveKanbanBoard({
       <div
         role="list"
         aria-label="Live kanban board"
-        className="grid h-[420px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid h-[630px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {COLUMNS.map(({ key, label, headerClass, countClass }) => {
+        {COLUMNS.map(({ key, labelKey, headerClass, countClass }) => {
           const columnIssues = issues.filter((i) => i.state === key);
           const isHover = hoverColumn === key;
+          const label = t(labelKey);
           return (
             <section
               key={key}
@@ -214,7 +217,7 @@ export function LiveKanbanBoard({
                 ))}
                 {columnIssues.length === 0 ? (
                   <li className="rounded-md border border-dashed border-neutral-200 px-3 py-2 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-600">
-                    Drop a card here
+                    {t("live.empty.cards")}
                   </li>
                 ) : null}
               </ol>

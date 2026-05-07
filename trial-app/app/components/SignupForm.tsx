@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { useLang } from "@/app/components/LangProvider";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const TECH_OPTIONS = [
@@ -17,9 +19,9 @@ const TECH_OPTIONS = [
 ] as const;
 
 const TEAM_SIZES = [
-  { value: "solo" as const, label: "solo (1명)" },
-  { value: "small" as const, label: "small (2–5명)" },
-  { value: "medium" as const, label: "medium (6–10명)" },
+  { value: "solo" as const, labelKey: "signup.teamSize.solo" },
+  { value: "small" as const, labelKey: "signup.teamSize.small" },
+  { value: "medium" as const, labelKey: "signup.teamSize.medium" },
 ];
 
 type TeamSize = (typeof TEAM_SIZES)[number]["value"];
@@ -47,43 +49,47 @@ const INITIAL: FormState = {
 type Errors = Partial<Record<keyof FormState, string>>;
 type Touched = Partial<Record<keyof FormState, boolean>>;
 
-function validate(form: FormState): Errors {
-  const errors: Errors = {};
-  if (!form.name.trim()) errors.name = "이름을 입력해주세요.";
-  if (!form.email.trim()) errors.email = "이메일을 입력해주세요.";
-  else if (!EMAIL_RE.test(form.email.trim()))
-    errors.email = "올바른 이메일 형식이 아닙니다.";
-  if (!form.projectName.trim())
-    errors.projectName = "프로젝트명을 입력해주세요.";
-  if (!form.teamSize) errors.teamSize = "팀 규모를 선택해주세요.";
-  return errors;
-}
-
 function techStackSlug(option: string): string {
   return option.toLowerCase().replace(/\./g, "").replace(/\s+/g, "-");
 }
 
 const inputClass =
   "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-600 dark:focus:ring-neutral-700";
-const labelClass = "block text-sm font-medium text-neutral-800 dark:text-neutral-100";
+const labelClass =
+  "block text-sm font-medium text-neutral-800 dark:text-neutral-100";
 const errorClass = "text-xs text-red-600 dark:text-red-400";
+
 const requiredMarker = (
   <span className="ml-1 text-red-600 dark:text-red-400" aria-hidden="true">
     *
   </span>
 );
-const optionalMarker = (
-  <span className="ml-1 text-xs font-normal text-neutral-500 dark:text-neutral-400">
-    (선택)
-  </span>
-);
 
 export function SignupForm() {
   const router = useRouter();
+  const { t } = useLang();
   const [form, setForm] = useState<FormState>(INITIAL);
   const [touched, setTouched] = useState<Touched>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const optionalMarker = (
+    <span className="ml-1 text-xs font-normal text-neutral-500 dark:text-neutral-400">
+      {t("signup.optional")}
+    </span>
+  );
+
+  const validate = (f: FormState): Errors => {
+    const errors: Errors = {};
+    if (!f.name.trim()) errors.name = t("signup.required.name");
+    if (!f.email.trim()) errors.email = t("signup.required.email");
+    else if (!EMAIL_RE.test(f.email.trim()))
+      errors.email = t("signup.required.email.format");
+    if (!f.projectName.trim())
+      errors.projectName = t("signup.required.projectName");
+    if (!f.teamSize) errors.teamSize = t("signup.required.teamSize");
+    return errors;
+  };
 
   const errors = validate(form);
   const isValid = Object.keys(errors).length === 0;
@@ -143,12 +149,12 @@ export function SignupForm() {
       if (!res.ok) {
         setSubmitError(
           data.error === "validation_failed"
-            ? "입력값을 확인해주세요."
-            : "신청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            ? t("signup.submit.error.validation")
+            : t("signup.submit.error.generic"),
         );
       }
     } catch {
-      setSubmitError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+      setSubmitError(t("signup.submit.error.network"));
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +169,8 @@ export function SignupForm() {
     >
       <div className="space-y-1.5">
         <label htmlFor="signup-name" className={labelClass}>
-          이름{requiredMarker}
+          {t("signup.field.name")}
+          {requiredMarker}
         </label>
         <input
           id="signup-name"
@@ -193,7 +200,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="signup-email" className={labelClass}>
-          이메일{requiredMarker}
+          {t("signup.field.email")}
+          {requiredMarker}
         </label>
         <input
           id="signup-email"
@@ -207,7 +215,7 @@ export function SignupForm() {
           aria-required="true"
           aria-invalid={showError("email") || undefined}
           aria-describedby={showError("email") ? "error-email" : undefined}
-          placeholder="you@example.com"
+          placeholder={t("signup.placeholder.email")}
           className={inputClass}
         />
         {showError("email") ? (
@@ -224,7 +232,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="signup-phone" className={labelClass}>
-          전화번호{optionalMarker}
+          {t("signup.field.phone")}
+          {optionalMarker}
         </label>
         <input
           id="signup-phone"
@@ -233,14 +242,15 @@ export function SignupForm() {
           autoComplete="tel"
           value={form.phone}
           onChange={(e) => update("phone", e.target.value)}
-          placeholder="010-0000-0000"
+          placeholder={t("signup.placeholder.phone")}
           className={inputClass}
         />
       </div>
 
       <div className="space-y-1.5">
         <label htmlFor="signup-project-name" className={labelClass}>
-          프로젝트명{requiredMarker}
+          {t("signup.field.projectName")}
+          {requiredMarker}
         </label>
         <input
           id="signup-project-name"
@@ -255,7 +265,7 @@ export function SignupForm() {
           aria-describedby={
             showError("projectName") ? "error-projectName" : undefined
           }
-          placeholder="my-cool-app"
+          placeholder={t("signup.placeholder.projectName")}
           className={inputClass}
         />
         {showError("projectName") ? (
@@ -272,7 +282,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="signup-team-size" className={labelClass}>
-          팀 규모{requiredMarker}
+          {t("signup.field.teamSize")}
+          {requiredMarker}
         </label>
         <select
           id="signup-team-size"
@@ -290,10 +301,10 @@ export function SignupForm() {
           }
           className={inputClass}
         >
-          <option value="">선택해주세요…</option>
+          <option value="">{t("signup.teamSize.placeholder")}</option>
           {TEAM_SIZES.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              {opt.label}
+              {t(opt.labelKey)}
             </option>
           ))}
         </select>
@@ -311,7 +322,8 @@ export function SignupForm() {
 
       <fieldset data-testid="field-techStack" className="space-y-2">
         <legend className={labelClass}>
-          기술 스택{optionalMarker}
+          {t("signup.field.techStack")}
+          {optionalMarker}
         </legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TECH_OPTIONS.map((opt) => {
@@ -345,7 +357,8 @@ export function SignupForm() {
 
       <div className="space-y-1.5">
         <label htmlFor="signup-message" className={labelClass}>
-          메시지{optionalMarker}
+          {t("signup.field.message")}
+          {optionalMarker}
         </label>
         <textarea
           id="signup-message"
@@ -353,7 +366,7 @@ export function SignupForm() {
           rows={3}
           value={form.message}
           onChange={(e) => update("message", e.target.value)}
-          placeholder="추가 컨텍스트가 있다면 자유롭게 적어주세요."
+          placeholder={t("signup.placeholder.message")}
           className={inputClass}
         />
       </div>
@@ -365,7 +378,7 @@ export function SignupForm() {
           data-testid="signup-submit"
           className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
         >
-          {submitting ? "전송 중…" : "Submit Request"}
+          {submitting ? t("signup.submit.sending") : t("signup.submit.idle")}
         </button>
         {submitError ? (
           <p
@@ -381,8 +394,7 @@ export function SignupForm() {
           role="note"
           className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-200"
         >
-          ℹ trial.realstory.blog에서 제공하는 공유 환경입니다. 관리자 협의 후
-          기간 제한 없이 이용 가능합니다.
+          {t("signup.banner")}
         </p>
       </div>
     </form>
