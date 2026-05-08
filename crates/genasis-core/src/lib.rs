@@ -9,6 +9,7 @@ pub mod env;
 pub mod error;
 pub mod frontmatter;
 pub mod fs;
+pub mod manifest;
 pub mod marker;
 
 pub use error::{Error, Result};
