@@ -7,10 +7,9 @@ import { useLang } from "@/app/components/LangProvider";
 // 1.2× of the original w-80 (320px) / w-96 (384px).
 const SIDEBAR_WIDTH_CLASS = "w-96 sm:w-[460px]";
 
-// 1.3× of the kanban's 630px height = 819px.
-// top-0 aligns the sidebar's top edge with the <section>'s top
-// (which contains the "라이브 트라이얼" heading).
-const SIDEBAR_HEIGHT_CLASS = "h-[819px]";
+// h-full = 100% of the positioned parent (<section relative>),
+// so the sidebar naturally spans heading → kanban bottom without
+// exceeding the section and creating a second scrollbar.
 
 // When closed, expose 64px peek from the right edge.
 const SIDEBAR_PEEK = 64;
@@ -40,7 +39,7 @@ export function ChatSidebar({
       data-open={isOpen}
       data-peek-px={SIDEBAR_PEEK}
       aria-label={`${channelName} chat sidebar`}
-      className={`absolute right-0 top-0 z-30 flex flex-col rounded-lg border border-slate-300 bg-slate-100 shadow-xl transition-transform duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${SIDEBAR_WIDTH_CLASS} ${SIDEBAR_HEIGHT_CLASS} ${
+      className={`absolute right-0 top-0 z-30 flex flex-col rounded-lg border border-slate-300 bg-slate-100 shadow-xl transition-transform duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${SIDEBAR_WIDTH_CLASS} h-full ${
         isOpen ? "translate-x-0" : SIDEBAR_CLOSED_TRANSLATE_CLASS
       }`}
     >
