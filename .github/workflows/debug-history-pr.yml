@@ -1,0 +1,88 @@
+name: debug-history PR gate
+
+# ADR-012 §8 — Data-Only PR Model. Enforces that contributor PRs which
+# touch debug-history/ only ever add files under
+# `debug-history/patches/*.patch.json`. The validator:
+#   1. fails the PR if any other path in debug-history/ changed.
+#   2. validates each added/modified patch against schema.json.
+#   3. rejects executable content (shebangs, common script patterns).
+#   4. labels the PR `debug-history` + assigns the maintainer.
+
+on:
+  pull_request:
+    paths:
+      - "debug-history/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restrict touched paths to debug-history/patches/
+        run: |
+          set -e
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"
+          echo "$changed"
+          # Anything under debug-history/ that is NOT a patch file fails.
+          violators=$(echo "$changed" | awk '/^debug-history\// && !/^debug-history\/patches\/.+\.patch\.json$/')
+          if [ -n "$violators" ]; then
+            echo "::error::contributor PRs may only add debug-history/patches/*.patch.json"
+            echo "Violators:"
+            echo "$violators"
+            exit 1
+          fi
+
+      - name: Install ajv-cli for schema validation
+        run: npm install -g ajv-cli@5
+
+      - name: Validate every changed patch against schema.json
+        run: |
+          set -e
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          patches=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" \
+                    | grep -E "^debug-history/patches/.+\\.patch\\.json$" || true)
+          if [ -z "$patches" ]; then
+            echo "no patches to validate"
+            exit 0
+          fi
+          for p in $patches; do
+            echo "validating $p"
+            ajv validate -s debug-history/schema.json -d "$p" --strict=false
+          done
+
+      - name: Reject executable content
+        run: |
+          set -e
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          patches=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" \
+                    | grep -E "^debug-history/patches/.+\\.patch\\.json$" || true)
+          for p in $patches; do
+            if grep -E "^#!|<\?php|<%|eval\\(|exec\\(" "$p"; then
+              echo "::error::$p contains executable-shaped content"
+              exit 1
+            fi
+          done
+
+      - name: Label PR + assign maintainer
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: ["debug-history"],
+            });

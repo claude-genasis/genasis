@@ -130,6 +130,43 @@ fn debug_reset_clears_pending_drift() {
 }
 
 #[test]
+fn debug_submit_dry_run_emits_gh_invocation_preview() {
+    let (_g, project) = scratch_project();
+    seed_blank(&project);
+    let catalog = mock_agents_catalog();
+    cli_with_catalog(&catalog)
+        .args(["--non-interactive", "--yes", "bootstrap", "--lang", "en"])
+        .arg("--project")
+        .arg(&project)
+        .assert()
+        .success();
+
+    // Generate a patch first so submit has something to send.
+    cli_with_catalog(&catalog)
+        .args(["--non-interactive", "--yes", "debug", "collect"])
+        .arg("--project")
+        .arg(&project)
+        .assert()
+        .success();
+
+    cli_with_catalog(&catalog)
+        .args([
+            "--non-interactive",
+            "--yes",
+            "debug",
+            "submit",
+            "--no-confirm",
+            "--dry-run",
+        ])
+        .arg("--project")
+        .arg(&project)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("DRY RUN"))
+        .stdout(predicate::str::contains("gh pr create"));
+}
+
+#[test]
 fn debug_log_reports_absent_when_no_log_file() {
     let (_g, project) = scratch_project();
     seed_blank(&project);

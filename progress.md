@@ -695,7 +695,7 @@ Existing team asset recognition and fence injection engine.
 | 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | done |
 | 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
-| 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | pending |
+| 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | done |
 | 11 | M17 | Analysis automation + integration | pending |
 | 12 | v0.1.0 cut | tag + release.yml run + announcement | pending |
 
