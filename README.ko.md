@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="docs/assets/genasis-banner-en.png" alt="Genasis — AI 에이전트 팀: 아이디어를 말하면, 우리가 만듭니다" width="100%">
-
 # Genasis
 
 **AI 에이전트를 진짜 팀원으로 — 사람과 함께 일하게.**
@@ -24,6 +22,10 @@
 `genesis` · `genasis` · `agent-creation` · `agent-harness` · `agentic-team` · `agent-team` · `agentic-scrum` · `agentic-sdlc` · `claude-code` · `claude-code-plugins` · `claude-code-subagents` · `agentic-ai` · `ai-agent-orchestration` · `multi-agent-system` · `plane-project-management` · `mattermost-bot` · `sprint-automation` · `tdd` · `scrum-automation` · `coding-agents` · `rust-cli` · `self-hosted-ai` · `ai-software-development`
 
 ---
+
+<p align="center">
+  <img src="docs/assets/genasis-banner-en.png" alt="Genasis — AI 에이전트 팀: 아이디어를 말하면, 우리가 만듭니다" width="100%">
+</p>
 
 ## 문제
 

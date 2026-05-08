@@ -57,7 +57,11 @@ export function ChatSidebar({
         }`}
       >
         <header className="flex shrink-0 items-center justify-between rounded-t-lg border-b border-slate-300 bg-slate-200 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800">
-          {/* X button on the left (closest to kanban content) */}
+          {/* Channel name left-aligned */}
+          <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200">
+            #{channelName}
+          </span>
+          {/* X close button right-aligned */}
           <button
             type="button"
             data-testid="chat-sidebar-close"
@@ -80,10 +84,6 @@ export function ChatSidebar({
               <path d="M3 3 L13 13 M13 3 L3 13" />
             </svg>
           </button>
-          {/* Channel name on the right */}
-          <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200">
-            #{channelName}
-          </span>
         </header>
         <div className="min-h-0 flex-1 overflow-hidden rounded-b-lg">
           {children}

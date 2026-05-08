@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="docs/assets/genasis-banner-en.png" alt="Genasis — AI-Powered Agentic Team: Tell us your ideas, we'll build it" width="100%">
-
 # Genasis
 
 **AI Agent Orchestration for Real Team Collaboration**
@@ -24,6 +22,10 @@ Install a full agentic development team that works alongside humans — picking 
 `genesis` · `genasis` · `agent-creation` · `agent-harness` · `agentic-team` · `agent-team` · `agentic-scrum` · `agentic-sdlc` · `claude-code` · `claude-code-plugins` · `claude-code-subagents` · `agentic-ai` · `ai-agent-orchestration` · `multi-agent-system` · `plane-project-management` · `mattermost-bot` · `sprint-automation` · `tdd` · `scrum-automation` · `coding-agents` · `rust-cli` · `self-hosted-ai` · `ai-software-development`
 
 ---
+
+<p align="center">
+  <img src="docs/assets/genasis-banner-en.png" alt="Genasis — AI-Powered Agentic Team: Tell us your ideas, we'll build it" width="100%">
+</p>
 
 ## The Problem
 
