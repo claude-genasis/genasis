@@ -34,6 +34,10 @@ genasis-i18n.workspace = true
 thiserror.workspace = true
 dialoguer = { version = "0.11", features = ["fuzzy-select"] }
 console = "0.15"
+chrono.workspace = true
+regex.workspace = true
+sha2.workspace = true
+dirs.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -775,10 +775,12 @@ name = "genasis-cli"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "console",
  "crossterm 0.27.0",
  "dialoguer",
+ "dirs",
  "genasis-core",
  "genasis-db",
  "genasis-design",
@@ -789,8 +791,10 @@ dependencies = [
  "genasis-templates",
  "genasis-tui",
  "ratatui 0.27.0",
+ "regex",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

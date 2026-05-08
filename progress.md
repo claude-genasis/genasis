@@ -694,7 +694,7 @@ Existing team asset recognition and fence injection engine.
 | 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | in progress (M19.1/.2/.3 done; M19.4 awaits M15/M16) |
 | 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | done |
 | 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
-| 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | pending |
+| 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
 | 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | pending |
 | 11 | M17 | Analysis automation + integration | pending |
 | 12 | v0.1.0 cut | tag + release.yml run + announcement | pending |
