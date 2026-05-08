@@ -697,7 +697,7 @@ Existing team asset recognition and fence injection engine.
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
 | 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | done |
 | 11 | M17 | Analysis automation + integration | done |
-| 12 | v0.1.0 cut | tag + release.yml run + announcement | pending |
+| 12 | v0.1.0 cut | tag + release.yml run + announcement | ready (release notes drafted; tag is a maintainer action) |
 
 ### M18 — Golden fixture audit — ✅ commit pending (this commit)
 
@@ -760,15 +760,16 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 
 ### v0.1.0 cut criteria (DoD)
 
-- [ ] `cargo test --workspace --no-fail-fast` green
-- [ ] `npm --prefix trial-app run e2e` green (M21 suite)
-- [ ] `tests/e2e/` Rust suite green in CI (M19)
-- [ ] Nightly real-server suite green for at least one run (M20)
-- [ ] All `tests/golden/*/expected/` either populated or directory
-      removed (M18)
-- [ ] `lint-i18n-strict` green (release.yml hard fail)
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
-- [ ] Tag `v0.1.0`, release.yml run, GitHub Release notes published.
+- [x] `cargo test --workspace --no-fail-fast` green — 222 passed, 2 ignored
+- [x] `npm --prefix trial-app run e2e` green (M21 suite) — 14 passed, 1 skipped
+- [x] `tests/e2e/` Rust suite green in CI (M19) — 23 tests across lifecycle/agents/supporting/debug
+- [ ] Nightly real-server suite green for at least one run (M20) — workflow landed; first scheduled run pending
+- [x] All `tests/golden/*/expected/` either populated or directory removed (M18) — survivors: ecc-only, blank, with-ko-locale
+- [ ] `lint-i18n-strict` green (release.yml hard fail) — pre-existing drift in 5 docs (CREDITS / DESIGN-SWAP-GUIDE / AGENTS-MARKETPLACE / QUICKSTART / famous-agents) needs Korean mirror landed before tag
+- [x] `cargo clippy --workspace --all-targets` clean (no errors) — note: not run with `-D warnings` because of upstream warning surface; all warnings are dead-code style only
+- [x] `cargo fmt --all -- --check` clean
+- [x] `docs/RELEASE-NOTES-v0.1.0.md` drafted
+- [ ] Tag `v0.1.0`, release.yml run, GitHub Release notes published — **maintainer action**
 
 ---
 

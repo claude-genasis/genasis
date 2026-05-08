@@ -154,13 +154,7 @@ fn design_swap_from_local_file_writes_pointer_body() {
     .unwrap();
 
     cli()
-        .args([
-            "--non-interactive",
-            "--yes",
-            "design",
-            "swap",
-            "--from",
-        ])
+        .args(["--non-interactive", "--yes", "design", "swap", "--from"])
         .arg(&local_design)
         .arg("--project")
         .arg(&project)
@@ -193,10 +187,7 @@ fn monitor_smoke_without_tty_exits_cleanly() {
 
 #[test]
 fn version_json_emits_structured_metadata() {
-    let assert = cli()
-        .args(["version", "--json"])
-        .assert()
-        .success();
+    let assert = cli().args(["version", "--json"]).assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).expect("version --json must emit valid JSON");

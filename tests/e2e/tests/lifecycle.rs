@@ -12,9 +12,7 @@
 //! catalog under `$GENASIS_AGENTS_CACHE_DIR` so commands that load
 //! `AgentStore` never reach GitHub Releases.
 
-use genasis_e2e::{
-    cli, cli_with_catalog, mock_agents_catalog, scratch_project, seed_blank,
-};
+use genasis_e2e::{cli, cli_with_catalog, mock_agents_catalog, scratch_project, seed_blank};
 use predicates::prelude::*;
 
 #[test]
@@ -99,10 +97,7 @@ fn attach_then_detach_round_trips_byte_identical() {
         .success();
 
     let after_reattach = std::fs::read_to_string(&frontend).unwrap();
-    assert_eq!(
-        after_attach, after_reattach,
-        "re-attach was not idempotent"
-    );
+    assert_eq!(after_attach, after_reattach, "re-attach was not idempotent");
 }
 
 #[test]

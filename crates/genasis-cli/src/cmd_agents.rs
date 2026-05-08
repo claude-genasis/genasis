@@ -68,17 +68,15 @@ pub fn run(args: Args) -> Result<()> {
 fn resolve_config() -> Result<(String, String, String)> {
     // Try to load genasis.toml from current dir for [agents] config.
     // Defaults if not found.
-    let version = std::env::var("GENASIS_AGENTS_VERSION")
-        .unwrap_or_else(|_| "1.0.0".to_string());
-    let registry = std::env::var("GENASIS_AGENTS_REGISTRY").unwrap_or_else(|_| {
-        "https://github.com/claude-genasis/genasis/releases".to_string()
-    });
+    let version = std::env::var("GENASIS_AGENTS_VERSION").unwrap_or_else(|_| "1.0.0".to_string());
+    let registry = std::env::var("GENASIS_AGENTS_REGISTRY")
+        .unwrap_or_else(|_| "https://github.com/claude-genasis/genasis/releases".to_string());
     let cache_dir = std::env::var("GENASIS_AGENTS_CACHE_DIR").unwrap_or_default();
     Ok((version, registry, cache_dir))
 }
 
 fn cmd_browse() -> Result<()> {
-    use dialoguer::{FuzzySelect, MultiSelect, theme::ColorfulTheme};
+    use dialoguer::{theme::ColorfulTheme, FuzzySelect, MultiSelect};
 
     let index_path = std::path::Path::new("agents/index.json");
     let index_content = if index_path.exists() {
@@ -88,19 +86,26 @@ fn cmd_browse() -> Result<()> {
     };
     let index: serde_json::Value = serde_json::from_str(&index_content)?;
 
-    let categories = index.get("categories").and_then(|c| c.as_array())
+    let categories = index
+        .get("categories")
+        .and_then(|c| c.as_array())
         .context("invalid index.json")?;
-    let agents = index.get("agents").and_then(|a| a.as_array())
+    let agents = index
+        .get("agents")
+        .and_then(|a| a.as_array())
         .context("invalid index.json")?;
 
     let theme = ColorfulTheme::default();
 
     // Step 1: Select category
-    let cat_labels: Vec<String> = categories.iter().map(|c| {
-        let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?");
-        let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("");
-        format!("{name:<24} {desc}")
-    }).collect();
+    let cat_labels: Vec<String> = categories
+        .iter()
+        .map(|c| {
+            let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+            let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("");
+            format!("{name:<24} {desc}")
+        })
+        .collect();
 
     let mut cat_labels_with_all = vec!["All categories".to_string()];
     cat_labels_with_all.extend(cat_labels);
@@ -115,18 +120,22 @@ fn cmd_browse() -> Result<()> {
     let category_filter: Option<&str> = if cat_idx == 0 {
         None
     } else {
-        categories.get(cat_idx - 1)
+        categories
+            .get(cat_idx - 1)
             .and_then(|c| c.get("id"))
             .and_then(|id| id.as_str())
     };
 
-    let filtered_agents: Vec<&serde_json::Value> = agents.iter().filter(|a| {
-        if let Some(cat) = category_filter {
-            a.get("category").and_then(|c| c.as_str()) == Some(cat)
-        } else {
-            true
-        }
-    }).collect();
+    let filtered_agents: Vec<&serde_json::Value> = agents
+        .iter()
+        .filter(|a| {
+            if let Some(cat) = category_filter {
+                a.get("category").and_then(|c| c.as_str()) == Some(cat)
+            } else {
+                true
+            }
+        })
+        .collect();
 
     if filtered_agents.is_empty() {
         println!("No agents in this category.");
@@ -134,11 +143,14 @@ fn cmd_browse() -> Result<()> {
     }
 
     // Step 3: Multi-select agents to install
-    let agent_labels: Vec<String> = filtered_agents.iter().map(|a| {
-        let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?");
-        let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("");
-        format!("{name:<24} {desc}")
-    }).collect();
+    let agent_labels: Vec<String> = filtered_agents
+        .iter()
+        .map(|a| {
+            let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+            let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("");
+            format!("{name:<24} {desc}")
+        })
+        .collect();
 
     let selections = MultiSelect::with_theme(&theme)
         .with_prompt("Select agents to install (Space to toggle, Enter to confirm)")
@@ -175,7 +187,7 @@ fn cmd_install(name: Option<String>, preset: Option<String>) -> Result<()> {
     }
 
     let agent_name = name.context(
-        "specify an agent name or --preset. Run `genasis agents list` to see available agents."
+        "specify an agent name or --preset. Run `genasis agents list` to see available agents.",
     )?;
 
     install_single_agent(&agent_name, &version, &cache_override)
@@ -222,8 +234,8 @@ fn install_preset(preset_name: &str, version: &str, cache_override: &str) -> Res
     // Read index.json from cache to get preset definition
     let dir = cache::cache_dir(version, cache_override)?;
     let index_path = dir.join("manifest.json");
-    let index_content = std::fs::read_to_string(&index_path)
-        .context("catalog manifest not found in cache")?;
+    let index_content =
+        std::fs::read_to_string(&index_path).context("catalog manifest not found in cache")?;
     let index: serde_json::Value = serde_json::from_str(&index_content)?;
 
     // Also check local agents/index.json for preset definitions
@@ -235,30 +247,43 @@ fn install_preset(preset_name: &str, version: &str, cache_override: &str) -> Res
     };
     let presets_json: serde_json::Value = serde_json::from_str(&presets_source)?;
 
-    let presets = presets_json.get("presets").and_then(|p| p.as_object())
+    let presets = presets_json
+        .get("presets")
+        .and_then(|p| p.as_object())
         .context("no presets defined in index")?;
 
-    let preset = presets.get(preset_name)
-        .context(format!("preset '{preset_name}' not found. Available: {}",
-            presets.keys().cloned().collect::<Vec<_>>().join(", ")))?;
+    let preset = presets.get(preset_name).context(format!(
+        "preset '{preset_name}' not found. Available: {}",
+        presets.keys().cloned().collect::<Vec<_>>().join(", ")
+    ))?;
 
-    let agents = preset.get("agents").and_then(|a| a.as_array())
+    let agents = preset
+        .get("agents")
+        .and_then(|a| a.as_array())
         .context("preset has no agents list")?;
 
-    let desc = preset.get("description").and_then(|d| d.as_str()).unwrap_or("");
+    let desc = preset
+        .get("description")
+        .and_then(|d| d.as_str())
+        .unwrap_or("");
     println!("Installing preset '{preset_name}': {desc}");
     println!("  Agents: {}\n", agents.len());
 
     let mut installed = 0;
     for agent_val in agents {
         let name = agent_val.as_str().unwrap_or("");
-        if name.is_empty() { continue; }
+        if name.is_empty() {
+            continue;
+        }
         match install_single_agent(name, version, cache_override) {
             Ok(()) => installed += 1,
             Err(e) => eprintln!("  ✗ {name}: {e}"),
         }
     }
-    println!("\n  ✓ Installed {installed}/{} agents from preset '{preset_name}'", agents.len());
+    println!(
+        "\n  ✓ Installed {installed}/{} agents from preset '{preset_name}'",
+        agents.len()
+    );
     println!("  ℹ Run `genasis attach` to inject overlays.");
     Ok(())
 }
@@ -274,16 +299,22 @@ fn cmd_list(category: Option<String>, search: Option<String>) -> Result<()> {
     };
 
     let index: serde_json::Value = serde_json::from_str(&index_content)?;
-    let agents = index.get("agents").and_then(|a| a.as_array())
+    let agents = index
+        .get("agents")
+        .and_then(|a| a.as_array())
         .context("invalid index.json: missing agents array")?;
 
     println!("=== Available Agents ===\n");
 
     for agent in agents {
         let name = agent.get("name").and_then(|n| n.as_str()).unwrap_or("?");
-        let desc = agent.get("description").and_then(|d| d.as_str()).unwrap_or("");
+        let desc = agent
+            .get("description")
+            .and_then(|d| d.as_str())
+            .unwrap_or("");
         let cat = agent.get("category").and_then(|c| c.as_str()).unwrap_or("");
-        let tags: Vec<&str> = agent.get("tags")
+        let tags: Vec<&str> = agent
+            .get("tags")
             .and_then(|t| t.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
             .unwrap_or_default();
@@ -336,7 +367,10 @@ fn cmd_installed() -> Result<()> {
 fn cmd_remove(name: String) -> Result<()> {
     let target = std::path::Path::new(".claude/agents").join(format!("{name}.md"));
     if !target.exists() {
-        anyhow::bail!("agent '{name}' not installed ({} does not exist)", target.display());
+        anyhow::bail!(
+            "agent '{name}' not installed ({} does not exist)",
+            target.display()
+        );
     }
     std::fs::remove_file(&target)?;
     println!("  ✓ Removed {name}");
@@ -380,7 +414,11 @@ fn cmd_status() -> Result<()> {
     if index_path.exists() {
         let content = std::fs::read_to_string(index_path)?;
         let index: serde_json::Value = serde_json::from_str(&content)?;
-        let count = index.get("agents").and_then(|a| a.as_array()).map(|a| a.len()).unwrap_or(0);
+        let count = index
+            .get("agents")
+            .and_then(|a| a.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
         println!("Index: {count} agents available");
     } else {
         println!("Index: not found locally");

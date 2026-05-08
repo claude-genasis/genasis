@@ -240,6 +240,8 @@ mod tests {
     #[test]
     fn hash_file_returns_none_for_missing() {
         let dir = tempdir().unwrap();
-        assert!(hash_file(&dir.path().join("nonexistent.md")).unwrap().is_none());
+        assert!(hash_file(&dir.path().join("nonexistent.md"))
+            .unwrap()
+            .is_none());
     }
 }

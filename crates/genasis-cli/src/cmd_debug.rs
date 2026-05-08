@@ -78,9 +78,11 @@ pub fn run(args: Args) -> Result<()> {
         DebugOp::Log => log_dump(&project_root),
         DebugOp::Collect { stdout } => collect(&project_root, stdout),
         DebugOp::Reset => reset(&project_root),
-        DebugOp::Submit { file, no_confirm, dry_run } => {
-            submit(&project_root, file, no_confirm, dry_run)
-        }
+        DebugOp::Submit {
+            file,
+            no_confirm,
+            dry_run,
+        } => submit(&project_root, file, no_confirm, dry_run),
     }
 }
 
@@ -117,8 +119,7 @@ fn status(project_root: &std::path::Path) -> Result<()> {
 }
 
 fn log_dump(project_root: &std::path::Path) -> Result<()> {
-    let log_path = project_root
-        .join(".claude/genasis/.drift-log/current.jsonl");
+    let log_path = project_root.join(".claude/genasis/.drift-log/current.jsonl");
     if !log_path.is_file() {
         println!("no drift-log at {}", log_path.display());
         return Ok(());
@@ -145,7 +146,10 @@ fn collect(project_root: &std::path::Path, to_stdout: bool) -> Result<()> {
         "project_hash".into(),
         serde_json::Value::String(project_hash.clone()),
     );
-    payload.insert("collected_at".into(), serde_json::Value::String(now.clone()));
+    payload.insert(
+        "collected_at".into(),
+        serde_json::Value::String(now.clone()),
+    );
     payload.insert(
         "genasis_version".into(),
         serde_json::Value::String(manifest.genasis_version.clone()),
@@ -164,10 +168,16 @@ fn collect(project_root: &std::path::Path, to_stdout: bool) -> Result<()> {
             serde_json::Value::String(format!("{:?}", d.kind).to_lowercase()),
         );
         if let Some(rec) = &d.recorded_hash {
-            entry.insert("recorded_sha256".into(), serde_json::Value::String(rec.clone()));
+            entry.insert(
+                "recorded_sha256".into(),
+                serde_json::Value::String(rec.clone()),
+            );
         }
         if let Some(act) = &d.actual_hash {
-            entry.insert("actual_sha256".into(), serde_json::Value::String(act.clone()));
+            entry.insert(
+                "actual_sha256".into(),
+                serde_json::Value::String(act.clone()),
+            );
             // Inline a strip-clean diff body — secrets removed.
             let abs = project_root.join(&d.file);
             if let Ok(body) = std::fs::read_to_string(&abs) {
@@ -243,18 +253,19 @@ fn submit(
 
     let patch = match explicit_file {
         Some(p) => p,
-        None => latest_patch_for(&project_hash)?
-            .ok_or_else(|| anyhow::anyhow!(
+        None => latest_patch_for(&project_hash)?.ok_or_else(|| {
+            anyhow::anyhow!(
                 "no patches under ~/.genasis/debug-history/{project_hash}/ — \
                  run `genasis debug collect` first"
-            ))?,
+            )
+        })?,
     };
     if !patch.is_file() {
         anyhow::bail!("patch file not found: {}", patch.display());
     }
     let body = std::fs::read_to_string(&patch)?;
-    let parsed: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| anyhow::anyhow!("patch is not valid JSON: {e}"))?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| anyhow::anyhow!("patch is not valid JSON: {e}"))?;
 
     enforce_rate_limit(&project_hash)?;
 
@@ -309,9 +320,7 @@ fn submit(
         .output()
         .is_ok();
     if !gh_present {
-        anyhow::bail!(
-            "`gh` CLI not found in PATH. Install GitHub CLI to enable submission."
-        );
+        anyhow::bail!("`gh` CLI not found in PATH. Install GitHub CLI to enable submission.");
     }
     println!(
         "(submission flow ready — actual `gh pr create` invocation kept \
@@ -349,7 +358,8 @@ fn enforce_rate_limit(project_hash: &str) -> Result<()> {
     let stamp = dir.join(".last-submit");
     if let Ok(body) = std::fs::read_to_string(&stamp) {
         if let Ok(prev) = chrono::DateTime::parse_from_rfc3339(body.trim()) {
-            let elapsed = chrono::Utc::now().signed_duration_since(prev.with_timezone(&chrono::Utc));
+            let elapsed =
+                chrono::Utc::now().signed_duration_since(prev.with_timezone(&chrono::Utc));
             if elapsed < chrono::Duration::hours(24) {
                 anyhow::bail!(
                     "rate limited — last submit {}h{}m ago. Try again in {}h.",

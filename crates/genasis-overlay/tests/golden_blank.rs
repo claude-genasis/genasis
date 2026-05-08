@@ -144,10 +144,7 @@ fn blank_bootstrap_then_attach_creates_ten_fenced_agents() {
         let path = project.join(format!(".claude/agents/{}.md", role.slug()));
         let body = read(&path);
         assert!(
-            body.contains(&format!(
-                "<!-- GENASIS:BEGIN role={}",
-                role.slug()
-            )),
+            body.contains(&format!("<!-- GENASIS:BEGIN role={}", role.slug())),
             "missing fence in {}: {body}",
             path.display()
         );
@@ -232,7 +229,8 @@ fn blank_expected_snapshot_is_in_sync() {
         let exp = read(&expected_dir.join(rel));
         let live = read(&project.join(rel));
         assert_eq!(
-            exp, live,
+            exp,
+            live,
             "byte mismatch at {} — rerun with BLESS=1 if intentional",
             rel.display()
         );

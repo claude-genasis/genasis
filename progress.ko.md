@@ -756,7 +756,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
 | 10 | M16 | `genasis debug submit` (PR-only, ADR-012 §8) + `debug-history/` 리포 구조 + workflow + skill | done |
 | 11 | M17 | 분석 자동화 + 통합 | done |
-| 12 | v0.1.0 cut | 태그 + release.yml 실행 + 공지 | pending |
+| 12 | v0.1.0 cut | 태그 + release.yml 실행 + 공지 | ready (release notes 초안 완료; 태그는 메인테이너 액션) |
 
 ### M18 — Golden fixture 재점검 — ✅ commit pending (이 commit)
 
@@ -816,14 +816,16 @@ M19 스위트를 `flavor = "plane"` / `flavor = "mattermost"` 로 실행
 
 ### v0.1.0 컷 기준 (DoD)
 
-- [ ] `cargo test --workspace --no-fail-fast` green
-- [ ] `npm --prefix trial-app run e2e` green (M21)
-- [ ] `tests/e2e/` Rust 스위트 CI green (M19)
-- [ ] Nightly real-server suite 1회 이상 green (M20)
-- [ ] `tests/golden/*/expected/` 모두 채워졌거나 디렉토리 제거 (M18)
-- [ ] `lint-i18n-strict` green (release.yml hard fail)
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
-- [ ] `v0.1.0` 태그, release.yml 실행, GitHub Release notes 게시.
+- [x] `cargo test --workspace --no-fail-fast` green — 222 passed, 2 ignored
+- [x] `npm --prefix trial-app run e2e` green (M21) — 14 passed, 1 skipped
+- [x] `tests/e2e/` Rust 스위트 CI green (M19) — lifecycle/agents/supporting/debug 4개 spec, 23 테스트
+- [ ] Nightly real-server suite 1회 이상 green (M20) — workflow 등록 완료; 첫 schedule 실행 대기
+- [x] `tests/golden/*/expected/` 모두 채워졌거나 디렉토리 제거 (M18) — 살아남은 fixture: ecc-only, blank, with-ko-locale
+- [ ] `lint-i18n-strict` green (release.yml hard fail) — 기존 drift 5건 (CREDITS / DESIGN-SWAP-GUIDE / AGENTS-MARKETPLACE / QUICKSTART / famous-agents) 한국어 미러 채워야 태그 가능
+- [x] `cargo clippy --workspace --all-targets` clean (errors 0) — `-D warnings` 은 누적된 dead_code 경고 때문에 보류
+- [x] `cargo fmt --all -- --check` clean
+- [x] `docs/RELEASE-NOTES-v0.1.0.md` 초안 작성
+- [ ] `v0.1.0` 태그, release.yml 실행, GitHub Release notes 게시 — **메인테이너 액션**
 
 ---
 

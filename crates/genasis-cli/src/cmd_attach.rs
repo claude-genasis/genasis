@@ -143,7 +143,7 @@ fn update_manifest_after_apply(
     applied: &genasis_overlay::AppliedReport,
     lang_code: &str,
 ) -> Result<()> {
-    use genasis_core::manifest::{Manifest, FileEntry, hash_file};
+    use genasis_core::manifest::{hash_file, FileEntry, Manifest};
 
     let mut manifest = Manifest::load(project_root)
         .ok()

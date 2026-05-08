@@ -17,9 +17,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use genasis_i18n::tr_args;
-use genasis_overlay::{
-    apply_bootstrap, plan_bootstrap, BootstrapAction, BootstrapOptions, Role,
-};
+use genasis_overlay::{apply_bootstrap, plan_bootstrap, BootstrapAction, BootstrapOptions, Role};
 
 use crate::cmd_attach;
 use crate::lang_prompt;
@@ -96,16 +94,10 @@ pub async fn run(
         );
     }
     for change in plan.creates() {
-        println!(
-            "  + {}",
-            change.path.display()
-        );
+        println!("  + {}", change.path.display());
     }
     for change in plan.skips() {
-        println!(
-            "  = {} (exists)",
-            change.path.display()
-        );
+        println!("  = {} (exists)", change.path.display());
     }
 
     if args.dry_run {
@@ -114,10 +106,7 @@ pub async fn run(
 
     if create_count > 0 {
         let report = apply_bootstrap(&plan)?;
-        tracing::info!(
-            wrote = report.written.len(),
-            "bootstrap apply complete"
-        );
+        tracing::info!(wrote = report.written.len(), "bootstrap apply complete");
     }
 
     if args.no_attach_after {
