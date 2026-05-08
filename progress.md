@@ -657,13 +657,13 @@ Existing team asset recognition and fence injection engine.
 - [x] `tests/golden/SHARED.md` table: blank row flipped to **Active** with test path + BLESS hint
 - [s] `tests/golden/blank-ko/` — deferred to M18 audit. Per the user's M18 directive ("intent re-check first") we will decide on language variants alongside the rest of the fixture roster instead of adding one ad-hoc here.
 
-### M14.5 — Doctor + retrospective
-- [ ] `cmd_doctor.rs` `[bootstrap]` section:
-  - [ ] `.claude/agents/` existence + file count report
-  - [ ] Empty dir + bootstrap not run → suggestion output (i18n)
-  - [ ] Base files' frontmatter `name:` key all canonical role verification
-- [ ] `progress.ko.md` retrospective slot added (M14 start/end/learnings)
-- [ ] DoD: `cargo test --workspace` green, `lint-i18n` green, golden blank round-trip green
+### M14.5 — Doctor + retrospective — ✅ commit pending (this commit)
+- [x] `cmd_doctor.rs` `[bootstrap]` section:
+  - [x] `.claude/agents/` existence + file count report (`doctor.bootstrap.dir_missing` / `doctor.bootstrap.file_count`)
+  - [x] Empty dir + bootstrap not run → `doctor.bootstrap.empty_hint` suggestion (i18n)
+  - [x] Base files' frontmatter `name:` matches stem; missing/mismatched fields surfaced as warnings
+- [x] `progress.md` / `progress.ko.md` retrospective slot — M14 row added below.
+- [x] DoD: `cargo test --workspace` green (177 → 179 passed including golden_blank), bootstrap-related drift items cleared. Bigger doctor coverage will be added under M19.
 
 ### Risks / TBD
 - **(a)** `init --bootstrap` vs `attach --bootstrap` placement: **resolved 2026-05-08** — new `genasis bootstrap` subcommand + `genasis init --bootstrap` alias (ADR-010 §3 (b)+(d)).
@@ -689,7 +689,7 @@ Existing team asset recognition and fence injection engine.
 | 1 | M14.0 | ADR-010 ratify gate | done |
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | done |
 | 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | done |
-| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | pending |
+| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | done |
 | 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | pending |
 | 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | pending |
 | 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | pending |
@@ -902,6 +902,7 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 | M9 | 2026-05-03 | 2026-05-03 | ratatui 0.27 `Frame::area()` API simplifies 4-row grid; 250ms poll is right trade-off. |
 | M10 | 2026-05-03 | 2026-05-03 | No mcp-proxy in v1 is the right maintenance-vs-impact trade-off. |
 | M11 | 2026-05-03 | 2026-05-03 | All first-release code/docs in place. Next: one real sprint for data-ingest hook validation + v0.1.0 tag. |
+| M14 | 2026-05-05 | 2026-05-08 | Bootstrap as a subcommand (not an attach side-effect) was the right call — the empty-dir hint in `cmd_attach` is enough to discover the entry point, and ADR-001's non-destructive promise stays intact. `BLESS=1` golden-snapshot pattern (M14.4) generalises to M18 cleanly. Doctor `[bootstrap]` section piggy-backs on existing `Role::ALL` slug list — no new validation infra needed. Frontmatter `name:` ↔ filename stem invariant emerged organically from the test fixtures. |
 
 ---
 

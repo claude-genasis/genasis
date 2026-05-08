@@ -124,6 +124,14 @@ doctor:
     reference_docs_listed: "Reference docs: %{langs}"
     parity_ok: "en.yml ↔ ko.yml: %{count} keys, parity OK"
     parity_missing: "en.yml ↔ ko.yml: %{missing} key(s) missing in %{lang}"
+  bootstrap:
+    section: "[bootstrap]"
+    dir_missing: ".claude/agents/ does not exist — run `genasis bootstrap` to scaffold the default 10-role team."
+    empty_hint: ".claude/agents/ is empty — run `genasis bootstrap` to scaffold the default 10-role team."
+    file_count: "agent files: %{count} present under .claude/agents/"
+    frontmatter_ok: "frontmatter: every file has a `name:` matching its filename ✓"
+    missing_name: "frontmatter: %{file}.md is missing a `name:` field"
+    name_mismatch: "frontmatter: %{file} — `name:` does not match the filename stem"
 
 lang:
   prompt:

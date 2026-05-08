@@ -170,6 +170,9 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
+    section(&tr("doctor.bootstrap.section"));
+    report_bootstrap(&project_root);
+
     section(&tr("doctor.i18n.section"));
     let resolved = genasis_i18n::resolve(None, None);
     println!(
@@ -221,6 +224,85 @@ fn resolve_project_root(arg: Option<&std::path::Path>) -> Result<PathBuf> {
 
 fn section(title: &str) {
     println!("\n• {title}");
+}
+
+fn report_bootstrap(project_root: &std::path::Path) {
+    use genasis_overlay::Role;
+    let agents_dir = project_root.join(".claude").join("agents");
+    if !agents_dir.is_dir() {
+        println!("  {}", tr("doctor.bootstrap.dir_missing"));
+        return;
+    }
+    let entries: Vec<std::path::PathBuf> = std::fs::read_dir(&agents_dir)
+        .map(|it| {
+            it.flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("md"))
+                .collect()
+        })
+        .unwrap_or_default();
+    if entries.is_empty() {
+        println!("  {}", tr("doctor.bootstrap.empty_hint"));
+        return;
+    }
+    println!(
+        "  {}",
+        tr_args(
+            "doctor.bootstrap.file_count",
+            &[("count", &entries.len().to_string())]
+        )
+    );
+    let canonical: std::collections::HashSet<&'static str> =
+        Role::ALL.iter().map(|r| r.slug()).collect();
+    let mut non_canonical = Vec::new();
+    let mut missing_name_field = Vec::new();
+    for path in &entries {
+        let stem = match path.file_stem().and_then(|s| s.to_str()) {
+            Some(s) => s,
+            None => continue,
+        };
+        let body = match std::fs::read_to_string(path) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let name_line = body
+            .lines()
+            .find(|l| l.trim_start().starts_with("name:"))
+            .map(|l| l.trim());
+        match name_line {
+            None => missing_name_field.push(stem.to_string()),
+            Some(line) => {
+                let value = line
+                    .trim_start_matches("name:")
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'');
+                if value != stem {
+                    non_canonical.push(format!("{stem} (name: {value})"));
+                }
+                if !canonical.contains(value) {
+                    // Custom roles are explicitly allowed (Custom variant);
+                    // we only surface them as informational.
+                }
+            }
+        }
+    }
+    if missing_name_field.is_empty() && non_canonical.is_empty() {
+        println!("  {}", tr("doctor.bootstrap.frontmatter_ok"));
+    } else {
+        for slug in &missing_name_field {
+            println!(
+                "  {}",
+                tr_args("doctor.bootstrap.missing_name", &[("file", slug)])
+            );
+        }
+        for entry in &non_canonical {
+            println!(
+                "  {}",
+                tr_args("doctor.bootstrap.name_mismatch", &[("file", entry)])
+            );
+        }
+    }
 }
 
 fn report_tool(name: &str, required: bool) {

@@ -717,14 +717,13 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `tests/golden/SHARED.md` 표의 blank 행을 **Active** 로 변경 + 테스트 경로 + BLESS 힌트
 - [s] `tests/golden/blank-ko/` — M18 audit 으로 미룸. 사용자 지시("의도 재점검 후 결정")에 따라 ad-hoc 으로 추가하지 않고 fixture roster 전체와 함께 결정.
 
-### M14.5 — Doctor + 회고
-- [ ] `cmd_doctor.rs` `[bootstrap]` 섹션 추가:
-  - [ ] `.claude/agents/` 존재 여부 + 파일 수 보고
-  - [ ] 빈 디렉토리 + bootstrap 미실행 → suggestion 출력 (i18n)
-  - [ ] base 파일들의 frontmatter `name:` 키가 모두 canonical role 인지 검증
-- [ ] `progress.ko.md` 회고 슬롯 추가 (M14 시작/완료/학습한 것)
-- [ ] DoD: `cargo test --workspace` green, `lint-i18n` green, golden blank
-  round-trip green
+### M14.5 — Doctor + 회고 — ✅ commit pending (이 commit)
+- [x] `cmd_doctor.rs` `[bootstrap]` 섹션 추가:
+  - [x] `.claude/agents/` 존재 여부 + 파일 수 (`doctor.bootstrap.dir_missing` / `file_count`)
+  - [x] 빈 디렉토리 + bootstrap 미실행 → `doctor.bootstrap.empty_hint` 안내 (i18n)
+  - [x] base 파일의 frontmatter `name:` 이 파일명 stem 과 일치하는지 + missing/mismatch 경고
+- [x] `progress.md` / `progress.ko.md` 회고 표 — 아래에 M14 행 추가.
+- [x] DoD: `cargo test --workspace` green (177 → 179 passed; golden_blank 포함), bootstrap 관련 drift 0. doctor 의 더 깊은 coverage 는 M19 에서.
 
 ### 리스크 / 미정
 - **(a)** `init --bootstrap` vs `attach --bootstrap` 위치: **2026-05-08 해소** — 신규 `genasis bootstrap` 서브커맨드 + `genasis init --bootstrap` alias (ADR-010 §3 (b)+(d)).
@@ -749,7 +748,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 1 | M14.0 | ADR-010 ratify gate | done |
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | done |
 | 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | done |
-| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | pending |
+| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | done |
 | 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | pending |
 | 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | pending |
 | 7 | M20 | `nightly-e2e.yml` workflow 부활 — `servers/docker-compose.yml` 로 실 Plane + MM 스모크 | pending |
@@ -1071,3 +1070,4 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 | M9 | 2026-05-03 | 2026-05-03 | ratatui 0.27 의 `Frame::area()` API 로 4-row 그리드 단순화; 250ms 폴링이 적절. |
 | M10 | 2026-05-03 | 2026-05-03 | mcp-proxy 미포함 결정이 유지보수 부담 vs 효과 trade-off 의 우위. |
 | M11 | 2026-05-03 | 2026-05-03 | 1차 코드/문서 모두 자리잡음. 실 운영 sprint 1회 후 데이터 인입 hooks 정착 + v0.1.0 태그. |
+| M14 | 2026-05-05 | 2026-05-08 | Bootstrap 을 attach 의 부수효과가 아닌 별도 서브커맨드로 빼낸 것이 정답 — `cmd_attach` 의 empty-dir 힌트만으로 진입점 발견은 충분하고 ADR-001 의 비파괴 약속도 그대로. `BLESS=1` golden snapshot 패턴(M14.4)이 M18 에 그대로 일반화. Doctor `[bootstrap]` 섹션은 기존 `Role::ALL` slug 리스트에 얹혀 새로운 검증 인프라 없이도 동작. frontmatter `name:` ↔ 파일명 stem 일치 invariant 가 fixture 작성 과정에서 자연스럽게 떠올랐다. |

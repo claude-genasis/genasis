@@ -125,6 +125,14 @@ doctor:
     reference_docs_listed: "참조 문서: %{langs}"
     parity_ok: "en.yml ↔ ko.yml: %{count}개 키 동기화됨"
     parity_missing: "en.yml ↔ ko.yml: %{lang} 에 %{missing}개 키 누락"
+  bootstrap:
+    section: "[부트스트랩]"
+    dir_missing: ".claude/agents/ 가 없습니다 — `genasis bootstrap` 으로 기본 10개 역할 팀을 scaffold 하세요."
+    empty_hint: ".claude/agents/ 가 비어 있습니다 — `genasis bootstrap` 으로 기본 10개 역할 팀을 scaffold 하세요."
+    file_count: ".claude/agents/ 아래 에이전트 파일 %{count}개"
+    frontmatter_ok: "frontmatter: 모든 파일의 `name:` 이 파일명과 일치 ✓"
+    missing_name: "frontmatter: %{file}.md 에 `name:` 필드가 없습니다"
+    name_mismatch: "frontmatter: %{file} — `name:` 이 파일명과 일치하지 않습니다"
 
 lang:
   prompt:
