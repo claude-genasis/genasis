@@ -156,9 +156,9 @@ function PendingCard({
       className="space-y-4 rounded-lg border border-yellow-200 bg-yellow-50 p-5 dark:border-yellow-900 dark:bg-yellow-950/40"
     >
       <div className="space-y-1">
-        <p className="font-semibold text-yellow-900 dark:text-yellow-200">
+        <h2 className="font-semibold text-yellow-900 dark:text-yellow-200">
           {t(lang, "status.pending.title")}
-        </p>
+        </h2>
         <p className="text-sm text-yellow-800 dark:text-yellow-300">
           {t(lang, "status.pending.body")}
         </p>
@@ -197,9 +197,9 @@ function ProvisionedView({
   return (
     <div data-testid="status-provisioned" className="space-y-6">
       <section className="space-y-1 rounded-lg border border-green-200 bg-green-50 p-5 dark:border-green-900 dark:bg-green-950/40">
-        <p className="font-semibold text-green-900 dark:text-green-200">
+        <h2 className="font-semibold text-green-900 dark:text-green-200">
           {t(lang, "status.provisioned.title")}
-        </p>
+        </h2>
         <p className="text-sm text-green-800 dark:text-green-300">
           {t(lang, "status.provisioned.body")}
         </p>
@@ -226,7 +226,7 @@ function RevokedCard({
       data-testid="status-revoked"
       className="rounded-lg border border-neutral-300 bg-neutral-100 p-5 text-sm text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
     >
-      <p className="font-semibold">{t(lang, "status.revoked.title")}</p>
+      <h2 className="font-semibold">{t(lang, "status.revoked.title")}</h2>
       <p className="mt-1">
         {t(lang, "status.revoked.body", {
           project: submission.project_name,

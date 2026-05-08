@@ -160,7 +160,7 @@ export function LiveChatThread({
           </li>
         ))}
         {posts.length === 0 ? (
-          <li className="rounded-md border border-dashed border-neutral-200 p-4 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-600">
+          <li className="rounded-md border border-dashed border-neutral-200 p-4 text-center text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-500">
             {t("live.empty.posts")}
           </li>
         ) : null}
