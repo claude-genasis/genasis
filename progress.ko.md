@@ -750,7 +750,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | done |
 | 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | done |
-| 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | pending |
+| 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | in progress (M19.1/.2/.3 완료; M19.4 는 M15/M16 후) |
 | 7 | M20 | `nightly-e2e.yml` workflow 부활 — `servers/docker-compose.yml` 로 실 Plane + MM 스모크 | pending |
 | 8 | M21 | trial-app Playwright suite — US-001..US-022 acceptance 풀 회귀 | pending |
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | pending |

@@ -691,7 +691,7 @@ Existing team asset recognition and fence injection engine.
 | 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | done |
 | 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | done |
-| 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | pending |
+| 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | in progress (M19.1/.2/.3 done; M19.4 awaits M15/M16) |
 | 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | pending |
 | 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | pending |
