@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod cmd_agents;
 mod cmd_attach;
 mod cmd_bootstrap;
 mod cmd_db;
@@ -70,6 +71,8 @@ enum Cmd {
     /// Drop a sample document (PRD/design-system/PRD2) into the project
     /// root so the agentic team has something immediately actionable.
     Example(cmd_example::Args),
+    /// Browse, install, list, or remove agents from the catalog (ADR-011)
+    Agents(cmd_agents::Args),
 }
 
 #[tokio::main]
@@ -108,6 +111,7 @@ async fn main() -> Result<()> {
         Cmd::Version(a) => cmd_version::run(a).await,
         Cmd::Lang(a) => cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await,
         Cmd::Example(a) => cmd_example::run(a),
+        Cmd::Agents(a) => cmd_agents::run(a),
     }
 }
 
