@@ -1,0 +1,22 @@
+[package]
+name = "genasis-e2e"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "End-to-end coverage of every command advertised in README.md (M19)."
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+# This crate is a test-support harness — every dependency is only used
+# by integration tests. Listed under `[dependencies]` (not dev-deps) so
+# the lib.rs helpers can call into them.
+[dependencies]
+anyhow.workspace = true
+assert_cmd = "2"
+predicates = "3"
+tempfile.workspace = true
+serde_json.workspace = true

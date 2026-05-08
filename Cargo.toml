@@ -11,6 +11,7 @@ members = [
     "crates/genasis-monitor",
     "crates/genasis-templates",
     "crates/genasis-i18n",
+    "tests/e2e",
 ]
 
 [workspace.package]
