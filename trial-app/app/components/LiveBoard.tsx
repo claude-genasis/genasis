@@ -30,17 +30,19 @@ export function LiveBoard({
           {t("live.banner", { project: project.slug, channel: channel.name })}
         </span>
       </div>
-      <LiveKanbanBoard
-        initialIssues={initialIssues}
-        projectSlug={project.slug}
-      />
-      <ChatSidebar channelName={channel.name}>
-        <LiveChatThread
-          initialPosts={initialPosts}
-          channelId={channel.id}
-          channelName={channel.name}
+      <div className="relative" data-testid="live-board-stage">
+        <LiveKanbanBoard
+          initialIssues={initialIssues}
+          projectSlug={project.slug}
         />
-      </ChatSidebar>
+        <ChatSidebar channelName={channel.name}>
+          <LiveChatThread
+            initialPosts={initialPosts}
+            channelId={channel.id}
+            channelName={channel.name}
+          />
+        </ChatSidebar>
+      </div>
     </div>
   );
 }

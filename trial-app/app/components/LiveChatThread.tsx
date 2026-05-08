@@ -176,17 +176,18 @@ export function LiveChatThread({
       ) : null}
       <form
         onSubmit={onSubmit}
-        className="border-t border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-950"
+        data-testid="live-chat-form"
+        className="shrink-0 border-t-2 border-neutral-300 bg-neutral-100 px-4 pb-5 pt-4 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[0_-2px_8px_rgba(0,0,0,0.25)]"
       >
         <div className="flex items-end gap-2">
           <textarea
             data-testid="live-chat-composer"
-            rows={1}
+            rows={2}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={t("live.chat.composer.placeholder")}
-            className="flex-1 resize-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+            className="min-h-[64px] flex-1 resize-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-200 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100"
             disabled={sending}
             aria-label="Compose message"
           />
@@ -194,7 +195,7 @@ export function LiveChatThread({
             type="submit"
             data-testid="live-chat-send"
             disabled={sending || !draft.trim()}
-            className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
+            className="self-stretch rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-600 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
           >
             {sending ? t("live.chat.send.sending") : t("live.chat.send.idle")}
           </button>

@@ -4,8 +4,13 @@ import { useState, type ReactNode } from "react";
 
 import { useLang } from "@/app/components/LangProvider";
 
-const SIDEBAR_WIDTH_CLASS = "w-80 sm:w-96";
-const HANDLE_OPEN_LEFT_CLASS = "left-80 sm:left-96";
+// 1.2× of the previous w-80 (320px) / w-96 (384px) sizes.
+const SIDEBAR_WIDTH_CLASS = "w-96 sm:w-[460px]";
+const HANDLE_OPEN_LEFT_CLASS = "left-96 sm:left-[460px]";
+
+// Matches LiveKanbanBoard's grid height so the panel and the kanban
+// share the same vertical extent and top edge.
+const SIDEBAR_HEIGHT_CLASS = "h-[630px]";
 
 export function ChatSidebar({
   channelName,
@@ -32,11 +37,11 @@ export function ChatSidebar({
         data-open={isOpen}
         aria-label={`${channelName} chat sidebar`}
         aria-hidden={!isOpen}
-        className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-neutral-200 bg-neutral-50 shadow-xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900 ${SIDEBAR_WIDTH_CLASS} ${
+        className={`absolute left-0 top-0 z-30 flex flex-col rounded-lg border border-neutral-200 bg-neutral-50 shadow-xl transition-transform duration-300 ease-out dark:border-neutral-800 dark:bg-neutral-900 ${SIDEBAR_WIDTH_CLASS} ${SIDEBAR_HEIGHT_CLASS} ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-neutral-100 px-4 py-2.5 dark:border-neutral-800 dark:bg-neutral-800">
+        <header className="flex shrink-0 items-center justify-between rounded-t-lg border-b border-neutral-200 bg-neutral-100 px-4 py-2.5 dark:border-neutral-800 dark:bg-neutral-800">
           <span className="font-mono text-sm font-semibold text-neutral-700 dark:text-neutral-200">
             #{channelName}
           </span>
@@ -63,7 +68,9 @@ export function ChatSidebar({
             </svg>
           </button>
         </header>
-        <div className="min-h-0 flex-1">{children}</div>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-b-lg">
+          {children}
+        </div>
       </aside>
       <button
         type="button"
@@ -72,7 +79,7 @@ export function ChatSidebar({
         aria-label={isOpen ? closeLabel : openLabel}
         aria-expanded={isOpen}
         title={isOpen ? closeLabel : openLabel}
-        className={`fixed top-1/2 z-40 flex -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-neutral-300 bg-neutral-800 px-1.5 py-5 text-xs font-bold text-white shadow-md transition-[left] duration-300 ease-out hover:bg-neutral-700 dark:border-neutral-700 dark:bg-neutral-700 dark:hover:bg-neutral-600 ${
+        className={`absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-neutral-300 bg-neutral-800 px-1.5 py-5 text-xs font-bold text-white shadow-md transition-[left] duration-300 ease-out hover:bg-neutral-700 dark:border-neutral-700 dark:bg-neutral-700 dark:hover:bg-neutral-600 ${
           isOpen ? HANDLE_OPEN_LEFT_CLASS : "left-0"
         }`}
       >
