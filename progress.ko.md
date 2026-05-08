@@ -641,9 +641,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `blueprint.ko.md §20` 신설 (M14 섹션, ADR-010 인용) + `blueprint.md`
   section index 갱신
 - [x] `blueprint.ko.md §16` ADR 표에 ADR-008/009/010 행 추가
-- [ ] 사용자 ratify 게이트 — ADR-010 머지 후 M14.3 진입 (M14.1/M14.2 는
-  ratify 와 독립적으로 선행 가능 — base 템플릿 + 모듈은 코드만 추가,
-  진입점 노출은 M14.3)
+- [x] 사용자 ratify 게이트 — 2026-05-08 ratify 완료 (진입점: 신규 `genasis bootstrap` 서브커맨드 + `genasis init --bootstrap` alias, `--no-attach-after` 가 없으면 `cmd_attach` 자동 chain. ADR-010 §3 결정 (b)+(d))
 
 ### M14.1 — Base agent templates (`templates/{en,ko}/agents/<role>.md.tera`)  — ✅ pending build verification
 - [x] `crates/genasis-templates/templates/en/agents/` 디렉토리 신설
@@ -741,15 +739,94 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
   round-trip green
 
 ### 리스크 / 미정
-- **(a)** `init --bootstrap` vs `attach --bootstrap` 위치: ADR-010 에서
-  결정 — `init` 은 Plane/MM provisioning 까지 묶여있어 무거움. 별도
-  `genasis bootstrap` 서브커맨드 진입점 검토.
+- **(a)** `init --bootstrap` vs `attach --bootstrap` 위치: **2026-05-08 해소** — 신규 `genasis bootstrap` 서브커맨드 + `genasis init --bootstrap` alias (ADR-010 §3 (b)+(d)).
 - **(b)** ECC `claude-code-templates` 와 차별화 문구: README.md (Comparison
   표) 의 "Non-destructive overlay" vs "Bootstrap" 두 차원으로 분리해야
   시각적 혼동 회피.
 - **(c)** base 템플릿이 `tools:` 항목을 어디까지 specify 할지 — 너무 협소
   하면 사용자 자유도 침해, 너무 넓으면 무의미. 우선 ECC default
   (`Bash, Read, Write, Edit, Glob, Grep, Task`) 기준 + comment 로 안내.
+
+---
+
+## v0.1.0 계획 (2026-05-08 확정)
+
+> v0.1.0 컷 조건 (사용자 결정 2026-05-08): `README.md` 에서 소개하는 모든
+> 명령이 자동 E2E 테스트로 검증되고, `tests/golden/` 의 모든 fixture 가
+> `expected/` 가 채워졌거나 명시적으로 폐기됐을 때. 아래 로드맵은 남은
+> 마일스톤을 commit 단위로 쪼개고 각 commit 직후 검토를 받는다.
+
+| 순서 | 마일스톤 | 범위 | 상태 |
+|---|---|---|---|
+| 1 | M14.0 | ADR-010 ratify gate | done |
+| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | pending |
+| 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | pending |
+| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | pending |
+| 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | pending |
+| 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | pending |
+| 7 | M20 | `nightly-e2e.yml` workflow 부활 — `servers/docker-compose.yml` 로 실 Plane + MM 스모크 | pending |
+| 8 | M21 | trial-app Playwright suite — US-001..US-022 acceptance 풀 회귀 | pending |
+| 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | pending |
+| 10 | M16 | `genasis debug submit` (PR-only, ADR-012 §8) + `debug-history/` 리포 구조 + workflow + skill | pending |
+| 11 | M17 | 분석 자동화 + 통합 | pending |
+| 12 | v0.1.0 cut | 태그 + release.yml 실행 + 공지 | pending |
+
+### M18 — Golden fixture 재점검 (M14 후, E2E 전)
+
+`tests/golden/` 의 7개 디렉토리를 현재 Genasis 표면에 비추어 재평가한
+다음 `expected/` 를 채운다:
+
+- **유지 + 채움**: `blank/` (M14 bootstrap 진입점), `ecc-only/` (이미
+  채워짐, regression anchor), `with-ko-locale/` (이미 채워짐, i18n anchor).
+- **재범위**: `kw-plugins/`, `legacy-bash-genesis/`, `with-drizzle/`,
+  `with-duckdb/` — 각 fixture 가 사용자가 실제로 밟는 경로를 대표하는지
+  재확인 (kw-plugins overlap, Genesis bash 마이그레이션 서사, Drizzle Kit
+  auto-detect, DuckDB raw_runner fallback). 시나리오가 더 이상 그럴듯하지
+  않으면 폐기, 아니면 채움.
+- **추가 필요 시**: `with-trial/` (trial flavor end-to-end),
+  `bootstrap-then-attach-en/`, `bootstrap-then-attach-ko/` — M19 의 Rust
+  통합 테스트가 더 싸게 같은 시나리오를 잡을 수 있으면 추가하지 않음.
+- `tests/golden/SHARED.md` 표를 결과 roster 와 각 시나리오를 소유한
+  Rust round-trip 테스트로 갱신.
+
+### M19 — `tests/e2e/` Rust 통합 스위트 (README parity)
+
+`README.md §CLI Reference` 의 모든 명령 커버:
+`init`, `init --trial`, `attach`, `detach`, `doctor`, `upgrade`,
+`bootstrap`, `agents {browse,install,list,installed,remove}`, `monitor`
+(headless smoke), `design swap`, `db {query,migrate}`, `lang switch`,
+`debug {status,collect,submit}` (마지막은 M15+M16 완료 후 gate),
+`example`. 기본 백엔드는 `trial` flavor 와 process-local `trial-app`
+인스턴스 — CI 에서 외부 의존성 없이 hermetic 실행.
+
+### M20 — `nightly-e2e.yml` workflow 부활
+
+M0 에서 declare 했지만 실제 파일이 없는 workflow 재작성. nightly
+schedule 로: `servers/docker-compose.yml` 을 `docker compose up -d`,
+M19 스위트를 `flavor = "plane"` / `flavor = "mattermost"` 로 실행
+(trial 대신), 종료 시 tear down. Tag `nightly-real-servers`, 실패 시
+라벨 붙은 issue 자동 생성.
+
+### M21 — trial-app Playwright suite
+
+사용자 결정 2026-05-08 — `trial-app/ralph/prd.json` US-001..US-022 의
+모든 acceptance criterion 을 Playwright spec 으로 변환.
+- `trial-app/e2e/` 디렉토리 + `playwright.config.ts`
+- US 당 spec 파일 한 개 (`us-001.spec.ts` ... `us-022.spec.ts`)
+- `trial-app` `package.json` 에 `npm run e2e` 등록
+- M19 와 hook (`genasis init --trial` E2E 가 Quick Path 커버) +
+  trial-app 자체 개발 사이클에서도 단독 실행 가능.
+
+### v0.1.0 컷 기준 (DoD)
+
+- [ ] `cargo test --workspace --no-fail-fast` green
+- [ ] `npm --prefix trial-app run e2e` green (M21)
+- [ ] `tests/e2e/` Rust 스위트 CI green (M19)
+- [ ] Nightly real-server suite 1회 이상 green (M20)
+- [ ] `tests/golden/*/expected/` 모두 채워졌거나 디렉토리 제거 (M18)
+- [ ] `lint-i18n-strict` green (release.yml hard fail)
+- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
+- [ ] `v0.1.0` 태그, release.yml 실행, GitHub Release notes 게시.
 
 ---
 
@@ -850,10 +927,14 @@ genasis를 즉시 사용 가능하게 만드는 단계: 원커맨드 서버 설�
 
 | Sub-milestone | Scope | Status |
 |---|---|---|
-| G.1 | `servers/` — Plane + Mattermost + Caddy 통합 docker-compose + 설치 가이드 (키 추출 방법 포함) | planning |
-| G.2 | 체험 신청 web app PRD (agents-pool) — 신청 → MM #genasis-trial → 관리자 응답 → 키 제공 | planning |
-| G.3 | README 리팩토링 — quickstart + 체험 링크 중심, 상세 내용은 외부 가이드로 분리 | planning |
-| G.4 | `docs/DESIGN-SWAP-GUIDE.md` — design-system.md 교체 방법 가이드 | planning |
+| G.1 | `servers/` — Plane + Mattermost + Caddy 통합 docker-compose + 설치 가이드 (키 추출 방법 포함) | done |
+| G.2 | 체험 신청 web app PRD (agents-pool) — 신청 → MM #genasis-trial → 관리자 응답 → 키 제공 | done |
+| G.3 | README 리팩토링 — quickstart + 체험 링크 중심, 상세 내용은 외부 가이드로 분리 | done |
+| G.4 | `docs/DESIGN-SWAP-GUIDE.md` — design-system.md 교체 방법 가이드 | done |
+| G.5 | 체험 데모 앱 (채팅 + 칸반 + 신청 + 상태 페이지, US-001..US-022) | done |
+| G.6 | `genasis init --trial` CLI 연동 | done |
+| G.7 | `genasis example {prd|design|prd2}` 서브커맨드 | done |
+| G.8 | 튜토리얼 문서 (`docs/TUTORIAL.md` + `docs/ko/TUTORIAL.md`) | done |
 
 ### G.1 — 서버 설치 가이드 (`servers/`)
 
@@ -909,41 +990,43 @@ PRD: `agents-pool/prd/trial-webapp.md` (private).
 - 사용자 오버라이드 (`genasis design override add`)
 - EPIC 모드 (영향 UI 영역 자동 이슈 생성)
 
-### G.5 — 체험 데모 앱 (채팅 + 칸반 시뮬레이션)
+### G.5 — 체험 데모 앱 (채팅 + 칸반 시뮬레이션) — ✅ 커밋 e0683de..de860ad (US-001..US-022) + 후속 UI 다듬기 (cc95fa9, 9ca1b43, cffb314, a14fc11, 5bdaadf)
 
-trial.realstory.blog의 인터랙티브 웹 앱:
-- [ ] 데모 칸반 보드 (Todo/InProgress/Done 컬럼, 카드 애니메이션)
-- [ ] 데모 채팅 스레드 (스크립트 에이전트 메시지 + 타이핑 인디케이터)
-- [ ] 8단계 스프린트 시뮬레이션 (PM → frontend → reviewer → QA)
-- [ ] [데모 시작] / [초기화] 버튼
-- [ ] 신청 폼 (이름, 이메일, 전화, 프로젝트, 팀 규모) → MM #genasis-trial
-- [ ] 토큰 기반 인증 정보 표시 페이지
-- [ ] trial.realstory.blog 배포
+`trial-app/` (Next.js 15 App Router) 에 호스팅 체험 풀-플로우 구현:
+- [x] 데모 칸반 보드 (Todo/InProgress/Done 컬럼, 카드 애니메이션) — `app/components/KanbanBoard.tsx` + `DemoBoard.tsx`
+- [x] 데모 채팅 스레드 (스크립트 에이전트 메시지 + 타이핑 인디케이터) — `app/components/ChatThread.tsx`
+- [x] 8단계 스프린트 시뮬레이션 (PM → frontend → reviewer → QA) — `lib/demo-script.ts` + `lib/use-demo-sprint.ts`
+- [x] [데모 시작] / [초기화] 버튼 — `DemoBoard` 에 와이어
+- [x] 신청 폼 (이름, 이메일, 전화, 프로젝트, 팀 규모) → MM `#genasis-trial` — `SignupForm.tsx` + `/api/submit`
+- [x] 토큰 기반 인증 정보 표시 페이지 — `app/status/[token]/page.tsx` + `CredentialsView.tsx`
+- [x] trial.realstory.blog 배포 — `Dockerfile` + `docker-compose.yml` 배포 설정 완료 (라이브 배포는 운영 단계의 별도 작업)
+- [x] 휴먼 협업 라이브 모드 (US-015..US-022): `Trial` flavor + `TrialPlaneProvider` / `TrialMattermostProvider` HTTP forwarder, 시뮬레이션 Plane/MM 상태 스키마, `/api/plane/*` + `/api/mattermost/*` 브릿지, SSE 브로드캐스터 (`/api/events/stream`), `LiveBoard` + `LiveChatThread` + 드래그-드롭 칸반 + 채팅 컴포저 + 채팅 사이드바
+- [x] KO/EN i18n 토글 (`LangSwitcher`, `lib/i18n.ts`, Pretendard 폰트, 접근성 강화 — 커밋 572485b, a14fc11)
 
-PRD: `agents-pool/prd/trial-webapp.md` (v2).
+PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: true` (`trial-app/ralph/prd.json`).
 
-### G.6 — `genasis init --trial` CLI 연동
+### G.6 — `genasis init --trial` CLI 연동 — ✅ 커밋 de860ad
 
-- [ ] `cmd_init.rs`에 `--trial` 플래그 추가
-- [ ] 흐름: 빈 프로젝트 생성 → 에이전트 부트스트랩 → "체험 앱 실행?" → 브라우저 열기
-- [ ] 체험 앱은 localhost:3000에서 백그라운드 프로세스로 실행
-- [ ] i18n 키 (en/ko)
+- [x] `cmd_init.rs`에 `--trial` 플래그 추가 (US-013) — `pub trial: bool` clap arg
+- [x] 흐름: 빈 프로젝트 생성 → 에이전트 부트스트랩 → "체험 앱 실행?" → 브라우저 열기 — `cmd_init.rs::run_trial()` 가 `[trial]` 가 활성화된 최소 `genasis.toml` 작성 후 trial-app spawn 제안
+- [x] 체험 앱은 localhost:3000에서 백그라운드 프로세스로 실행 — spawn 명령 설정 가능, 기본값 `npm --prefix /work/genasis/trial-app run start`
+- [x] i18n 키 (en/ko)
 
-### G.7 — `genasis example` 서브커맨드
+### G.7 — `genasis example` 서브커맨드 — ✅ 커밋 de860ad
 
-- [ ] `genasis example prd` — 샘플 PRD.md 생성 (인증, CRUD, 반응형 UI를 갖춘 todo-app)
-- [ ] `genasis example design` — 샘플 design-system.md 생성 (색상/타이포/간격 토큰)
-- [ ] `genasis example prd2` — PRD2.md 생성 (로그인, 관리자 백오피스, 사용자 관리)
-- [ ] `cmd_example.rs` — 새 CLI 서브커맨드
-- [ ] 템플릿: `agents/examples/{prd.md,design-system.md,prd2.md}`
-- [ ] i18n: 각 예제 문서의 en/ko 버전
+- [x] `genasis example prd` — 샘플 PRD.md 생성 (인증, CRUD, 반응형 UI를 갖춘 todo-app)
+- [x] `genasis example design` — 샘플 design-system.md 생성 (색상/타이포/간격 토큰)
+- [x] `genasis example prd2` — PRD2.md 생성 (로그인, 관리자 백오피스, 사용자 관리)
+- [x] `cmd_example.rs` — 새 CLI 서브커맨드 (US-014)
+- [x] 템플릿: `crates/genasis-cli/templates/examples/{prd.md,design-system.md,prd2.md}` (PRD 의 `agents/examples/` 가 아님 — 정적 `include_str!()` 임베드 자료라 동적 agents 카탈로그가 아닌 crate-local 로 배치)
+- [s] i18n: 각 예제 문서의 en/ko 버전 — active-singularity 정책(ADR-008)에 따라 예제는 영어로만 배포. 한국어 미러는 향후 `cmd_example` 에 `--lang` 플래그 추가 시 도입 예정.
 
-### G.8 — 튜토리얼 문서
+### G.8 — 튜토리얼 문서 — ✅ 커밋 d023cd9
 
-- [ ] `docs/TUTORIAL.md` (영어) — 5단계 빠른 경로 + 5개 연습
-- [ ] `docs/ko/TUTORIAL.md` (한국어 미러)
-- [ ] README 재구성: "빠른 체험" (5단계 → 튜토리얼 링크) + "단계별 가이드" (전체 제어)
-- [ ] CLAUDE.md 미러 테이블에 튜토리얼 쌍 추가
+- [x] `docs/TUTORIAL.md` (영어) — 5단계 빠른 경로 + 5개 연습
+- [x] `docs/ko/TUTORIAL.md` (한국어 미러)
+- [x] README 재구성: "빠른 체험" (5단계 → 튜토리얼 링크) + "단계별 가이드" (전체 제어) — `README.md` 의 `## Quick Path — Try Genasis in 5 Minutes` + `## Step-by-Step Guide` 섹션 확인, `README.ko.md` 도 같은 구조
+- [x] CLAUDE.md 미러 테이블에 튜토리얼 쌍 추가 (`docs/TUTORIAL.md` ↔ `docs/ko/TUTORIAL.md`)
 
 ---
 
@@ -966,6 +1049,7 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2).
 - 2026-05-05: **Phase E (Dynamic Agents Catalog) 착수 + E.0~E.6 완료** — ADR-011 채택. `include_dir!()` 제거, GitHub Releases tarball 기반 런타임 fetch 모델로 전환. agents/ 디렉토리에 9역할 best-of-breed base agent (ECC/wshobson/VoltAgent/dl-ezo) + overlay .tera 20개 + commands 16 + hooks 6 + manifest 배치 (57 파일). genasis-templates crate를 fetch+cache+load 라이브러리로 리팩토링 (reqwest/flate2/tar/dirs). genasis-overlay merger/bootstrap를 AgentStore 인터페이스에 연결 (plan_attach, plan_bootstrap 시그니처 변경). CLI `genasis agents {fetch,status,update,list}` 서브커맨드 추가. release-agents.yml CI (agents-v* 태그 → tarball + sha256 자동생성). agents-pool skeleton (config.toml 5소스 + crawl/verify/publish scripts + .gitignore). M14 를 Phase E 로 흡수. 다음: E.7 crawl pipeline 실행 검증 → E.8 private repo push.
 - 2026-05-05: **M14 (Default agentic team bootstrap) 사용자 제기 + 계획 반영**. 사용자 질의 — 빈 프로젝트에서 default agentic team scaffold 가 가능한지. 코드 audit 결과 `genasis-overlay` 는 attach/detach (기존 파일에 fence 주입/회수) 만 지원, base agent 생성 경로 부재. `templates/{en,ko}/agent-overlays/*.patch.md.tera` 도 patch 본문만 (frontmatter / 역할 헤더 없음). 의도적 누락이 아니라 마일스톤 순서가 닿지 않은 영역. blueprint §15 가 ECC 사실상 reference 사용자로 가정해 "agent 파일 이미 있음" 이 암묵적 전제였음. M14 신설로 base + patch 2-layer 구조 + ADR-010 (소유권 경계) + green-field 골든 픽스처 활성화 계획. v0.1.0 release tag 는 M14.0 (ADR-010 ratify) 이후로 이동.
 - 2026-05-04: **M12 v6 audit + 잔여 항목 정리**. progress.ko.md 의 154개 unchecked 가 stale 인지 audit. 결과: M12.3~M12.13 의 거의 모든 작업이 commit 됐지만 per-sub-step 체크박스만 안 닫혀 있었음. 진짜 missing artifacts 채우기 (`logo.svg`, `architecture.svg`, `tests/install_lang_e2e.rs` 6 tests, `cmd_attach.rs --lang` clap conflict 해결 — global `--lang` 만 유지). 모든 M12.3~M12.12 sub-step `[x]` 또는 `[s]` (사유 명시) 로 closure. 누적 cargo test 120 passed. `/work/secusy/genasis/progress.md` (계획 시점 stale 사본) 도 live state 로 sync.
+- 2026-05-08: **Phase G audit + 체크박스 catch-up**. `progress.md`/`progress.ko.md` 를 실제 리포 상태(커밋 e0683de..5bdaadf, build.sh, CONTRIBUTING.md, docs/CREDITS.md)에 맞춰 정리. Phase G 상태 표 G.1~G.8 을 `planning` → `done` 으로 일괄 전환. Trial-app US-001..US-022 모두 `passes: true` (`trial-app/ralph/prd.json`) — 대응 G.5 sub-checkbox 닫고, G.6 (`genasis init --trial`), G.7 (`cmd_example.rs` + 3개 예제 템플릿), G.8 (TUTORIAL.md en/ko + README Quick Path/단계별 재구성 + CLAUDE.md 미러 표) 도 모두 `[x]`. `[s]` 로 남긴 항목 1개: 예제 문서의 영/한 양쪽 버전 — `genasis example --lang` 플래그가 도입되기 전까지는 active-singularity 정책에 따라 영어판만 유지. 미구현으로 남는 영역: M14.0 ratify gate, M14.3~M14.5 (CLI bootstrap wire-up + golden blank fixture + doctor 섹션), Phase F Debug History 루프 전체 (M15~M17).
 - TODO: GitHub `<OWNER>` 결정 필요 (install.sh placeholder)
 - TODO: monitor 의 manifest 해시 비교 — Next.js 외 빌드 시스템(Vite, Turbo, plain) 호환 확인
 - TODO: Atlas 의 DuckDB 지원 상태 재확인 (raw runner 필요 여부 확정)
