@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/genasis-banner-en.png" alt="Genasis — AI-Powered Agentic Team: Tell us your ideas, we'll build it" width="100%">
+
 # Genasis
 
 **AI Agent Orchestration for Real Team Collaboration**

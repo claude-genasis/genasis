@@ -6,7 +6,6 @@ import { useLang } from "@/app/components/LangProvider";
 
 // 1.2× of the original w-80 (320px) / w-96 (384px).
 const SIDEBAR_WIDTH_CLASS = "w-96 sm:w-[460px]";
-const HANDLE_OPEN_LEFT_CLASS = "left-96 sm:left-[460px]";
 
 // 1.3× of the kanban's 630px height = 819px, centered on the
 // kanban's vertical midpoint (315px from the kanban's top).
@@ -14,12 +13,18 @@ const HANDLE_OPEN_LEFT_CLASS = "left-96 sm:left-[460px]";
 const SIDEBAR_HEIGHT_CLASS = "h-[819px]";
 const SIDEBAR_TOP_CLASS = "top-[-95px]";
 
-// When closed, expose 64 px of the sidebar's leading edge so the
-// channel title is partially visible — a clear hint to the user
-// that a chat panel lives there.
+// When closed, expose 64px of the sidebar's trailing edge (right
+// side of the stage) so the channel title is partially visible.
 const SIDEBAR_PEEK = 64;
-const SIDEBAR_CLOSED_TRANSLATE_CLASS = "translate-x-[calc(-100%+64px)]";
-const HANDLE_CLOSED_LEFT_CLASS = "left-[64px]";
+
+// Right sidebar: closed slides RIGHT, showing 64px peek from the
+// right edge. Open sits flush at right-0.
+const SIDEBAR_CLOSED_TRANSLATE_CLASS = "translate-x-[calc(100%-64px)]";
+
+// Handle sits on the sidebar's LEFT edge (facing the kanban).
+// "right" value = sidebar width when open, = peek width when closed.
+const HANDLE_OPEN_RIGHT_CLASS = "right-96 sm:right-[460px]";
+const HANDLE_CLOSED_RIGHT_CLASS = "right-[64px]";
 
 export function ChatSidebar({
   channelName,
@@ -47,14 +52,12 @@ export function ChatSidebar({
         data-peek-px={SIDEBAR_PEEK}
         aria-label={`${channelName} chat sidebar`}
         aria-hidden={!isOpen}
-        className={`absolute left-0 z-30 flex flex-col rounded-lg border border-slate-300 bg-slate-100 shadow-xl transition-transform duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${SIDEBAR_TOP_CLASS} ${SIDEBAR_WIDTH_CLASS} ${SIDEBAR_HEIGHT_CLASS} ${
+        className={`absolute right-0 z-30 flex flex-col rounded-lg border border-slate-300 bg-slate-100 shadow-xl transition-transform duration-300 ease-out dark:border-slate-700 dark:bg-slate-900 ${SIDEBAR_TOP_CLASS} ${SIDEBAR_WIDTH_CLASS} ${SIDEBAR_HEIGHT_CLASS} ${
           isOpen ? "translate-x-0" : SIDEBAR_CLOSED_TRANSLATE_CLASS
         }`}
       >
         <header className="flex shrink-0 items-center justify-between rounded-t-lg border-b border-slate-300 bg-slate-200 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800">
-          <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200">
-            #{channelName}
-          </span>
+          {/* X button on the left (closest to kanban content) */}
           <button
             type="button"
             data-testid="chat-sidebar-close"
@@ -77,11 +80,18 @@ export function ChatSidebar({
               <path d="M3 3 L13 13 M13 3 L3 13" />
             </svg>
           </button>
+          {/* Channel name on the right */}
+          <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200">
+            #{channelName}
+          </span>
         </header>
         <div className="min-h-0 flex-1 overflow-hidden rounded-b-lg">
           {children}
         </div>
       </aside>
+
+      {/* Handle sits on the sidebar's LEFT edge, protruding leftward
+          toward the kanban content. Rounded on the LEFT corners. */}
       <button
         type="button"
         data-testid="chat-sidebar-handle"
@@ -89,11 +99,13 @@ export function ChatSidebar({
         aria-label={isOpen ? closeLabel : openLabel}
         aria-expanded={isOpen}
         title={isOpen ? closeLabel : openLabel}
-        className={`absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-slate-400 bg-slate-800 px-1.5 py-5 text-xs font-bold text-white shadow-md transition-[left] duration-300 ease-out hover:bg-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 ${
-          isOpen ? HANDLE_OPEN_LEFT_CLASS : HANDLE_CLOSED_LEFT_CLASS
+        className={`absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-slate-400 bg-slate-800 px-1.5 py-5 text-xs font-bold text-white shadow-md transition-[right] duration-300 ease-out hover:bg-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 ${
+          isOpen ? HANDLE_OPEN_RIGHT_CLASS : HANDLE_CLOSED_RIGHT_CLASS
         }`}
       >
-        <span aria-hidden="true">{isOpen ? "◀" : "▶"}</span>
+        {/* Chevrons flipped: open → push right to close (▶),
+            closed → pull left to open (◀) */}
+        <span aria-hidden="true">{isOpen ? "▶" : "◀"}</span>
       </button>
     </>
   );
