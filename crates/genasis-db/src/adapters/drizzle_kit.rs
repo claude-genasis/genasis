@@ -36,3 +36,30 @@ pub async fn diff(project_root: &Path) -> Result<String> {
         .map_err(|e| Error::Db(format!("npx drizzle-kit generate: {e}")))?;
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn detected_true_when_ts_config_present() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("drizzle.config.ts"), "// stub").unwrap();
+        assert!(detected(dir.path()));
+    }
+
+    #[test]
+    fn detected_true_when_js_config_present() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("drizzle.config.js"), "// stub").unwrap();
+        assert!(detected(dir.path()));
+    }
+
+    #[test]
+    fn detected_false_when_no_config() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("README.md"), "# project").unwrap();
+        assert!(!detected(dir.path()));
+    }
+}

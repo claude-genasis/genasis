@@ -749,7 +749,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | done |
 | 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | done |
-| 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | pending |
+| 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | done |
 | 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | pending |
 | 7 | M20 | `nightly-e2e.yml` workflow 부활 — `servers/docker-compose.yml` 로 실 Plane + MM 스모크 | pending |
 | 8 | M21 | trial-app Playwright suite — US-001..US-022 acceptance 풀 회귀 | pending |
@@ -758,23 +758,33 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 11 | M17 | 분석 자동화 + 통합 | pending |
 | 12 | v0.1.0 cut | 태그 + release.yml 실행 + 공지 | pending |
 
-### M18 — Golden fixture 재점검 (M14 후, E2E 전)
+### M18 — Golden fixture 재점검 — ✅ commit pending (이 commit)
 
-`tests/golden/` 의 7개 디렉토리를 현재 Genasis 표면에 비추어 재평가한
-다음 `expected/` 를 채운다:
+2026-05-08 audit 결정: golden fixture 는 **결정적 디스크 상태 출력**만
+고정하고, 순수 데이터에 대한 단위 테스트로 표현 가능한 시나리오는 해당
+crate 로 옮긴다. 기존 7개 디렉토리에 적용:
 
-- **유지 + 채움**: `blank/` (M14 bootstrap 진입점), `ecc-only/` (이미
-  채워짐, regression anchor), `with-ko-locale/` (이미 채워짐, i18n anchor).
-- **재범위**: `kw-plugins/`, `legacy-bash-genesis/`, `with-drizzle/`,
-  `with-duckdb/` — 각 fixture 가 사용자가 실제로 밟는 경로를 대표하는지
-  재확인 (kw-plugins overlap, Genesis bash 마이그레이션 서사, Drizzle Kit
-  auto-detect, DuckDB raw_runner fallback). 시나리오가 더 이상 그럴듯하지
-  않으면 폐기, 아니면 채움.
-- **추가 필요 시**: `with-trial/` (trial flavor end-to-end),
-  `bootstrap-then-attach-en/`, `bootstrap-then-attach-ko/` — M19 의 Rust
-  통합 테스트가 더 싸게 같은 시나리오를 잡을 수 있으면 추가하지 않음.
-- `tests/golden/SHARED.md` 표를 결과 roster 와 각 시나리오를 소유한
-  Rust round-trip 테스트로 갱신.
+| 디렉토리 | 결정 | 근거 |
+|---|---|---|
+| `ecc-only/` | **유지** | round-trip + idempotent attach anchor (`golden_ecc_only.rs`). 이미 채워짐. |
+| `blank/` | **유지** | M14 bootstrap 진입점 (`golden_blank.rs`). M14.4 에서 채움. |
+| `with-ko-locale/` | **유지** | 한국어 overlay body anchor — 언어별 디스크 상태 고정 가치. |
+| `kw-plugins/` | **폐기** | detector 가 frontmatter `name:` 만 읽음 — ECC 와 코드 경로 차이 없음. |
+| `legacy-bash-genesis/` | **폐기** | `cmd migrate-from-genesis` 가 v0.1.0 에서 docs-only (M11 [s]). 검증할 코드 경로 없음. |
+| `with-drizzle/` | **폐기** | 단일 `detected()` 호출 → `crates/genasis-db/src/adapters/drizzle_kit.rs::tests` 의 신규 unit test 로 cover. |
+| `with-duckdb/` | **폐기** | 단일 `Driver::parse("duckdb")` → `crates/genasis-db/src/kernel.rs::tests` 에서 이미 cover. |
+
+검토했던 신규 후보 (`with-trial/`, `bootstrap-then-attach-{en,ko}/`)는
+거부 — M19 Rust 통합 스위트가 더 싸게 같은 시나리오 cover.
+
+이 commit 의 산출물:
+- `tests/golden/{kw-plugins,legacy-bash-genesis,with-drizzle,with-duckdb}/` 제거 (`git rm -r`).
+- `crates/genasis-db/src/adapters/drizzle_kit.rs` 에 unit test 3개
+  (`detected_true_when_ts_config_present`, `_when_js_config_present`,
+  `_false_when_no_config`) 추가 — 폐기된 `with-drizzle/` 시나리오의 보장 유지.
+- `tests/golden/SHARED.md` 를 살아남은 3개 fixture + 폐기 목록 + "unit
+  test 우선, golden 차선" 지침으로 재작성.
+- `cargo test --workspace`: 183 → 186 passed.
 
 ### M19 — `tests/e2e/` Rust 통합 스위트 (README parity)
 

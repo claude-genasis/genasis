@@ -690,7 +690,7 @@ Existing team asset recognition and fence injection engine.
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | done |
 | 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | done |
-| 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | pending |
+| 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | done |
 | 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | pending |
 | 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | pending |
 | 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
@@ -699,24 +699,36 @@ Existing team asset recognition and fence injection engine.
 | 11 | M17 | Analysis automation + integration | pending |
 | 12 | v0.1.0 cut | tag + release.yml run + announcement | pending |
 
-### M18 — Golden fixture audit (post-M14, pre-E2E)
+### M18 — Golden fixture audit — ✅ commit pending (this commit)
 
-Re-evaluate the seven directories under `tests/golden/` against the
-current Genasis surface area before populating expected/ snapshots:
+2026-05-08 audit decision: golden fixtures should pin **deterministic
+disk-state output** only; any scenario expressible as a unit test
+against pure data belongs in the relevant crate. Applied to the seven
+existing directories:
 
-- **Keep + populate**: `blank/` (M14 bootstrap entry point), `ecc-only/`
-  (already populated, regression anchor), `with-ko-locale/` (already
-  populated, i18n anchor).
-- **Re-scope**: `kw-plugins/`, `legacy-bash-genesis/`, `with-drizzle/`,
-  `with-duckdb/` — confirm each still represents a path users actually
-  hit (knowledge-work-plugins overlap, Genesis bash migration story,
-  Drizzle Kit auto-detect, DuckDB raw_runner fallback). Retire any
-  fixture whose user journey is no longer plausible; populate the rest.
-- **Add as needed**: `with-trial/` (trial flavor end-to-end),
-  `bootstrap-then-attach-en/`, `bootstrap-then-attach-ko/` — only if M19
-  cannot cover the case more cheaply via Rust integration tests.
-- Update `tests/golden/SHARED.md` with the resulting roster + each
-  scenario's owning Rust round-trip test.
+| Directory | Decision | Rationale |
+|---|---|---|
+| `ecc-only/` | **Keep** | Round-trip + idempotent attach anchor (`golden_ecc_only.rs`). Already populated. |
+| `blank/` | **Keep** | M14 bootstrap entry point (`golden_blank.rs`). Populated under M14.4. |
+| `with-ko-locale/` | **Keep** | Korean overlay body anchor — language-specific disk state worth pinning. |
+| `kw-plugins/` | **Retire** | Detector only reads frontmatter `name:`; no code-level distinction from ECC. |
+| `legacy-bash-genesis/` | **Retire** | `cmd migrate-from-genesis` is docs-only for v0.1.0 (M11 [s]). No code path to exercise. |
+| `with-drizzle/` | **Retire** | Single `detected()` call → covered by new unit tests in `crates/genasis-db/src/adapters/drizzle_kit.rs::tests`. |
+| `with-duckdb/` | **Retire** | Single `Driver::parse("duckdb")` → already covered by unit tests in `crates/genasis-db/src/kernel.rs::tests`. |
+
+Optional additions considered (`with-trial/`, `bootstrap-then-attach-{en,ko}/`)
+were rejected — they are cheaper to cover via the M19 Rust integration
+suite.
+
+Deliverables in this commit:
+- `tests/golden/{kw-plugins,legacy-bash-genesis,with-drizzle,with-duckdb}/` removed (`git rm -r`).
+- `crates/genasis-db/src/adapters/drizzle_kit.rs` gains 3 unit tests
+  (`detected_true_when_ts_config_present`, `_when_js_config_present`,
+  `_false_when_no_config`) so the retired `with-drizzle/` scenario is
+  not lost.
+- `tests/golden/SHARED.md` rewritten with the surviving 3 fixtures +
+  retired list + "unit test first, golden second" guidance.
+- `cargo test --workspace`: 183 → 186 passed.
 
 ### M19 — `tests/e2e/` Rust integration suite (README parity)
 
