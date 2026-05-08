@@ -69,7 +69,7 @@ function LiveSection({ lang }: { lang: Lang }) {
   return (
     <section
       aria-labelledby="live-heading"
-      className="mx-auto max-w-6xl space-y-4"
+      className="relative mx-auto max-w-6xl space-y-4"
       data-testid="live-section"
     >
       <h1 id="live-heading" className="text-2xl font-semibold">
