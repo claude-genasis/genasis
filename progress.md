@@ -696,7 +696,7 @@ Existing team asset recognition and fence injection engine.
 | 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
 | 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | done |
-| 11 | M17 | Analysis automation + integration | pending |
+| 11 | M17 | Analysis automation + integration | done |
 | 12 | v0.1.0 cut | tag + release.yml run + announcement | pending |
 
 ### M18 — Golden fixture audit — ✅ commit pending (this commit)

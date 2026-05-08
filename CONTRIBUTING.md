@@ -99,3 +99,28 @@ The list is intentionally short and grouped by which kind of contribution needs 
 ## Found a bug?
 
 Open an issue using the bug template at `.github/ISSUE_TEMPLATE/bug.md`. Please include the output of `genasis lang status` and the OS / `uname -a` line.
+
+## Submitting debug-history patches
+
+ADR-012 §8 ("Data-Only PR Model") gives users a way to share the
+overlay edits they made in their own projects without forking the
+repo. Run:
+
+```bash
+genasis debug status      # see what drifted vs the manifest
+genasis debug collect     # write an anonymised patch.json under
+                          # ~/.genasis/debug-history/<project-hash>/
+genasis debug submit      # opens a PR that adds the patch under
+                          # debug-history/patches/. Rate-limited to 1
+                          # submit per project per 24 h.
+```
+
+What contributors **may** include in such a PR:
+
+- Exactly one new file under `debug-history/patches/*.patch.json`.
+
+Anything else on the same PR — template edits, code changes, doc
+edits — fails `.github/workflows/debug-history-pr.yml`. Maintainers
+process accumulated patches via the `/debug-review` skill (see
+`.claude/skills/debug-review/`) and land template fixes in separate,
+cited PRs.

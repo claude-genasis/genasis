@@ -99,3 +99,22 @@ cargo test --workspace --no-fail-fast
 ## 버그 발견 시
 
 `.github/ISSUE_TEMPLATE/bug.md` 의 bug 템플릿으로 issue 열기. `genasis lang status` 출력과 OS / `uname -a` 행을 함께 첨부해 주세요.
+
+## debug-history 패치 제출
+
+ADR-012 §8 (Data-Only PR Model) 에 따라 사용자가 본인 프로젝트에서 만든
+overlay 수정사항을 fork 없이 공유할 수 있다.
+
+```bash
+genasis debug status      # 매니페스트 대비 무엇이 drift 됐는지 확인
+genasis debug collect     # 익명화된 patch.json 을
+                          # ~/.genasis/debug-history/<project-hash>/ 에 작성
+genasis debug submit      # patch 를 debug-history/patches/ 에 추가하는 PR
+                          # 을 연다. 프로젝트당 24시간에 1회 제한.
+```
+
+기여자가 PR 에 포함할 수 있는 것은 **`debug-history/patches/*.patch.json`
+하나뿐**이다. 템플릿 수정·코드 변경·문서 변경이 같은 PR 에 섞이면
+`.github/workflows/debug-history-pr.yml` 에 의해 거부된다. 메인테이너는
+누적된 패치를 `/debug-review` skill (`.claude/skills/debug-review/`) 로
+처리해 별도 PR 에서 템플릿을 수정한다.

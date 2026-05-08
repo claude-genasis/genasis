@@ -34,3 +34,9 @@
 ## 토큰 경제
 - RTK 가 설치되어 있으면 자동 등록.
 - 이 파일의 안정 prefix 순서는 의도적입니다 — `genasis upgrade` 없이 섹션 순서를 바꾸지 마세요.
+
+## Debug history (ADR-012)
+- `.claude/genasis/.manifest.json` 이 관리 파일의 sha256 을 기록 — 매 CLI 호출에서 drift 비교.
+- fence 밖은 자유롭게 편집 가능. `genasis debug status` 로 변경 사항을 본 뒤 `genasis debug collect` 로 익명화된 patch.json 생성, `genasis debug submit` 으로 genasis 본 리포에 PR 형태로 기여.
+- ADR-012 §8: 기여자는 `debug-history/patches/*.patch.json` 만 추가하는 PR 만 허용 — 템플릿 수정은 메인테이너가 `/debug-review` 스킬로 처리.
+- 비활성화: `GENASIS_DEBUG_DRIFT=0`.

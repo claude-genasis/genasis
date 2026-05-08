@@ -755,7 +755,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 8 | M21 | trial-app Playwright suite — US-001..US-022 acceptance 풀 회귀 | pending |
 | 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
 | 10 | M16 | `genasis debug submit` (PR-only, ADR-012 §8) + `debug-history/` 리포 구조 + workflow + skill | done |
-| 11 | M17 | 분석 자동화 + 통합 | pending |
+| 11 | M17 | 분석 자동화 + 통합 | done |
 | 12 | v0.1.0 cut | 태그 + release.yml 실행 + 공지 | pending |
 
 ### M18 — Golden fixture 재점검 — ✅ commit pending (이 commit)
