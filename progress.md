@@ -650,12 +650,12 @@ Existing team asset recognition and fence injection engine.
 - [x] `genasis-i18n/locales/{en,ko}.yml` keys added: `bootstrap.no_agents_hint`, `bootstrap.scaffolded_summary` (`%{count}`), `bootstrap.skipped_existing` (`%{name}`), `bootstrap.next_step`.
 - [x] `--lang` priority — `cmd_bootstrap::run` calls `lang_prompt::decide` identically to `cmd_attach::pub_run`, so the global `--lang` flag picks the same locale for both base and patch trees. Unit tests `parse_roles_*` cover role-subset path.
 
-### M14.4 — `tests/golden/blank/` activation
-- [ ] `tests/golden/blank/input/` — empty mock project (README.md only, no `.claude/`)
-- [ ] `tests/golden/blank/expected/` — output of `genasis init --bootstrap --lang en` (10 base agent files + GENASIS.md + .claude/genasis/* etc.)
-- [ ] `crates/genasis-overlay/tests/golden_blank.rs` new — round-trip (bootstrap → attach → detach → compare)
-- [ ] `tests/golden/SHARED.md` table: blank scenario row updated (M2 stub → M14 active)
-- [ ] (optional) `tests/golden/blank-ko/` — `--lang ko` variant
+### M14.4 — `tests/golden/blank/` activation — ✅ commit pending (this commit)
+- [x] `tests/golden/blank/input/` — empty mock project (README.md only, no `.claude/`)
+- [x] `tests/golden/blank/expected/` — bootstrap+attach output (10 fenced agent files + README.md), populated via `BLESS=1 cargo test`
+- [x] `crates/genasis-overlay/tests/golden_blank.rs` — two tests: bootstrap+attach+detach round-trip + expected/ snapshot equality (BLESS=1 to refresh)
+- [x] `tests/golden/SHARED.md` table: blank row flipped to **Active** with test path + BLESS hint
+- [s] `tests/golden/blank-ko/` — deferred to M18 audit. Per the user's M18 directive ("intent re-check first") we will decide on language variants alongside the rest of the fixture roster instead of adding one ad-hoc here.
 
 ### M14.5 — Doctor + retrospective
 - [ ] `cmd_doctor.rs` `[bootstrap]` section:
@@ -688,7 +688,7 @@ Existing team asset recognition and fence injection engine.
 |---|---|---|---|
 | 1 | M14.0 | ADR-010 ratify gate | done |
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | done |
-| 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | pending |
+| 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | pending |
 | 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | pending |
 | 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | pending |

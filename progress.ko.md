@@ -710,16 +710,12 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 - [x] `genasis-i18n/locales/{en,ko}.yml` 에 키 추가: `bootstrap.no_agents_hint`, `bootstrap.scaffolded_summary` (`%{count}`), `bootstrap.skipped_existing` (`%{name}`), `bootstrap.next_step`.
 - [x] `--lang` 우선순위 — `cmd_bootstrap::run` 이 `cmd_attach::pub_run` 과 동일한 `lang_prompt::decide` 를 호출. 글로벌 `--lang` 플래그가 base/patch 양쪽 트리에 동일하게 적용. `parse_roles_*` 단위 테스트로 role-subset 경로 검증.
 
-### M14.4 — `tests/golden/blank/` 활성화
-- [ ] `tests/golden/blank/input/` — 비어있는 mock project (Cargo.toml
-  대신 README.md 정도만, `.claude/` 자체 없음)
-- [ ] `tests/golden/blank/expected/` — `genasis init --bootstrap --lang en`
-  실행 후 산출물 (10 base agent 파일 + GENASIS.md + .claude/genasis/* 등)
-- [ ] `crates/genasis-overlay/tests/golden_blank.rs` 신규 — round-trip
-  (bootstrap → attach → detach → 비교)
-- [ ] `tests/golden/SHARED.md` 표에 blank 시나리오 행 갱신 (M2 의 stub
-  → M14 active)
-- [ ] (옵션) `tests/golden/blank-ko/` — `--lang ko` 변종
+### M14.4 — `tests/golden/blank/` 활성화 — ✅ commit pending (이 commit)
+- [x] `tests/golden/blank/input/` — README.md 만 있는 빈 mock project (`.claude/` 없음)
+- [x] `tests/golden/blank/expected/` — bootstrap+attach 산출물 (펜스가 들어간 10개 에이전트 파일 + README.md), `BLESS=1 cargo test` 로 채움
+- [x] `crates/genasis-overlay/tests/golden_blank.rs` — 두 개 테스트: bootstrap+attach+detach round-trip + expected/ snapshot 동치 비교 (`BLESS=1` 으로 갱신)
+- [x] `tests/golden/SHARED.md` 표의 blank 행을 **Active** 로 변경 + 테스트 경로 + BLESS 힌트
+- [s] `tests/golden/blank-ko/` — M18 audit 으로 미룸. 사용자 지시("의도 재점검 후 결정")에 따라 ad-hoc 으로 추가하지 않고 fixture roster 전체와 함께 결정.
 
 ### M14.5 — Doctor + 회고
 - [ ] `cmd_doctor.rs` `[bootstrap]` 섹션 추가:
@@ -752,7 +748,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 |---|---|---|---|
 | 1 | M14.0 | ADR-010 ratify gate | done |
 | 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | done |
-| 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | pending |
+| 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | done |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | pending |
 | 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | pending |
 | 6 | M19 | `tests/e2e/` Rust 통합 스위트 — README 13개 명령 모두 (기본 백엔드 trial flavor) | pending |
