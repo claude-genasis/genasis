@@ -27,6 +27,12 @@ attach:
   refused: "%{count} file(s) refused; pass --force to overwrite or fix the issues listed above."
   wrote_summary: "wrote %{count} file(s); %{backups} backup(s) created"
 
+bootstrap:
+  no_agents_hint: "no agents detected under .claude/agents/ — run `genasis bootstrap` (or `genasis init --bootstrap`) to scaffold the default 10-role team."
+  scaffolded_summary: "%{count} default agents created."
+  skipped_existing: "Nothing scaffolded — %{name} already in place."
+  next_step: "Next: run `genasis attach` to inject the protocol overlay into the freshly scaffolded agents."
+
 detach:
   starting: "Detaching Genasis overlay..."
   success: "Removed overlay from %{count} agent files."

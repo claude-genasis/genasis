@@ -22,9 +22,39 @@ pub struct Args {
     /// the trial-app demo at http://localhost:3000.
     #[arg(long)]
     pub trial: bool,
+
+    /// Alias for `genasis bootstrap` — scaffold canonical 10-role base
+    /// agent files when `.claude/agents/` is empty, then auto-chain into
+    /// `attach`. ADR-010 §3 decision (b)+(d).
+    #[arg(long)]
+    pub bootstrap: bool,
+
+    /// Comma-separated subset of roles for `--bootstrap`. Forwarded to
+    /// `cmd_bootstrap`.
+    #[arg(long, value_name = "LIST")]
+    pub roles: Option<String>,
 }
 
 pub async fn run(args: Args) -> Result<()> {
+    run_with_globals(args, None, false, false).await
+}
+
+pub async fn run_with_globals(
+    args: Args,
+    lang_flag: Option<String>,
+    non_interactive: bool,
+    assume_yes: bool,
+) -> Result<()> {
+    if args.bootstrap {
+        let bootstrap_args = crate::cmd_bootstrap::Args {
+            project: args.project.clone(),
+            roles: args.roles.clone(),
+            no_attach_after: false,
+            dry_run: false,
+        };
+        return crate::cmd_bootstrap::run(bootstrap_args, lang_flag, non_interactive, assume_yes)
+            .await;
+    }
     if args.trial {
         return run_trial(args).await;
     }
@@ -298,6 +328,8 @@ mod tests {
             project: Some(tmp.path().to_path_buf()),
             probe_only: true,
             trial: true,
+            bootstrap: false,
+            roles: None,
         };
         run_trial(args).await.expect("trial probe_only succeeds");
         let cfg = std::fs::read_to_string(tmp.path().join(CONFIG_FILE_NAME)).unwrap();
@@ -315,6 +347,8 @@ mod tests {
             project: Some(tmp.path().to_path_buf()),
             probe_only: true,
             trial: true,
+            bootstrap: false,
+            roles: None,
         };
         run_trial(args).await.unwrap();
         let cfg = std::fs::read_to_string(&cfg_path).unwrap();

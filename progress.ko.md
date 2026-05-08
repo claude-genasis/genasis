@@ -702,21 +702,13 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
   - [x] `bootstrap_partial_then_attach_handles_mix` — 사용자 author 한
     frontend.md 가 bootstrap 에 의해 byte-identical 보존됨
 
-### M14.3 — CLI wire-up
-- [ ] `crates/genasis-cli/src/cmd_init.rs` 에 `--bootstrap` flag 추가:
-  - [ ] flag set 시 `plan_bootstrap` → `apply_bootstrap` → 자동 후속
-    `cmd_attach` 호출 (또는 사용자에게 다음 step 안내)
-  - [ ] flag unset + 빈 `.claude/agents/` → 기존 동작 유지하되 stderr 에
-    "no agents detected — run `genasis init --bootstrap` to scaffold the
-    default team" 안내 (i18n key)
-- [ ] 또는 (대안) `cmd_attach.rs` 에 `--bootstrap` 추가 — ADR-010 에서 결정
-- [ ] `genasis-i18n/locales/{en,ko}.yml` 에 키 추가:
-  - `bootstrap.no_agents_hint`
-  - `bootstrap.scaffolded_summary` (`{count} default agents created`)
-  - `bootstrap.skipped_existing` (`{name} already exists, skipped`)
-  - `bootstrap.next_step` (다음 `attach` 호출 안내)
-- [ ] `--lang` 우선순위가 base + patch 양쪽에 동일하게 적용되는지 확인
-  (base 트리도 `templates/<lang>/agents/` 에서 픽업)
+### M14.3 — CLI wire-up — ✅ commit pending (이 commit)
+- [x] `crates/genasis-cli/src/cmd_bootstrap.rs` 신설 — `genasis bootstrap [--lang] [--roles] [--no-attach-after] [--dry-run] [--project]`. agents 카탈로그 로드 → `plan_bootstrap` → `apply_bootstrap` → `--no-attach-after` 가 없으면 `cmd_attach::pub_run` 자동 chain.
+- [x] `crates/genasis-cli/src/cmd_init.rs` 에 `--bootstrap` alias + `--roles` forwarder 추가. 내부적으로 `cmd_bootstrap::run` 으로 위임 — 두 진입점이 byte-identical.
+- [x] `crates/genasis-cli/src/cmd_attach.rs` empty-dir hint: `report.agents` 와 `report.skipped` 가 모두 비어 있으면 stderr 에 `bootstrap.no_agents_hint` 출력 후 계속 진행 (기존 비파괴 동작 유지).
+- [s] `cmd_attach --bootstrap` 대안 — ADR-010 §3 (b)+(d) 에 따라 거부. 단일 canonical 진입점 + `init --bootstrap` alias 유지.
+- [x] `genasis-i18n/locales/{en,ko}.yml` 에 키 추가: `bootstrap.no_agents_hint`, `bootstrap.scaffolded_summary` (`%{count}`), `bootstrap.skipped_existing` (`%{name}`), `bootstrap.next_step`.
+- [x] `--lang` 우선순위 — `cmd_bootstrap::run` 이 `cmd_attach::pub_run` 과 동일한 `lang_prompt::decide` 를 호출. 글로벌 `--lang` 플래그가 base/patch 양쪽 트리에 동일하게 적용. `parse_roles_*` 단위 테스트로 role-subset 경로 검증.
 
 ### M14.4 — `tests/golden/blank/` 활성화
 - [ ] `tests/golden/blank/input/` — 비어있는 mock project (Cargo.toml
@@ -759,7 +751,7 @@ repo 초기 구조와 진행 추적 인프라. **소스 트리 전체를 `genasi
 | 순서 | 마일스톤 | 범위 | 상태 |
 |---|---|---|---|
 | 1 | M14.0 | ADR-010 ratify gate | done |
-| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | pending |
+| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + i18n 키 4개 | done |
 | 3 | M14.4 | `tests/golden/blank/` 활성화 (input + expected + round-trip) | pending |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` 섹션 + retro + DoD | pending |
 | 5 | M18 | Golden fixture 재점검 — 유지/폐기/추가 결정 후 살아남은 fixture `expected/` 채움 | pending |

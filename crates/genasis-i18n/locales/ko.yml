@@ -28,6 +28,12 @@ attach:
   refused: "%{count}개 파일이 거부됨 (Tampered/RoleMismatch). 위 diff 를 확인한 뒤 --force 로 다시 실행하거나 문제를 직접 수정하세요."
   wrote_summary: "%{count}개 파일 작성, %{backups}개 백업 생성"
 
+bootstrap:
+  no_agents_hint: ".claude/agents/ 에 에이전트 파일이 없습니다 — `genasis bootstrap` (또는 `genasis init --bootstrap`) 으로 기본 10개 역할 팀을 scaffold 하세요."
+  scaffolded_summary: "기본 에이전트 %{count}개를 생성했습니다."
+  skipped_existing: "scaffold 할 항목이 없습니다 — %{name} 이 이미 존재합니다."
+  next_step: "다음 단계: `genasis attach` 로 새로 생성된 에이전트에 프로토콜 오버레이를 주입하세요."
+
 detach:
   starting: "Genasis overlay 를 분리합니다..."
   success: "%{count}개 에이전트 파일에서 overlay 를 제거했습니다."

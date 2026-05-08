@@ -74,6 +74,11 @@ pub async fn pub_run(
             tracing::warn!(path = %path.display(), reason = %why, "skipped agent");
         }
     }
+    // ADR-010 §3: if no agents are present at all, surface the bootstrap
+    // entry point instead of silently doing nothing.
+    if report.agents.is_empty() && report.skipped.is_empty() {
+        eprintln!("{}", genasis_i18n::tr("bootstrap.no_agents_hint"));
+    }
 
     let context = build_context(&project_root)?;
     let opts = AttachOptions {

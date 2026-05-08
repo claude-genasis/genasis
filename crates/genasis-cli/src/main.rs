@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod cmd_attach;
+mod cmd_bootstrap;
 mod cmd_db;
 mod cmd_design;
 mod cmd_detach;
@@ -40,6 +41,10 @@ struct Cli {
 enum Cmd {
     /// Bootstrap a blank project: ECC team + overlay + Plane/MM provisioning
     Init(cmd_init::Args),
+    /// Scaffold canonical 10-role base agent files into `.claude/agents/`
+    /// (green-field projects). Auto-chains to `attach` unless
+    /// `--no-attach-after`. ADR-010 §3.
+    Bootstrap(cmd_bootstrap::Args),
     /// Attach overlay onto an existing agentic team
     Attach(cmd_attach::Args),
     /// Remove the overlay (marker fences only)
@@ -82,7 +87,13 @@ async fn main() -> Result<()> {
         "i18n locale installed"
     );
     match cli.command {
-        Cmd::Init(a) => cmd_init::run(a).await,
+        Cmd::Init(a) => {
+            cmd_init::run_with_globals(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes)
+                .await
+        }
+        Cmd::Bootstrap(a) => {
+            cmd_bootstrap::run(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes).await
+        }
         Cmd::Attach(a) => {
             cmd_attach::pub_run(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes).await
         }

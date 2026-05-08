@@ -642,17 +642,13 @@ Existing team asset recognition and fence injection engine.
   - [x] `bootstrap_ko_then_attach_ko_injects_korean_overlay` — `--lang ko` chain verified, backend.md attach output contains Korean protocol header "Plane / Mattermost 프로토콜"
   - [x] `bootstrap_partial_then_attach_handles_mix` — user-authored frontend.md preserved byte-identical by bootstrap
 
-### M14.3 — CLI wire-up
-- [ ] `crates/genasis-cli/src/cmd_init.rs` gets `--bootstrap` flag:
-  - [ ] flag set → `plan_bootstrap` → `apply_bootstrap` → auto-chain `cmd_attach` (or guide user to next step)
-  - [ ] flag unset + empty `.claude/agents/` → existing behaviour, but stderr hint: "no agents detected — run `genasis init --bootstrap` to scaffold the default team" (i18n key)
-- [ ] Or (alternative) `cmd_attach.rs` gets `--bootstrap` — ADR-010 decides
-- [ ] `genasis-i18n/locales/{en,ko}.yml` keys added:
-  - `bootstrap.no_agents_hint`
-  - `bootstrap.scaffolded_summary` (`{count} default agents created`)
-  - `bootstrap.skipped_existing` (`{name} already exists, skipped`)
-  - `bootstrap.next_step` (next `attach` invocation guidance)
-- [ ] `--lang` priority applies identically to base + patch (base tree also from `templates/<lang>/agents/`)
+### M14.3 — CLI wire-up — ✅ commit pending (this commit)
+- [x] `crates/genasis-cli/src/cmd_bootstrap.rs` new — `genasis bootstrap [--lang] [--roles] [--no-attach-after] [--dry-run] [--project]`. Loads agents catalog, calls `plan_bootstrap` → `apply_bootstrap`, auto-chains `cmd_attach::pub_run` unless `--no-attach-after`.
+- [x] `crates/genasis-cli/src/cmd_init.rs` gets `--bootstrap` alias + `--roles` forwarder. Delegates straight to `cmd_bootstrap::run` so the two entry points stay byte-identical.
+- [x] `crates/genasis-cli/src/cmd_attach.rs` empty-dir hint: when `report.agents` and `report.skipped` are both empty, stderr emits `bootstrap.no_agents_hint` and continues (existing non-destructive behaviour preserved).
+- [s] `cmd_attach --bootstrap` alternative path — rejected per ADR-010 §3 (b)+(d). Single canonical entry point + `init --bootstrap` alias keeps the surface coherent.
+- [x] `genasis-i18n/locales/{en,ko}.yml` keys added: `bootstrap.no_agents_hint`, `bootstrap.scaffolded_summary` (`%{count}`), `bootstrap.skipped_existing` (`%{name}`), `bootstrap.next_step`.
+- [x] `--lang` priority — `cmd_bootstrap::run` calls `lang_prompt::decide` identically to `cmd_attach::pub_run`, so the global `--lang` flag picks the same locale for both base and patch trees. Unit tests `parse_roles_*` cover role-subset path.
 
 ### M14.4 — `tests/golden/blank/` activation
 - [ ] `tests/golden/blank/input/` — empty mock project (README.md only, no `.claude/`)
@@ -691,7 +687,7 @@ Existing team asset recognition and fence injection engine.
 | Order | Milestone | Scope | Status |
 |---|---|---|---|
 | 1 | M14.0 | ADR-010 ratify gate | done |
-| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | pending |
+| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | done |
 | 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | pending |
 | 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | pending |
 | 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | pending |
