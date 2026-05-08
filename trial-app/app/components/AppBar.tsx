@@ -16,7 +16,7 @@ const TABS: { key: TrialTab; labelKey: string }[] = [
 export function AppBar({ activeTab }: { activeTab: TrialTab }) {
   const { t } = useLang();
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white/80 px-6 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/80">
+    <header className="sticky top-0 z-50 flex items-center justify-between border-b border-neutral-200 bg-white/80 px-6 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/80">
       <Link
         href={{ pathname: "/", query: { tab: "demo" } }}
         className="text-lg font-semibold tracking-tight"
