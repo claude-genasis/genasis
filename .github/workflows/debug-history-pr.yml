@@ -1,12 +1,19 @@
 name: debug-history PR gate
 
-# ADR-012 §8 — Data-Only PR Model. Enforces that contributor PRs which
-# touch debug-history/ only ever add files under
+# ADR-012 §8 — Data-Only PR Model. Enforces that *external contributor*
+# PRs which touch debug-history/ only ever add files under
 # `debug-history/patches/*.patch.json`. The validator:
 #   1. fails the PR if any other path in debug-history/ changed.
 #   2. validates each added/modified patch against schema.json.
 #   3. rejects executable content (shebangs, common script patterns).
 #   4. labels the PR `debug-history` + assigns the maintainer.
+#
+# Maintainer PRs (branches inside this repo, not forks) bypass the gate
+# because maintainers legitimately ship infrastructure changes (schemas,
+# READMEs, analysis artefacts) that contributors must not. The
+# `if: github.event.pull_request.head.repo.fork` condition below
+# implements that distinction — fork PRs run the gate, internal PRs
+# skip it.
 
 on:
   pull_request:
@@ -19,6 +26,7 @@ permissions:
 
 jobs:
   validate:
+    if: github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
