@@ -1,0 +1,52 @@
+name: Pages
+
+# Replaces the legacy auto-injected Jekyll Pages workflow that was failing
+# at the Checkout step every push: the legacy workflow uses
+# `submodules: recursive` with the default GITHUB_TOKEN, which cannot read
+# the private `agents-pool` submodule. This workflow checks out without
+# submodules (the /docs/ Jekyll source does not depend on agents-pool) and
+# uses the official Pages actions to build + deploy.
+#
+# To activate this workflow as the source of GitHub Pages:
+#   gh api -X PUT repos/claude-genasis/genasis/pages -f build_type=workflow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/configure-pages@v5
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

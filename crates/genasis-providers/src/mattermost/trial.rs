@@ -49,8 +49,7 @@ impl TrialMattermost {
     }
 
     fn actor() -> String {
-        std::env::var("GENASIS_TRIAL_ACTOR")
-            .unwrap_or_else(|_| DEFAULT_ACTOR.to_string())
+        std::env::var("GENASIS_TRIAL_ACTOR").unwrap_or_else(|_| DEFAULT_ACTOR.to_string())
     }
 }
 
@@ -111,9 +110,11 @@ impl MattermostProvider for TrialMattermost {
     }
 
     async fn post_root(&self, channel_id: &str, message: &str) -> Result<PostRef> {
-        let cid: i64 = channel_id
-            .parse()
-            .map_err(|e| Error::Provider(format!("trial mm post_root: bad channel_id `{channel_id}`: {e}")))?;
+        let cid: i64 = channel_id.parse().map_err(|e| {
+            Error::Provider(format!(
+                "trial mm post_root: bad channel_id `{channel_id}`: {e}"
+            ))
+        })?;
         let body = json!({
             "channel_id": cid,
             "actor": Self::actor(),
@@ -147,18 +148,17 @@ impl MattermostProvider for TrialMattermost {
         })
     }
 
-    async fn post_thread(
-        &self,
-        channel_id: &str,
-        root_id: &str,
-        message: &str,
-    ) -> Result<PostRef> {
-        let cid: i64 = channel_id
-            .parse()
-            .map_err(|e| Error::Provider(format!("trial mm post_thread: bad channel_id `{channel_id}`: {e}")))?;
-        let rid: i64 = root_id
-            .parse()
-            .map_err(|e| Error::Provider(format!("trial mm post_thread: bad root_id `{root_id}`: {e}")))?;
+    async fn post_thread(&self, channel_id: &str, root_id: &str, message: &str) -> Result<PostRef> {
+        let cid: i64 = channel_id.parse().map_err(|e| {
+            Error::Provider(format!(
+                "trial mm post_thread: bad channel_id `{channel_id}`: {e}"
+            ))
+        })?;
+        let rid: i64 = root_id.parse().map_err(|e| {
+            Error::Provider(format!(
+                "trial mm post_thread: bad root_id `{root_id}`: {e}"
+            ))
+        })?;
         let body = json!({
             "channel_id": cid,
             "root_id": rid,
