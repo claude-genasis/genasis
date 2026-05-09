@@ -105,9 +105,7 @@ impl PlaneProvider for TrialPlane {
         v.get("slug")
             .and_then(|x| x.as_str())
             .map(String::from)
-            .ok_or_else(|| {
-                Error::Provider(format!("trial plane ensure_project: no slug in {v}"))
-            })
+            .ok_or_else(|| Error::Provider(format!("trial plane ensure_project: no slug in {v}")))
     }
 
     async fn ensure_label(&self, _project_id: &str, name: &str, _color: &str) -> Result<LabelRef> {

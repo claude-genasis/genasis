@@ -195,7 +195,10 @@ async fn run_trial(args: Args) -> Result<()> {
         std::env::current_dir()?
     };
 
-    println!("→ Initializing trial-mode project at {}", project_root.display());
+    println!(
+        "→ Initializing trial-mode project at {}",
+        project_root.display()
+    );
 
     let cfg_path = project_root.join(CONFIG_FILE_NAME);
     if !cfg_path.exists() {
@@ -214,10 +217,7 @@ async fn run_trial(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    let assume_yes = std::env::var("GENASIS_TRIAL_AUTOLAUNCH")
-        .ok()
-        .as_deref()
-        == Some("1");
+    let assume_yes = std::env::var("GENASIS_TRIAL_AUTOLAUNCH").ok().as_deref() == Some("1");
     let launch = if assume_yes {
         true
     } else {
@@ -247,16 +247,11 @@ async fn run_trial(args: Args) -> Result<()> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let child = cmd
-        .spawn()
-        .with_context(|| format!("spawn `{cmd_str}`"))?;
+    let child = cmd.spawn().with_context(|| format!("spawn `{cmd_str}`"))?;
     let pid = child.id();
     let pid_path = project_root.join(".genasis/trial.pid");
     fs::write(&pid_path, pid.to_string()).ok();
-    println!(
-        "  trial-app PID {pid} (recorded at {})",
-        pid_path.display()
-    );
+    println!("  trial-app PID {pid} (recorded at {})", pid_path.display());
 
     let url = "http://localhost:3000";
     if let Some(opener) = pick_browser_opener() {
