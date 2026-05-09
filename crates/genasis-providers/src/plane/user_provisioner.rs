@@ -18,6 +18,22 @@ pub struct AgentRequest {
     pub email: String,
 }
 
+/// Human team-member to provision into the Plane workspace as a
+/// regular Member (not a bot). Differs from `AgentRequest` in that no
+/// PAT is issued — humans authenticate via the Plane UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumanRequest {
+    pub name: String,
+    pub email: String,
+    /// Stakeholder label (free-form), forwarded for telemetry only.
+    #[serde(default)]
+    pub role: String,
+    /// Plane workspace role — "Admin" | "Member" | "Guest" |
+    /// "Viewer". Defaults to "Member" when empty.
+    #[serde(default)]
+    pub plane_role: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvisionInput {
     pub plane_url: String,
@@ -25,6 +41,11 @@ pub struct ProvisionInput {
     pub admin_email: String,
     pub admin_password: String,
     pub agents: Vec<AgentRequest>,
+    /// Human team members to invite/create alongside agents. Optional —
+    /// older provisioner scripts that do not understand this field will
+    /// simply ignore it.
+    #[serde(default)]
+    pub humans: Vec<HumanRequest>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,10 +57,22 @@ pub struct ProvisionedAgent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvisionedHuman {
+    pub email: String,
+    pub user_id: String,
+    /// "invited" (email pending) | "joined" (already on workspace).
+    /// Diagnostic only.
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvisionOutput {
     pub status: String,
     #[serde(default)]
     pub agents: Vec<ProvisionedAgent>,
+    #[serde(default)]
+    pub humans: Vec<ProvisionedHuman>,
     #[serde(default)]
     pub error: Option<String>,
     #[serde(default)]

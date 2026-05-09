@@ -16,6 +16,23 @@ url = "{{ mm_url }}"
 flavor = "{{ mm_flavor | default(value=\"auto\") }}"
 team_name = "{{ mm_team_name }}"
 
+# Human team members. Their messages on #scrum-{{ project_name }} are
+# treated by agents as binding stakeholder requirements (ADR-014).
+# Edit via `genasis humans add/edit/remove` or the TUI wizard.
+{% if humans %}{% for h in humans %}
+[[humans]]
+name  = "{{ h.name }}"
+email = "{{ h.email }}"
+role  = "{{ h.role | default(value=\"stakeholder\") }}"
+{% if h.mm_username %}mm_username = "{{ h.mm_username }}"{% endif %}
+{% if h.locale %}locale = "{{ h.locale }}"{% endif %}
+{% endfor %}{% else %}
+# [[humans]]
+# name  = "Your Name"
+# email = "you@example.com"
+# role  = "stakeholder"
+{% endif %}
+
 {% if db_driver %}
 [db]
 driver = "{{ db_driver }}"           # postgres | mysql | sqlite | duckdb

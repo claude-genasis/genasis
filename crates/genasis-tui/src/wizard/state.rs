@@ -141,7 +141,55 @@ pub enum ConnStatus {
     Skipped,
 }
 
-/// Step 5: Overlay injection plan + apply.
+/// Step 5: Human roster CRUD. Loaded from `genasis.toml` on enter,
+/// persisted back on advance. Optionally calls `genasis humans sync`
+/// (in-process) when the user presses `s`. ADR-014.
+#[derive(Debug, Default)]
+pub struct HumansStepState {
+    pub entries: Vec<HumansRow>,
+    pub selected: usize,
+    /// `Some(form)` while a CRUD modal is open. None means the list
+    /// view is active.
+    pub form: Option<HumansForm>,
+    pub status_line: String,
+    pub loaded: bool,
+    /// True while a background `sync` is in flight.
+    pub syncing: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct HumansRow {
+    pub name: String,
+    pub email: String,
+    pub role: String,
+    pub mm_username: String,
+    pub locale: String,
+    /// "no" | "mm" | "plane" | "mm+plane" — populated from
+    /// `.genasis/humans.lock.toml` on load.
+    pub provisioned: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct HumansForm {
+    /// `Some(email)` if editing an existing entry; `None` for add.
+    pub editing_email: Option<String>,
+    pub name: String,
+    pub email: String,
+    pub role: String,
+    pub mm_username: String,
+    pub locale: String,
+    /// 0=name, 1=email, 2=role, 3=mm_username, 4=locale.
+    pub focus: usize,
+    pub error: String,
+}
+
+impl HumansStepState {
+    pub fn form_open(&self) -> bool {
+        self.form.is_some()
+    }
+}
+
+/// Step 6: Overlay injection plan + apply.
 #[derive(Debug, Default)]
 pub struct OverlayStepState {
     pub files_total: usize,
@@ -155,7 +203,7 @@ pub struct OverlayStepState {
     pub scroll: u16,
 }
 
-/// Step 6: Done / summary / smoke test.
+/// Step 7: Done / summary / smoke test.
 #[derive(Debug, Default)]
 pub struct DoneStepState {
     pub summary_lines: Vec<(String, String)>, // (label, value)
@@ -187,6 +235,10 @@ pub enum AsyncResult {
     MmProbeResult(bool, String),
     OverlayPlanReady(usize, usize, String), // total, conflicts, diff_text
     OverlayApplied(usize),
+    /// Humans step: roster loaded from disk.
+    HumansLoaded(Vec<HumansRow>),
+    /// Humans step: sync finished (success boolean + status line).
+    HumansSyncDone(bool, String),
     SmokeTestProgress(String),
     SmokeTestDone(bool),
     RollbackDone(bool),
@@ -198,7 +250,7 @@ pub enum AsyncResult {
 pub struct WizardState {
     pub mode: WizardMode,
     pub current_step: WizardStep,
-    pub steps: [StepMeta; 6],
+    pub steps: [StepMeta; 7],
     pub should_quit: bool,
     pub project_root: PathBuf,
 
@@ -207,6 +259,7 @@ pub struct WizardState {
     pub lang: LangStepState,
     pub team: TeamStepState,
     pub connect: ConnectStepState,
+    pub humans: HumansStepState,
     pub overlay: OverlayStepState,
     pub done: DoneStepState,
 
@@ -218,7 +271,7 @@ pub struct WizardState {
 impl WizardState {
     pub fn new(mode: WizardMode, project_root: PathBuf) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        let mut steps: [StepMeta; 6] = Default::default();
+        let mut steps: [StepMeta; 7] = Default::default();
         steps[0].status = StepStatus::Active;
         Self {
             mode,
@@ -230,6 +283,7 @@ impl WizardState {
             lang: LangStepState::default(),
             team: TeamStepState::default(),
             connect: ConnectStepState::default(),
+            humans: HumansStepState::default(),
             overlay: OverlayStepState::default(),
             done: DoneStepState::default(),
             async_tx: tx,

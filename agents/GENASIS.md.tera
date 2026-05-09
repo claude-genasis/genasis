@@ -22,6 +22,25 @@
 - 모든 사람 ↔ 팀 소통은 Mattermost `#scrum-{{ project_name }}` (이슈별 스레드) 와 Plane (상태, 댓글) 두 채널만 사용.
 - 사람이 CLI 를 직접 타이핑하는 것은 bridge 장애 시 예외.
 
+## 사람 로스터 (Human Roster)
+{% if humans and humans | length > 0 %}이 프로젝트의 등록된 사람 멤버 — 이들의 발언은 **확인된 stakeholder 요구사항**으로 처리합니다.
+
+| 이름 | 이메일 / Mattermost username | 역할 |
+|---|---|---|
+{% for h in humans %}| {{ h.name }} | `{{ h.email }}`{% if h.mm_username %} / `@{{ h.mm_username }}`{% endif %} | {{ h.role | default(value="stakeholder") }} |
+{% endfor %}{% else %}_등록된 사람 멤버가 없습니다. `genasis humans add` 또는 TUI wizard 의 Humans 단계에서 추가하세요._{% endif %}
+
+### 요구사항 수신 프로토콜 (Requirement Intake — ADR-014)
+1. `#scrum-{{ project_name }}` 의 새 메시지 발신자가 **위 로스터에 있는 사람**이면 (Mattermost `user_id` 또는 `username` 매칭):
+   - 메시지 본문은 **바인딩 요구사항**으로 간주.
+   - PM 은 5분 이내 스레드에 `🟢 접수: <한 줄 요약>` 형태로 회신하고, Plane 이슈를 새로 만들거나 기존 이슈에 연결.
+   - PM 은 적절한 역할(architect / planner / qa 등) 을 `assignees` 에 추가하거나 스레드 멘션으로 라우팅.
+   - 우선순위는 `role` 라벨 순서: `stakeholder` > `pm-human` > `reviewer` > 기타.
+2. 발신자가 **로스터에 없는 사람**(또는 외부 게스트) 이면:
+   - PM 만 응답하고, 본문을 "미인증 요청"으로 분류해 Plane 라벨 `QUESTION` 을 적용.
+   - 다른 에이전트는 즉시 작업하지 않고 PM 의 라우팅 지시를 기다림.
+3. 발신자가 **봇 (`from_bot=true` 또는 username 이 `*-bot` 패턴)** 이면 기존 에이전트-에이전트 프로토콜을 따름.
+
 ## 디자인 시스템
 - 단일 진실: `docs/design-system.md`.
 - `genasis design swap <reference-url>` 로 hot-swap 가능.

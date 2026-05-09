@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use genasis_core::error::Result;
 
 use super::upstream::UpstreamMattermost;
-use super::{ChannelRef, MattermostProvider, PostRef};
+use super::{ChannelRef, HumanUserRef, HumanUserSpec, MattermostProvider, PostRef};
 
 #[derive(Debug, Clone)]
 pub struct AgentAwareMattermost {
@@ -45,5 +45,12 @@ impl MattermostProvider for AgentAwareMattermost {
     }
     async fn ensure_bot(&self, username: &str, display_name: &str) -> Result<String> {
         self.inner.ensure_bot(username, display_name).await
+    }
+    async fn ensure_human_user(
+        &self,
+        spec: &HumanUserSpec,
+        team_id: Option<&str>,
+    ) -> Result<HumanUserRef> {
+        self.inner.ensure_human_user(spec, team_id).await
     }
 }

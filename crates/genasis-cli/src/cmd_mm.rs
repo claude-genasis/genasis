@@ -20,10 +20,19 @@ pub async fn run(args: Args) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let cfg_path = Config::discover(&cwd).context("no genasis.toml in this tree")?;
     let cfg = Config::load(&cfg_path)?;
-    let mm_cfg = cfg.mattermost.context("[mattermost] section missing")?;
-    let token = std::env::var("MM_ADMIN_TOKEN").context("MM_ADMIN_TOKEN unset")?;
+    let mm_cfg = cfg
+        .mattermost
+        .as_ref()
+        .context("[mattermost] section missing")?;
     let flavor = mattermost::FlavorChoice::parse(&mm_cfg.flavor)?;
-    let client = mattermost::build(flavor, &mm_cfg.url, &token).await?;
+    // Trial flavor draws URL/secret from `[trial]`, not env. For real
+    // backends (upstream/agent-aware/auto) we still require MM_ADMIN_TOKEN.
+    let token = if flavor == mattermost::FlavorChoice::Trial {
+        String::new()
+    } else {
+        std::env::var("MM_ADMIN_TOKEN").context("MM_ADMIN_TOKEN unset")?
+    };
+    let client = mattermost::build(flavor, &mm_cfg.url, &token, cfg.trial.as_ref()).await?;
     match args.op {
         MmOp::Ping => {
             let v = client.ping().await?;

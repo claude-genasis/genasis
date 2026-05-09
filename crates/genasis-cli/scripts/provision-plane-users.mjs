@@ -6,12 +6,21 @@
 //
 // Protocol (stdio):
 //   stdin   : JSON object { plane_url, admin_email, admin_password,
-//             workspace_slug, agents: [{ role, email }, ...] }
+//             workspace_slug,
+//             agents: [{ role, email }, ...],
+//             humans: [{ name, email, role?, plane_role? }, ...] }
 //   stdout  : JSON object { agents: [{ role, email, user_id, pat }, ...],
+//             humans: [{ email, user_id, status }, ...],
 //             status: "ok" | "error", error?: "..." }
 //   exit 0  : success
 //   exit 2  : recoverable error (printed in stdout JSON)
 //   exit 3  : Playwright not installed / driver error
+//
+// Humans differ from agents in that they receive workspace Member role
+// (not a bot) and no PAT is issued — they authenticate through the
+// Plane UI like any other user. Idempotency: if a human's email is
+// already a workspace member, return status="joined"; if the invite
+// was just sent, return status="invited".
 //
 // The Rust caller (M4) parses stdout JSON and surfaces errors. Real
 // browser automation logic lands as the original Genesis bash script's
@@ -55,7 +64,9 @@ try {
 
 // M4 boundary: the actual UI automation is ported in a follow-up commit.
 // For now we emit a structured "stub" so the Rust caller can verify the
-// plumbing works end-to-end.
+// plumbing works end-to-end. The Rust caller treats `status: "stub"` as
+// a no-op success so init does not fail.
+const humans = Array.isArray(input.humans) ? input.humans : [];
 const stub = {
     status: "stub",
     note: "Playwright is installed and reachable; UI automation is ported incrementally (M4-port).",
@@ -65,7 +76,16 @@ const stub = {
         agent_roles: Array.isArray(input.agents)
             ? input.agents.map((a) => a.role)
             : [],
+        human_emails: humans.map((h) => h.email),
     },
+    // Echo a stub humans payload so the Rust caller's lock-file writer
+    // has a deterministic shape to consume even before real UI
+    // automation lands.
+    humans: humans.map((h) => ({
+        email: String(h.email || "").toLowerCase(),
+        user_id: `stub-plane-${String(h.email || "").toLowerCase()}`,
+        status: "stub",
+    })),
     playwright_version: playwright?.default?.version ?? "unknown",
 };
 process.stdout.write(JSON.stringify(stub) + "\n");

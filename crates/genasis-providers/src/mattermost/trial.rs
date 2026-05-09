@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 
 use genasis_core::error::{Error, Result};
 
-use super::{ChannelRef, MattermostProvider, PostRef};
+use super::{ChannelRef, HumanUserRef, HumanUserSpec, MattermostProvider, PostRef};
 
 /// Default actor used when the trait does not surface one (the upstream
 /// trait inherits the actor from the bot's auth token in real
@@ -197,6 +197,24 @@ impl MattermostProvider for TrialMattermost {
         // Trial sim has no bot identities; return a stable stub so callers
         // that record the bot id can still proceed.
         Ok(format!("trial-bot-{username}"))
+    }
+
+    async fn ensure_human_user(
+        &self,
+        spec: &HumanUserSpec,
+        _team_id: Option<&str>,
+    ) -> Result<HumanUserRef> {
+        // Trial sim has no real auth; return a stable deterministic stub
+        // so the wizard / cmd_humans flow can be exercised end-to-end
+        // without a real Mattermost. No temp password since there is no
+        // login.
+        Ok(HumanUserRef {
+            user_id: format!("trial-human-{}", spec.username),
+            username: spec.username.clone(),
+            email: spec.email.clone(),
+            temp_password: None,
+            must_change_password: false,
+        })
     }
 }
 

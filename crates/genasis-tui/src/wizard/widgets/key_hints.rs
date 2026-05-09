@@ -14,7 +14,7 @@ pub fn render(frame: &mut Frame, area: Rect, _state: &WizardState) {
         Span::raw("Navigate "),
         Span::styled(" Enter ", Style::default().fg(Color::Cyan)),
         Span::raw("Confirm "),
-        Span::styled(" 1-6 ", Style::default().fg(Color::Cyan)),
+        Span::styled(" 1-7 ", Style::default().fg(Color::Cyan)),
         Span::raw("Go to step "),
         Span::styled(" q ", Style::default().fg(Color::Cyan)),
         Span::raw("Quit"),

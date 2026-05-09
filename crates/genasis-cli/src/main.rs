@@ -10,6 +10,7 @@ mod cmd_design;
 mod cmd_detach;
 mod cmd_doctor;
 mod cmd_example;
+mod cmd_humans;
 mod cmd_init;
 mod cmd_lang;
 mod cmd_mm;
@@ -76,6 +77,9 @@ enum Cmd {
     Agents(cmd_agents::Args),
     /// Inspect drift, collect anonymised patches, reset baseline (ADR-012)
     Debug(cmd_debug::Args),
+    /// Manage human team-member roster: list, add, edit, remove,
+    /// and provision into Mattermost + Plane (ADR-014).
+    Humans(cmd_humans::Args),
 }
 
 #[tokio::main]
@@ -116,6 +120,7 @@ async fn main() -> Result<()> {
         Cmd::Example(a) => cmd_example::run(a),
         Cmd::Agents(a) => cmd_agents::run(a),
         Cmd::Debug(a) => cmd_debug::run(a),
+        Cmd::Humans(a) => cmd_humans::run(a).await,
     }
 }
 

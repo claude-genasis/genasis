@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use genasis_core::config::TrialConfig;
 use genasis_core::error::{Error, Result};
 
 use super::agent_aware::AgentAwarePlane;
@@ -16,8 +17,9 @@ pub enum FlavorChoice {
     AgentAware,
     Auto,
     /// Forwards every call to a running trial-app instance over HTTP.
-    /// `base_url` becomes the trial-app URL; `api_key` becomes the
-    /// shared secret sent in `X-Genasis-Trial-Secret`.
+    /// The destination URL and shared secret are read from the
+    /// `[trial]` config section, NOT from the per-provider `[plane]`
+    /// fields, so a single source of truth governs trial routing.
     Trial,
 }
 
@@ -35,11 +37,19 @@ impl FlavorChoice {
     }
 }
 
+/// Build a `PlaneProvider` for the requested flavor.
+///
+/// `base_url`, `workspace_slug`, and `api_key` are used for `Upstream` /
+/// `AgentAware` / `Auto` flavors. For `Trial`, those fields are ignored
+/// and the provider is constructed from `trial` (which is the `[trial]`
+/// section in `genasis.toml`). Passing `Trial` without a populated
+/// `trial` argument is a configuration error.
 pub async fn build(
     flavor: FlavorChoice,
     base_url: &str,
     workspace_slug: &str,
     api_key: &str,
+    trial: Option<&TrialConfig>,
 ) -> Result<Arc<dyn PlaneProvider>> {
     let resolved = match flavor {
         FlavorChoice::Auto => match detect(base_url).await? {
@@ -53,7 +63,21 @@ pub async fn build(
         FlavorChoice::AgentAware => {
             Arc::new(AgentAwarePlane::new(base_url, workspace_slug, api_key))
         }
-        FlavorChoice::Trial => Arc::new(TrialPlane::new(base_url, api_key)),
+        FlavorChoice::Trial => {
+            let t = trial.ok_or_else(|| {
+                Error::Config(
+                    "plane flavor=\"trial\" requires the [trial] section in genasis.toml".into(),
+                )
+            })?;
+            if !t.enabled {
+                return Err(Error::Config(
+                    "plane flavor=\"trial\" but [trial] enabled = false; \
+                     set enabled = true or change flavor"
+                        .into(),
+                ));
+            }
+            Arc::new(TrialPlane::new(&t.url, &t.shared_secret))
+        }
         FlavorChoice::Auto => unreachable!("auto resolved above"),
     })
 }
@@ -61,6 +85,14 @@ pub async fn build(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn enabled_trial() -> TrialConfig {
+        TrialConfig {
+            enabled: true,
+            url: "http://localhost:3000".into(),
+            shared_secret: "trialsecret".into(),
+        }
+    }
 
     #[test]
     fn flavor_parse_known_values() {
@@ -79,5 +111,73 @@ mod tests {
     #[test]
     fn flavor_parse_rejects_unknown() {
         assert!(FlavorChoice::parse("plane.so").is_err());
+    }
+
+    #[tokio::test]
+    async fn build_upstream_ignores_trial() {
+        let out = build(
+            FlavorChoice::Upstream,
+            "http://plane.example",
+            "ws",
+            "key",
+            None,
+        )
+        .await;
+        assert!(out.is_ok());
+    }
+
+    #[tokio::test]
+    async fn build_agent_aware_ignores_trial() {
+        let out = build(
+            FlavorChoice::AgentAware,
+            "http://plane.example",
+            "ws",
+            "key",
+            None,
+        )
+        .await;
+        assert!(out.is_ok());
+    }
+
+    #[tokio::test]
+    async fn build_trial_requires_trial_section() {
+        match build(FlavorChoice::Trial, "ignored", "ignored", "ignored", None).await {
+            Err(Error::Config(_)) => {}
+            Err(other) => panic!("expected Config error, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_trial_requires_enabled_true() {
+        let mut t = enabled_trial();
+        t.enabled = false;
+        match build(
+            FlavorChoice::Trial,
+            "ignored",
+            "ignored",
+            "ignored",
+            Some(&t),
+        )
+        .await
+        {
+            Err(Error::Config(msg)) => assert!(msg.contains("enabled"), "msg = {msg}"),
+            Err(other) => panic!("expected Config error, got {other:?}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn build_trial_succeeds_when_enabled() {
+        let t = enabled_trial();
+        let out = build(
+            FlavorChoice::Trial,
+            "ignored",
+            "ignored",
+            "ignored",
+            Some(&t),
+        )
+        .await;
+        assert!(out.is_ok());
     }
 }

@@ -47,6 +47,35 @@ The `/api/plane/*` and `/api/mattermost/*` endpoints accept either:
 | `WEBHOOK_SHARED_SECRET` | for `/api/webhook` | Secret expected in the `X-Genasis-Webhook-Secret` header on admin credential POSTs. |
 | `TRIAL_SHARED_SECRET` | for trial bridge | Secret expected in `X-Genasis-Trial-Secret` header on `/api/plane/*` and `/api/mattermost/*` requests from server-to-server callers. Browser UI bypasses this via the same-origin check. |
 
+## Genasis-side configuration
+
+When you run `genasis init --trial` the generated `genasis.toml` is already
+wired for this app. Manually wiring an existing project requires only this
+section (the per-provider `url` fields are placeholders — `[trial]` is the
+single source of truth for routing; see ADR-013):
+
+```toml
+[plane]
+url = "http://localhost:3000"   # ignored when flavor = "trial"
+workspace_slug = "trial"
+flavor = "trial"
+
+[mattermost]
+url = "http://localhost:3000"   # ignored when flavor = "trial"
+team_name = "trial"
+flavor = "trial"
+
+[trial]
+enabled = true
+url = "http://localhost:3000"   # actual destination
+shared_secret = ""              # must match TRIAL_SHARED_SECRET on this app
+```
+
+Setting `[trial].enabled = false` or removing the section while a flavor is
+still `"trial"` is rejected at config load time with a clear error — no
+silent routing surprises. Trial mode does NOT consult `MM_ADMIN_TOKEN` or
+`PLANE_API_KEY`; only `[trial].shared_secret` is sent.
+
 ## Local development
 
 ```bash
