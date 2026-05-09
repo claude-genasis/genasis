@@ -1,0 +1,73 @@
+name: debug-review (analysis automation)
+
+# M17 / ADR-012 — periodic invocation of the /debug-review skill to
+# cluster accumulated patches and propose template fixes.
+#
+# Triggers:
+#   - Manual: workflow_dispatch (maintainer-driven).
+#   - Scheduled: weekly Mondays 03:00 UTC (skipped on the very first
+#     run via empty-patch guard).
+#
+# This workflow does NOT auto-merge. It opens a draft PR with the
+# proposed fixes; the maintainer reviews and merges manually.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Count pending patches
+        id: count
+        run: |
+          patches=$(find debug-history/patches -name "*.patch.json" 2>/dev/null | wc -l)
+          echo "count=$patches" >> "$GITHUB_OUTPUT"
+          echo "pending patches: $patches"
+
+      - name: Skip when no pending patches
+        if: steps.count.outputs.count == '0'
+        run: echo "Nothing to review yet."
+
+      - name: Run scripts/debug-review/run.sh (cluster + propose-fixes)
+        if: steps.count.outputs.count != '0'
+        run: |
+          set -e
+          if [ ! -x scripts/debug-review/run.sh ]; then
+            echo "::warning::scripts/debug-review/run.sh not found; analysis writeup left to /debug-review skill"
+            exit 0
+          fi
+          scripts/debug-review/run.sh
+
+      - name: Open follow-up PR
+        if: steps.count.outputs.count != '0' && success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: debug-review/${{ github.run_id }}
+          title: "[debug-review] auto-clustered field patches"
+          body: |
+            Automated artifact from `.github/workflows/debug-review.yml`.
+
+            See `debug-history/analysis/clusters.md` and
+            `debug-history/analysis/proposed-fixes.md` for the raw
+            output. Template edits are intentionally **not** included
+            here — the maintainer reviews the proposals and lands fixes
+            in a follow-up PR via the `/debug-review` Claude Code skill.
+
+            Counts:
+            - pending patches before run: ${{ steps.count.outputs.count }}
+          labels: |
+            debug-review
+            automation
+          draft: true

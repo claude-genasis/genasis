@@ -100,7 +100,7 @@ export function ChatThread({
             >
               [{typingActor}]
             </span>
-            <span className="flex items-center gap-1.5 text-neutral-400 dark:text-neutral-500">
+            <span className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-500">
               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { LangProvider } from "@/app/components/LangProvider";
 import { getLang } from "@/lib/lang-server";
@@ -11,6 +11,11 @@ export const metadata: Metadata = {
     "Genasis Trial — interactive agentic-team demo with hosted Plane + Mattermost trial signup",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default async function RootLayout({
   children,
 }: {
@@ -20,6 +25,9 @@ export default async function RootLayout({
   return (
     <html lang={lang}>
       <body className="min-h-screen antialiased">
+        <a href="#main-content" className="skip-to-content">
+          {lang === "ko" ? "본문으로 건너뛰기" : "Skip to main content"}
+        </a>
         <LangProvider initialLang={lang}>{children}</LangProvider>
       </body>
     </html>

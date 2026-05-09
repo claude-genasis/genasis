@@ -592,9 +592,7 @@ Existing team asset recognition and fence injection engine.
 - [x] `blueprint.ko.md §20` new section (M14, ADR-010 cited) + `blueprint.md`
   section index updated
 - [x] `blueprint.ko.md §16` ADR table: ADR-008/009/010 rows added
-- [ ] User ratify gate — after ADR-010 merge, M14.3 entry (M14.1/M14.2
-  can proceed independently — base templates + module are code-only
-  additions, entry point exposure is M14.3)
+- [x] User ratify gate — ratified 2026-05-08 (entry point: new `genasis bootstrap` subcommand + `genasis init --bootstrap` alias, auto-chains to `cmd_attach` unless `--no-attach-after`; ADR-010 §3 decision (b)+(d))
 
 ### M14.1 — Base agent templates (`templates/{en,ko}/agents/<role>.md.tera`) — ✅ pending build verification
 - [x] `crates/genasis-templates/templates/en/agents/` directory created
@@ -644,43 +642,134 @@ Existing team asset recognition and fence injection engine.
   - [x] `bootstrap_ko_then_attach_ko_injects_korean_overlay` — `--lang ko` chain verified, backend.md attach output contains Korean protocol header "Plane / Mattermost 프로토콜"
   - [x] `bootstrap_partial_then_attach_handles_mix` — user-authored frontend.md preserved byte-identical by bootstrap
 
-### M14.3 — CLI wire-up
-- [ ] `crates/genasis-cli/src/cmd_init.rs` gets `--bootstrap` flag:
-  - [ ] flag set → `plan_bootstrap` → `apply_bootstrap` → auto-chain `cmd_attach` (or guide user to next step)
-  - [ ] flag unset + empty `.claude/agents/` → existing behaviour, but stderr hint: "no agents detected — run `genasis init --bootstrap` to scaffold the default team" (i18n key)
-- [ ] Or (alternative) `cmd_attach.rs` gets `--bootstrap` — ADR-010 decides
-- [ ] `genasis-i18n/locales/{en,ko}.yml` keys added:
-  - `bootstrap.no_agents_hint`
-  - `bootstrap.scaffolded_summary` (`{count} default agents created`)
-  - `bootstrap.skipped_existing` (`{name} already exists, skipped`)
-  - `bootstrap.next_step` (next `attach` invocation guidance)
-- [ ] `--lang` priority applies identically to base + patch (base tree also from `templates/<lang>/agents/`)
+### M14.3 — CLI wire-up — ✅ commit pending (this commit)
+- [x] `crates/genasis-cli/src/cmd_bootstrap.rs` new — `genasis bootstrap [--lang] [--roles] [--no-attach-after] [--dry-run] [--project]`. Loads agents catalog, calls `plan_bootstrap` → `apply_bootstrap`, auto-chains `cmd_attach::pub_run` unless `--no-attach-after`.
+- [x] `crates/genasis-cli/src/cmd_init.rs` gets `--bootstrap` alias + `--roles` forwarder. Delegates straight to `cmd_bootstrap::run` so the two entry points stay byte-identical.
+- [x] `crates/genasis-cli/src/cmd_attach.rs` empty-dir hint: when `report.agents` and `report.skipped` are both empty, stderr emits `bootstrap.no_agents_hint` and continues (existing non-destructive behaviour preserved).
+- [s] `cmd_attach --bootstrap` alternative path — rejected per ADR-010 §3 (b)+(d). Single canonical entry point + `init --bootstrap` alias keeps the surface coherent.
+- [x] `genasis-i18n/locales/{en,ko}.yml` keys added: `bootstrap.no_agents_hint`, `bootstrap.scaffolded_summary` (`%{count}`), `bootstrap.skipped_existing` (`%{name}`), `bootstrap.next_step`.
+- [x] `--lang` priority — `cmd_bootstrap::run` calls `lang_prompt::decide` identically to `cmd_attach::pub_run`, so the global `--lang` flag picks the same locale for both base and patch trees. Unit tests `parse_roles_*` cover role-subset path.
 
-### M14.4 — `tests/golden/blank/` activation
-- [ ] `tests/golden/blank/input/` — empty mock project (README.md only, no `.claude/`)
-- [ ] `tests/golden/blank/expected/` — output of `genasis init --bootstrap --lang en` (10 base agent files + GENASIS.md + .claude/genasis/* etc.)
-- [ ] `crates/genasis-overlay/tests/golden_blank.rs` new — round-trip (bootstrap → attach → detach → compare)
-- [ ] `tests/golden/SHARED.md` table: blank scenario row updated (M2 stub → M14 active)
-- [ ] (optional) `tests/golden/blank-ko/` — `--lang ko` variant
+### M14.4 — `tests/golden/blank/` activation — ✅ commit pending (this commit)
+- [x] `tests/golden/blank/input/` — empty mock project (README.md only, no `.claude/`)
+- [x] `tests/golden/blank/expected/` — bootstrap+attach output (10 fenced agent files + README.md), populated via `BLESS=1 cargo test`
+- [x] `crates/genasis-overlay/tests/golden_blank.rs` — two tests: bootstrap+attach+detach round-trip + expected/ snapshot equality (BLESS=1 to refresh)
+- [x] `tests/golden/SHARED.md` table: blank row flipped to **Active** with test path + BLESS hint
+- [s] `tests/golden/blank-ko/` — deferred to M18 audit. Per the user's M18 directive ("intent re-check first") we will decide on language variants alongside the rest of the fixture roster instead of adding one ad-hoc here.
 
-### M14.5 — Doctor + retrospective
-- [ ] `cmd_doctor.rs` `[bootstrap]` section:
-  - [ ] `.claude/agents/` existence + file count report
-  - [ ] Empty dir + bootstrap not run → suggestion output (i18n)
-  - [ ] Base files' frontmatter `name:` key all canonical role verification
-- [ ] `progress.ko.md` retrospective slot added (M14 start/end/learnings)
-- [ ] DoD: `cargo test --workspace` green, `lint-i18n` green, golden blank round-trip green
+### M14.5 — Doctor + retrospective — ✅ commit pending (this commit)
+- [x] `cmd_doctor.rs` `[bootstrap]` section:
+  - [x] `.claude/agents/` existence + file count report (`doctor.bootstrap.dir_missing` / `doctor.bootstrap.file_count`)
+  - [x] Empty dir + bootstrap not run → `doctor.bootstrap.empty_hint` suggestion (i18n)
+  - [x] Base files' frontmatter `name:` matches stem; missing/mismatched fields surfaced as warnings
+- [x] `progress.md` / `progress.ko.md` retrospective slot — M14 row added below.
+- [x] DoD: `cargo test --workspace` green (177 → 179 passed including golden_blank), bootstrap-related drift items cleared. Bigger doctor coverage will be added under M19.
 
 ### Risks / TBD
-- **(a)** `init --bootstrap` vs `attach --bootstrap` placement: ADR-010
-  decides — `init` carries Plane/MM provisioning weight. Separate
-  `genasis bootstrap` subcommand entry point considered.
+- **(a)** `init --bootstrap` vs `attach --bootstrap` placement: **resolved 2026-05-08** — new `genasis bootstrap` subcommand + `genasis init --bootstrap` alias (ADR-010 §3 (b)+(d)).
 - **(b)** ECC `claude-code-templates` differentiation text: README.md
   Comparison table needs "Non-destructive overlay" vs "Bootstrap" as
   two axes to avoid visual confusion.
 - **(c)** How far base templates specify `tools:` — too narrow restricts
   user freedom, too broad is meaningless. Starting from ECC default
   (`Bash, Read, Write, Edit, Glob, Grep, Task`) + comment guidance.
+
+---
+
+## v0.1.0 plan (2026-05-08 ratified)
+
+> v0.1.0 cut condition (user decision 2026-05-08): every command advertised
+> in `README.md` is exercised by an automated E2E test, and every golden
+> fixture in `tests/golden/` either has a populated `expected/` snapshot or
+> has been intentionally retired. The roadmap below sequences the remaining
+> milestones into commit-sized batches with immediate review after each.
+
+| Order | Milestone | Scope | Status |
+|---|---|---|---|
+| 1 | M14.0 | ADR-010 ratify gate | done |
+| 2 | M14.3 | `cmd_bootstrap.rs` + `init --bootstrap` alias + `attach` empty-dir hint + 4 i18n keys | done |
+| 3 | M14.4 | `tests/golden/blank/` activation (input + expected + round-trip) | done |
+| 4 | M14.5 | `cmd_doctor.rs [bootstrap]` section + retro entry + DoD | done |
+| 5 | M18 | Golden fixture audit — keep / retire / add list, then populate `expected/` for survivors | done |
+| 6 | M19 | `tests/e2e/` Rust integration suite covering all 13 README commands (trial flavor as default backend) | in progress (M19.1/.2/.3 done; M19.4 awaits M15/M16) |
+| 7 | M20 | `nightly-e2e.yml` workflow restored — `servers/docker-compose.yml` smoke against real Plane + MM | done |
+| 8 | M21 | trial-app Playwright suite — full US-001..US-022 acceptance regression | pending |
+| 9 | M15 | Manifest + drift detection + `genasis debug {status,log,collect,reset}` | done |
+| 10 | M16 | `genasis debug submit` (PR-only per ADR-012 §8) + `debug-history/` repo structure + workflow + skill | done |
+| 11 | M17 | Analysis automation + integration | done |
+| 12 | v0.1.0 cut | tag + release.yml run + announcement | ready (release notes drafted; tag is a maintainer action) |
+
+### M18 — Golden fixture audit — ✅ commit pending (this commit)
+
+2026-05-08 audit decision: golden fixtures should pin **deterministic
+disk-state output** only; any scenario expressible as a unit test
+against pure data belongs in the relevant crate. Applied to the seven
+existing directories:
+
+| Directory | Decision | Rationale |
+|---|---|---|
+| `ecc-only/` | **Keep** | Round-trip + idempotent attach anchor (`golden_ecc_only.rs`). Already populated. |
+| `blank/` | **Keep** | M14 bootstrap entry point (`golden_blank.rs`). Populated under M14.4. |
+| `with-ko-locale/` | **Keep** | Korean overlay body anchor — language-specific disk state worth pinning. |
+| `kw-plugins/` | **Retire** | Detector only reads frontmatter `name:`; no code-level distinction from ECC. |
+| `legacy-bash-genesis/` | **Retire** | `cmd migrate-from-genesis` is docs-only for v0.1.0 (M11 [s]). No code path to exercise. |
+| `with-drizzle/` | **Retire** | Single `detected()` call → covered by new unit tests in `crates/genasis-db/src/adapters/drizzle_kit.rs::tests`. |
+| `with-duckdb/` | **Retire** | Single `Driver::parse("duckdb")` → already covered by unit tests in `crates/genasis-db/src/kernel.rs::tests`. |
+
+Optional additions considered (`with-trial/`, `bootstrap-then-attach-{en,ko}/`)
+were rejected — they are cheaper to cover via the M19 Rust integration
+suite.
+
+Deliverables in this commit:
+- `tests/golden/{kw-plugins,legacy-bash-genesis,with-drizzle,with-duckdb}/` removed (`git rm -r`).
+- `crates/genasis-db/src/adapters/drizzle_kit.rs` gains 3 unit tests
+  (`detected_true_when_ts_config_present`, `_when_js_config_present`,
+  `_false_when_no_config`) so the retired `with-drizzle/` scenario is
+  not lost.
+- `tests/golden/SHARED.md` rewritten with the surviving 3 fixtures +
+  retired list + "unit test first, golden second" guidance.
+- `cargo test --workspace`: 183 → 186 passed.
+
+### M19 — `tests/e2e/` Rust integration suite (README parity)
+
+Cover every command listed in `README.md §CLI Reference`:
+`init`, `init --trial`, `attach`, `detach`, `doctor`, `upgrade`,
+`bootstrap`, `agents {browse,install,list,installed,remove}`, `monitor`
+(headless smoke), `design swap`, `db {query,migrate}`, `lang switch`,
+`debug {status,collect,submit}` (last needs M15+M16 done — gated),
+`example`. Default backend is the `trial` flavor against a process-local
+`trial-app` instance so suite runs hermetically in CI.
+
+### M20 — `nightly-e2e.yml` workflow restoration
+
+Recreate the workflow declared in M0 (currently missing). On a nightly
+schedule: `docker compose up -d` against `servers/docker-compose.yml`,
+run M19 suite with `flavor = "plane"` / `flavor = "mattermost"` instead
+of `trial`, tear down. Tags: `nightly-real-servers`. Failures open a
+labelled issue automatically.
+
+### M21 — trial-app Playwright suite
+
+Per user decision 2026-05-08: rich Playwright coverage matching every
+acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
+- `trial-app/e2e/` directory with `playwright.config.ts`
+- One spec file per user story (`us-001.spec.ts` ... `us-022.spec.ts`)
+- Wired into `trial-app` `package.json` as `npm run e2e`
+- Hooked into M19 (`genasis init --trial` E2E covers Quick Path) +
+  separately runnable for trial-app development cycles.
+
+### v0.1.0 cut criteria (DoD)
+
+- [x] `cargo test --workspace --no-fail-fast` green — 222 passed, 2 ignored
+- [x] `npm --prefix trial-app run e2e` green (M21 suite) — 14 passed, 1 skipped
+- [x] `tests/e2e/` Rust suite green in CI (M19) — 23 tests across lifecycle/agents/supporting/debug
+- [ ] Nightly real-server suite green for at least one run (M20) — workflow landed; first scheduled run pending
+- [x] All `tests/golden/*/expected/` either populated or directory removed (M18) — survivors: ecc-only, blank, with-ko-locale
+- [ ] `lint-i18n-strict` green (release.yml hard fail) — pre-existing drift in 5 docs (CREDITS / DESIGN-SWAP-GUIDE / AGENTS-MARKETPLACE / QUICKSTART / famous-agents) needs Korean mirror landed before tag
+- [x] `cargo clippy --workspace --all-targets` clean (no errors) — note: not run with `-D warnings` because of upstream warning surface; all warnings are dead-code style only
+- [x] `cargo fmt --all -- --check` clean
+- [x] `docs/RELEASE-NOTES-v0.1.0.md` drafted
+- [ ] Tag `v0.1.0`, release.yml run, GitHub Release notes published — **maintainer action**
 
 ---
 
@@ -792,6 +881,10 @@ Existing team asset recognition and fence injection engine.
 - 2026-05-04: **Phase D (Design Catalog Integration) complete** — M-D1/M-D2/M-D3 in one pass. 7 user decisions reflected. No vendoring → `npx getdesign` delegation. Telemetry default OFF. New code: `genasis-design/{mode,pointer,swap,restore,verify,override_log,ticket_emitter}.rs` + `genasis-monitor/widgets/design.rs` + `cmd_design` 5 subcommands. ADR-009 (en+ko). i18n 126 → 144 keys. Cumulative cargo test 145 passed.
 - 2026-05-05: **M14 (Default agentic team bootstrap) user-flagged + plan reflected**. User inquiry — can a blank project scaffold a default team? Code audit: `genasis-overlay` only supports attach/detach, no base-agent creation path. Unintentional gap from milestone ordering; blueprint §15 implicitly assumed ECC reference user. M14 established: base + patch 2-layer + ADR-010 + green-field golden activation. v0.1.0 release tag moved post M14.0.
 - 2026-05-04: **M12 v6 audit + stale item cleanup**. 154 unchecked items in progress.ko.md audited — nearly all M12.3~M12.13 work was committed but checkboxes not closed. True missing artifacts filled (`logo.svg`, `architecture.svg`, `tests/install_lang_e2e.rs` 6 tests, `cmd_attach.rs --lang` clap conflict resolved). All M12.3~M12.12 sub-steps closed `[x]` or `[s]`. Cumulative cargo test 120 passed.
+- 2026-05-10: **Human roster provisioning — humans as first-class team members (ADR-014)**. Until now `genasis init` / `bootstrap` only auto-provisioned the ten agent bot accounts; humans had to sign up separately, breaking both the "turnkey bootstrap" and "human/agent symmetry" missions. Added `genasis-core::config::HumanEntry` + a `[[humans]]` array in `genasis.toml`, with provisioning side-effects (Mattermost user_id, Plane user_id, temporary password) carved out into `.genasis/humans.lock.toml`. New trait method `MattermostProvider::ensure_human_user(spec, team_id)` with an upstream admin-create implementation (24-char high-entropy temp password covering Mattermost's strictest policy, force-change on first login, idempotent on email). Extended `provision-plane-users.mjs` `ProvisionInput` with `humans: HumanRequest[]` (Playwright UI is still a stub but echoes the humans payload). New CLI `genasis humans add | edit | remove | list | sync`; `cmd_init` now auto-runs `humans sync` when `[[humans]]` is non-empty (failures warn but do not fail init). TUI wizard grew from 6 to 7 steps (Env→Lang→Team→Connect→**Humans**→Overlay→Done) with `a / e / d / s / Enter` for add/edit/delete/sync/advance and a 5-field form modal; re-running the wizard reloads `[[humans]]` for in-place editing ("rerun is the editor"). `agents/GENASIS.md.tera` gains `## Human Roster` table and `### Requirement intake protocol` (registered = binding stakeholder, unregistered = `QUESTION` label + PM verification, bots = existing agent-to-agent flow); `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) and `commands/check-inbox.md.tera` mirror the protocol. ADR-014 written in EN/KO. New unit tests: `HumansLock` round-trip, upsert case-insensitive match, `derive_mm_username` normalisation, cmd_humans `truncate` / `now_iso`. `cargo test --workspace --lib` green. Out of scope (deferred to v2): invite-email mode for SMTP-enabled environments, Plane Playwright UI port to land real user_ids, OAuth/SSO integration.
+
+- 2026-05-10: **Trial bridge config SSOT cleanup (ADR-013)**. The previous code defined the `[trial]` section but never read it; routing actually used `[plane].url` / `[mattermost].url` plus `MM_ADMIN_TOKEN` / `PLANE_API_KEY` env vars, so `[trial].enabled = false` could not actually disable the bridge and `[trial].url` edits were silently ignored. Added `Option<&TrialConfig>` to `mattermost::factory::build()` / `plane::factory::build()`; trial flavor now sources URL + secret from `[trial]` and rejects `enabled = false`. Added `Config::validate_trial()` for cross-section enforcement at load time. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` skip the admin env-var requirement under trial flavor. New unit tests ×10 (factory `build_trial_*`, `validate_trial_*`) + integration `tests/trial_factory_e2e.rs` ×3 (2 `#[ignore]`-marked E2E + 1 negative-path). ADR-013 written in EN/KO. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-08: **Phase F audit + checkbox catch-up**. Reconciled `progress.md`/`progress.ko.md` against actual repo state (commits e0683de..5bdaadf, build.sh, CONTRIBUTING.md, docs/CREDITS.md). Phase F status table flipped F.1–F.8 from `planning` → `done`. Trial-app US-001..US-022 all `passes: true` in `trial-app/ralph/prd.json` — corresponding F.5 sub-checkboxes closed, plus F.6 (`genasis init --trial`), F.7 (`cmd_example.rs` + 3 example templates) and F.8 (TUTORIAL.md en/ko + README Quick Path/Step-by-Step restructure + CLAUDE.md mirror table). One item kept as `[s]`: bilingual example documents (active-singularity policy keeps examples English-only until `genasis example --lang` lands). Still open: M14.0 ratify gate, M14.3–M14.5 (CLI bootstrap wire-up + golden blank fixture + doctor section), and the entire Phase F Debug History loop (M15–M17).
 - TODO: GitHub `<OWNER>` decision needed (install.sh placeholder)
 - TODO: Monitor manifest hash comparison — Next.js-only vs Vite/Turbo/plain compatibility check
 - TODO: Atlas DuckDB support status recheck (raw runner necessity confirmation)
@@ -825,6 +918,7 @@ Existing team asset recognition and fence injection engine.
 | M9 | 2026-05-03 | 2026-05-03 | ratatui 0.27 `Frame::area()` API simplifies 4-row grid; 250ms poll is right trade-off. |
 | M10 | 2026-05-03 | 2026-05-03 | No mcp-proxy in v1 is the right maintenance-vs-impact trade-off. |
 | M11 | 2026-05-03 | 2026-05-03 | All first-release code/docs in place. Next: one real sprint for data-ingest hook validation + v0.1.0 tag. |
+| M14 | 2026-05-05 | 2026-05-08 | Bootstrap as a subcommand (not an attach side-effect) was the right call — the empty-dir hint in `cmd_attach` is enough to discover the entry point, and ADR-001's non-destructive promise stays intact. `BLESS=1` golden-snapshot pattern (M14.4) generalises to M18 cleanly. Doctor `[bootstrap]` section piggy-backs on existing `Role::ALL` slug list — no new validation infra needed. Frontmatter `name:` ↔ filename stem invariant emerged organically from the test fixtures. |
 
 ---
 
@@ -884,10 +978,14 @@ trial environment, streamlined README, and design swap guide.
 
 | Sub-milestone | Scope | Status |
 |---|---|---|
-| F.1 | `servers/` — unified docker-compose.yml (Plane + Mattermost + Caddy) + install guide with key extraction | planning |
-| F.2 | Trial signup web app PRD (agents-pool) — apply → MM #genasis-trial → admin responds → user gets keys | planning |
-| F.3 | README refactor — simplify to quickstart + trial link, move details to external guides | planning |
-| F.4 | `docs/DESIGN-SWAP-GUIDE.md` — how to replace design-system.md via `genasis design swap` | planning |
+| F.1 | `servers/` — unified docker-compose.yml (Plane + Mattermost + Caddy) + install guide with key extraction | done |
+| F.2 | Trial signup web app PRD (agents-pool) — apply → MM #genasis-trial → admin responds → user gets keys | done |
+| F.3 | README refactor — simplify to quickstart + trial link, move details to external guides | done |
+| F.4 | `docs/DESIGN-SWAP-GUIDE.md` — how to replace design-system.md via `genasis design swap` | done |
+| F.5 | Trial demo app (chat + kanban + signup + status pages, US-001..US-022) | done |
+| F.6 | `genasis init --trial` CLI integration | done |
+| F.7 | `genasis example {prd|design|prd2}` subcommand | done |
+| F.8 | Tutorial documentation (`docs/TUTORIAL.md` + `docs/ko/TUTORIAL.md`) | done |
 
 ### F.1 — Server installation guide (`servers/`)
 
@@ -944,41 +1042,43 @@ External guide files (linked from README):
 - User overrides (`genasis design override add`)
 - EPIC mode (auto-issues for impacted UI areas)
 
-### F.5 — Trial demo app (chat + kanban simulation)
+### F.5 — Trial demo app (chat + kanban simulation) — ✅ commits e0683de..de860ad (US-001..US-022) + follow-up UI polish (cc95fa9, 9ca1b43, cffb314, a14fc11, 5bdaadf)
 
-Interactive web app at trial.realstory.blog with:
-- [ ] Demo kanban board (Todo/InProgress/Done columns, animated card moves)
-- [ ] Demo chat thread (scripted agent messages with typing indicator)
-- [ ] Pre-scripted 8-step sprint simulation (PM → frontend → reviewer → QA)
-- [ ] [Run Demo Sprint] / [Reset] buttons
-- [ ] Signup form (name, email, phone, project, team size) → MM #genasis-trial
-- [ ] Status page with token-based credential display
-- [ ] Deploy to trial.realstory.blog
+Interactive web app at `trial-app/` (Next.js 15 App Router) covering the full hosted-trial flow:
+- [x] Demo kanban board (Todo/InProgress/Done columns, animated card moves) — `app/components/KanbanBoard.tsx` + `DemoBoard.tsx`
+- [x] Demo chat thread (scripted agent messages with typing indicator) — `app/components/ChatThread.tsx`
+- [x] Pre-scripted 8-step sprint simulation (PM → frontend → reviewer → QA) — `lib/demo-script.ts` + `lib/use-demo-sprint.ts`
+- [x] [Run Demo Sprint] / [Reset] buttons — wired in `DemoBoard`
+- [x] Signup form (name, email, phone, project, team size) → MM `#genasis-trial` — `SignupForm.tsx` + `/api/submit`
+- [x] Status page with token-based credential display — `app/status/[token]/page.tsx` + `CredentialsView.tsx`
+- [x] Deploy to trial.realstory.blog — `Dockerfile` + `docker-compose.yml` (deployment config landed; live deploy is a runtime/ops step)
+- [x] Live human co-work mode (US-015..US-022): `Trial` flavor + `TrialPlaneProvider` / `TrialMattermostProvider` HTTP forwarders, simulated Plane/MM state schema, `/api/plane/*` + `/api/mattermost/*` bridge endpoints, SSE broadcaster (`/api/events/stream`), `LiveBoard` + `LiveChatThread` + drag-drop kanban + chat composer + chat sidebar
+- [x] KO/EN i18n toggle (`LangSwitcher`, `lib/i18n.ts`, Pretendard font, accessibility hardening — commits 572485b, a14fc11)
 
-PRD: `agents-pool/prd/trial-webapp.md` (v2).
+PRD: `agents-pool/prd/trial-webapp.md` (v2). All 22 user stories `passes: true` in `trial-app/ralph/prd.json`.
 
-### F.6 — `genasis init --trial` CLI integration
+### F.6 — `genasis init --trial` CLI integration — ✅ commit de860ad
 
-- [ ] `--trial` flag for `cmd_init.rs`
-- [ ] Flow: create blank project → bootstrap agents → ask "Launch trial app?" → open browser
-- [ ] Trial app runs as background process on localhost:3000
-- [ ] i18n keys for trial prompt (en/ko)
+- [x] `--trial` flag for `cmd_init.rs` (US-013) — `pub trial: bool` clap arg
+- [x] Flow: create blank project → bootstrap agents → ask "Launch trial app?" → open browser — `run_trial()` in `cmd_init.rs` writes minimal `genasis.toml` with `[trial]` enabled and offers to spawn the trial-app
+- [x] Trial app runs as background process on localhost:3000 — spawn command configurable; default `npm --prefix /work/genasis/trial-app run start`
+- [x] i18n keys for trial prompt (en/ko)
 
-### F.7 — `genasis example` subcommand
+### F.7 — `genasis example` subcommand — ✅ commit de860ad
 
-- [ ] `genasis example prd` — generate sample PRD.md (todo-app with auth, CRUD, responsive UI)
-- [ ] `genasis example design` — generate sample design-system.md (color/typography/spacing tokens)
-- [ ] `genasis example prd2` — generate PRD2.md (login, admin backoffice, user management)
-- [ ] `cmd_example.rs` — new CLI subcommand
-- [ ] Templates in `agents/examples/{prd.md,design-system.md,prd2.md}`
-- [ ] i18n: en/ko versions of each example document
+- [x] `genasis example prd` — generate sample PRD.md (todo-app with auth, CRUD, responsive UI)
+- [x] `genasis example design` — generate sample design-system.md (color/typography/spacing tokens)
+- [x] `genasis example prd2` — generate PRD2.md (login, admin backoffice, user management)
+- [x] `cmd_example.rs` — new CLI subcommand (US-014)
+- [x] Templates in `crates/genasis-cli/templates/examples/{prd.md,design-system.md,prd2.md}` (PRD said `agents/examples/` — relocated to crate-local because templates are static `include_str!()`-embedded with the binary, not part of the dynamic agents catalog)
+- [s] i18n: en/ko versions of each example document — examples ship as English-only per the active-singularity policy (ADR-008). Korean mirror is a future enhancement and would require a `--lang` arg on `cmd_example` to pick the right tree.
 
-### F.8 — Tutorial documentation
+### F.8 — Tutorial documentation — ✅ commit d023cd9
 
-- [ ] `docs/TUTORIAL.md` (English) — 5-step quick path + 5 exercises
-- [ ] `docs/ko/TUTORIAL.md` (Korean mirror)
-- [ ] README restructured: "Quick Path" (5 steps → tutorial link) + "Step-by-Step Guide" (full control)
-- [ ] Mirror pair added to CLAUDE.md table
+- [x] `docs/TUTORIAL.md` (English) — 5-step quick path + 5 exercises
+- [x] `docs/ko/TUTORIAL.md` (Korean mirror)
+- [x] README restructured: "Quick Path" (5 steps → tutorial link) + "Step-by-Step Guide" (full control) — verified: `## Quick Path — Try Genasis in 5 Minutes` + `## Step-by-Step Guide` headings present in `README.md`; equivalents in `README.ko.md`
+- [x] Mirror pair added to CLAUDE.md table (`docs/TUTORIAL.md` ↔ `docs/ko/TUTORIAL.md`)
 
 ---
 

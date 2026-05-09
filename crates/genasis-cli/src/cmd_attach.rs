@@ -74,6 +74,11 @@ pub async fn pub_run(
             tracing::warn!(path = %path.display(), reason = %why, "skipped agent");
         }
     }
+    // ADR-010 §3: if no agents are present at all, surface the bootstrap
+    // entry point instead of silently doing nothing.
+    if report.agents.is_empty() && report.skipped.is_empty() {
+        eprintln!("{}", genasis_i18n::tr("bootstrap.no_agents_hint"));
+    }
 
     let context = build_context(&project_root)?;
     let opts = AttachOptions {
@@ -123,6 +128,46 @@ pub async fn pub_run(
             ]
         )
     );
+
+    // M15.2 — refresh `.claude/genasis/.manifest.json` so the next CLI
+    // invocation can detect drift against this canonical state.
+    if let Err(e) = update_manifest_after_apply(&project_root, &applied, decision.lang.code()) {
+        tracing::warn!(reason = %e, "manifest refresh failed after attach");
+    }
+
+    Ok(())
+}
+
+fn update_manifest_after_apply(
+    project_root: &std::path::Path,
+    applied: &genasis_overlay::AppliedReport,
+    lang_code: &str,
+) -> Result<()> {
+    use genasis_core::manifest::{hash_file, FileEntry, Manifest};
+
+    let mut manifest = Manifest::load(project_root)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| Manifest::new(env!("CARGO_PKG_VERSION")));
+    manifest.lang = lang_code.to_string();
+    manifest.attached_at = chrono::Utc::now().to_rfc3339();
+
+    for written_path in &applied.written {
+        let rel = match written_path.strip_prefix(project_root) {
+            Ok(r) => r.to_string_lossy().into_owned(),
+            Err(_) => continue,
+        };
+        let sha = hash_file(written_path)?
+            .ok_or_else(|| anyhow::anyhow!("hash_file returned None for written path"))?;
+        manifest.files.insert(
+            rel,
+            FileEntry {
+                sha256: sha,
+                ..Default::default()
+            },
+        );
+    }
+    manifest.save(project_root)?;
     Ok(())
 }
 

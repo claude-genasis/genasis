@@ -30,7 +30,7 @@ export default async function HomePage({
   return (
     <div className="flex min-h-screen flex-col">
       <AppBar activeTab={activeTab} />
-      <main className="flex-1 px-6 py-10">
+      <main id="main-content" className="flex-1 px-6 py-10">
         {activeTab === "demo" ? <DemoSection lang={lang} /> : null}
         {activeTab === "live" ? <LiveSection lang={lang} /> : null}
         {activeTab === "signup" ? <SignupSection lang={lang} /> : null}
@@ -69,7 +69,7 @@ function LiveSection({ lang }: { lang: Lang }) {
   return (
     <section
       aria-labelledby="live-heading"
-      className="mx-auto max-w-6xl space-y-4"
+      className="relative mx-auto max-w-6xl space-y-4"
       data-testid="live-section"
     >
       <h1 id="live-heading" className="text-2xl font-semibold">

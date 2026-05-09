@@ -3,6 +3,7 @@
 pub mod connect;
 pub mod done;
 pub mod env;
+pub mod humans;
 pub mod lang;
 pub mod overlay;
 pub mod team;
@@ -21,6 +22,9 @@ pub fn dispatch_async(state: &mut WizardState, result: AsyncResult) {
         }
         AsyncResult::OverlayPlanReady(_, _, _) | AsyncResult::OverlayApplied(_) => {
             overlay::handle_async(state, result)
+        }
+        AsyncResult::HumansLoaded(_) | AsyncResult::HumansSyncDone(_, _) => {
+            humans::handle_async(state, result)
         }
         AsyncResult::SmokeTestProgress(_)
         | AsyncResult::SmokeTestDone(_)

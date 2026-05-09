@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Genasis debug-history patch",
+  "description": "Anonymised payload produced by `genasis debug collect`. ADR-012 §8 — Data-Only PR Model.",
+  "type": "object",
+  "required": ["schema_version", "project_hash", "collected_at", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1"]
+    },
+    "project_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16}$"
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "genasis_version": {
+      "type": "string"
+    },
+    "lang": {
+      "type": "string",
+      "enum": ["", "en", "ko"]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Project-relative path; absolute paths and ../-traversal are rejected.",
+            "pattern": "^(?!\\.\\.)(?!/)[A-Za-z0-9_./\\-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["modified", "removed", "added"]
+          },
+          "recorded_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "actual_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "modified_body_excerpt": {
+            "type": "string",
+            "maxLength": 32768
+          }
+        }
+      }
+    }
+  }
+}

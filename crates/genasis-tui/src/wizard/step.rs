@@ -8,16 +8,18 @@ pub enum WizardStep {
     Lang,
     Team,
     Connect,
+    Humans,
     Overlay,
     Done,
 }
 
 impl WizardStep {
-    pub const ALL: [WizardStep; 6] = [
+    pub const ALL: [WizardStep; 7] = [
         Self::Env,
         Self::Lang,
         Self::Team,
         Self::Connect,
+        Self::Humans,
         Self::Overlay,
         Self::Done,
     ];
@@ -28,8 +30,9 @@ impl WizardStep {
             Self::Lang => 1,
             Self::Team => 2,
             Self::Connect => 3,
-            Self::Overlay => 4,
-            Self::Done => 5,
+            Self::Humans => 4,
+            Self::Overlay => 5,
+            Self::Done => 6,
         }
     }
 
@@ -56,6 +59,7 @@ impl WizardStep {
             (Self::Team, WizardMode::Init) => "Team",
             (Self::Team, WizardMode::Attach) => "Detect",
             (Self::Connect, _) => "Connect",
+            (Self::Humans, _) => "Humans",
             (Self::Overlay, _) => "Overlay",
             (Self::Done, _) => "Done",
         }
@@ -67,8 +71,9 @@ impl WizardStep {
             Self::Lang => '2',
             Self::Team => '3',
             Self::Connect => '4',
-            Self::Overlay => '5',
-            Self::Done => '6',
+            Self::Humans => '5',
+            Self::Overlay => '6',
+            Self::Done => '7',
         }
     }
 }

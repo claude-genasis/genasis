@@ -1,12 +1,16 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod cmd_agents;
 mod cmd_attach;
+mod cmd_bootstrap;
 mod cmd_db;
+mod cmd_debug;
 mod cmd_design;
 mod cmd_detach;
 mod cmd_doctor;
 mod cmd_example;
+mod cmd_humans;
 mod cmd_init;
 mod cmd_lang;
 mod cmd_mm;
@@ -40,6 +44,10 @@ struct Cli {
 enum Cmd {
     /// Bootstrap a blank project: ECC team + overlay + Plane/MM provisioning
     Init(cmd_init::Args),
+    /// Scaffold canonical 10-role base agent files into `.claude/agents/`
+    /// (green-field projects). Auto-chains to `attach` unless
+    /// `--no-attach-after`. ADR-010 §3.
+    Bootstrap(cmd_bootstrap::Args),
     /// Attach overlay onto an existing agentic team
     Attach(cmd_attach::Args),
     /// Remove the overlay (marker fences only)
@@ -65,6 +73,13 @@ enum Cmd {
     /// Drop a sample document (PRD/design-system/PRD2) into the project
     /// root so the agentic team has something immediately actionable.
     Example(cmd_example::Args),
+    /// Browse, install, list, or remove agents from the catalog (ADR-011)
+    Agents(cmd_agents::Args),
+    /// Inspect drift, collect anonymised patches, reset baseline (ADR-012)
+    Debug(cmd_debug::Args),
+    /// Manage human team-member roster: list, add, edit, remove,
+    /// and provision into Mattermost + Plane (ADR-014).
+    Humans(cmd_humans::Args),
 }
 
 #[tokio::main]
@@ -82,7 +97,13 @@ async fn main() -> Result<()> {
         "i18n locale installed"
     );
     match cli.command {
-        Cmd::Init(a) => cmd_init::run(a).await,
+        Cmd::Init(a) => {
+            cmd_init::run_with_globals(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes)
+                .await
+        }
+        Cmd::Bootstrap(a) => {
+            cmd_bootstrap::run(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes).await
+        }
         Cmd::Attach(a) => {
             cmd_attach::pub_run(a, cli.lang.clone(), cli.non_interactive, cli.assume_yes).await
         }
@@ -97,6 +118,9 @@ async fn main() -> Result<()> {
         Cmd::Version(a) => cmd_version::run(a).await,
         Cmd::Lang(a) => cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await,
         Cmd::Example(a) => cmd_example::run(a),
+        Cmd::Agents(a) => cmd_agents::run(a),
+        Cmd::Debug(a) => cmd_debug::run(a),
+        Cmd::Humans(a) => cmd_humans::run(a).await,
     }
 }
 

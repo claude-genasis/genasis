@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
 
 import { useLang } from "@/app/components/LangProvider";
 import type { SimIssue, SimIssueState } from "@/db/sim";
+
+const COLUMN_ORDER: SimIssueState[] = ["todo", "inprogress", "inreview", "done"];
 
 const COLUMNS: {
   key: SimIssueState;
@@ -54,7 +56,7 @@ export function LiveKanbanBoard({
   initialIssues,
   projectSlug,
 }: LiveKanbanBoardProps) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [issues, setIssues] = useState<SimIssue[]>(initialIssues);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [hoverColumn, setHoverColumn] = useState<SimIssueState | null>(null);
@@ -141,6 +143,43 @@ export function LiveKanbanBoard({
     }
   };
 
+  // Keyboard drag-and-drop: ArrowLeft/Right moves card to adjacent column
+  const onCardKeyDown =
+    (issueId: number, currentState: SimIssueState) =>
+    async (e: KeyboardEvent<HTMLLIElement>) => {
+      const idx = COLUMN_ORDER.indexOf(currentState);
+      let targetState: SimIssueState | null = null;
+      if (e.key === "ArrowRight" && idx < COLUMN_ORDER.length - 1) {
+        targetState = COLUMN_ORDER[idx + 1]!;
+      } else if (e.key === "ArrowLeft" && idx > 0) {
+        targetState = COLUMN_ORDER[idx - 1]!;
+      }
+      if (!targetState) return;
+      e.preventDefault();
+      const before = issues;
+      setIssues((prev) =>
+        prev.map((i) =>
+          i.id === issueId ? { ...i, state: targetState! } : i,
+        ),
+      );
+      setError(null);
+      try {
+        const res = await fetch(`/api/plane/issues/${issueId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state: targetState }),
+        });
+        if (!res.ok) throw new Error(`patch failed: ${res.status}`);
+      } catch (err) {
+        setIssues(before);
+        setError(
+          t("live.kanban.error", {
+            reason: err instanceof Error ? err.message : "unknown",
+          }),
+        );
+      }
+    };
+
   return (
     <div className="space-y-2" data-testid="live-kanban">
       {error ? (
@@ -194,8 +233,16 @@ export function LiveKanbanBoard({
                     data-card-id={issue.id}
                     draggable
                     tabIndex={0}
+                    role="option"
+                    aria-roledescription={
+                      lang === "ko"
+                        ? "이동 가능한 카드. 좌우 화살표 키로 컬럼 이동."
+                        : "Movable card. Use left/right arrow keys to move between columns."
+                    }
+                    aria-label={`#${issue.sequence_id} ${issue.title}`}
                     onDragStart={onDragStart(issue.id)}
                     onDragEnd={onDragEnd}
+                    onKeyDown={onCardKeyDown(issue.id, issue.state)}
                     className={`animate-card-enter cursor-grab rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm transition-opacity active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-900 ${
                       draggingId === issue.id ? "opacity-50" : ""
                     }`}
@@ -216,7 +263,7 @@ export function LiveKanbanBoard({
                   </li>
                 ))}
                 {columnIssues.length === 0 ? (
-                  <li className="rounded-md border border-dashed border-neutral-200 px-3 py-2 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-600">
+                  <li className="rounded-md border border-dashed border-neutral-200 px-3 py-2 text-center text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-500">
                     {t("live.empty.cards")}
                   </li>
                 ) : null}

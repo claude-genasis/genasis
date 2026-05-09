@@ -28,6 +28,12 @@ attach:
   refused: "%{count}개 파일이 거부됨 (Tampered/RoleMismatch). 위 diff 를 확인한 뒤 --force 로 다시 실행하거나 문제를 직접 수정하세요."
   wrote_summary: "%{count}개 파일 작성, %{backups}개 백업 생성"
 
+bootstrap:
+  no_agents_hint: ".claude/agents/ 에 에이전트 파일이 없습니다 — `genasis bootstrap` (또는 `genasis init --bootstrap`) 으로 기본 10개 역할 팀을 scaffold 하세요."
+  scaffolded_summary: "기본 에이전트 %{count}개를 생성했습니다."
+  skipped_existing: "scaffold 할 항목이 없습니다 — %{name} 이 이미 존재합니다."
+  next_step: "다음 단계: `genasis attach` 로 새로 생성된 에이전트에 프로토콜 오버레이를 주입하세요."
+
 detach:
   starting: "Genasis overlay 를 분리합니다..."
   success: "%{count}개 에이전트 파일에서 overlay 를 제거했습니다."
@@ -119,6 +125,14 @@ doctor:
     reference_docs_listed: "참조 문서: %{langs}"
     parity_ok: "en.yml ↔ ko.yml: %{count}개 키 동기화됨"
     parity_missing: "en.yml ↔ ko.yml: %{lang} 에 %{missing}개 키 누락"
+  bootstrap:
+    section: "[부트스트랩]"
+    dir_missing: ".claude/agents/ 가 없습니다 — `genasis bootstrap` 으로 기본 10개 역할 팀을 scaffold 하세요."
+    empty_hint: ".claude/agents/ 가 비어 있습니다 — `genasis bootstrap` 으로 기본 10개 역할 팀을 scaffold 하세요."
+    file_count: ".claude/agents/ 아래 에이전트 파일 %{count}개"
+    frontmatter_ok: "frontmatter: 모든 파일의 `name:` 이 파일명과 일치 ✓"
+    missing_name: "frontmatter: %{file}.md 에 `name:` 필드가 없습니다"
+    name_mismatch: "frontmatter: %{file} — `name:` 이 파일명과 일치하지 않습니다"
 
 lang:
   prompt:

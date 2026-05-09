@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useLang } from "@/app/components/LangProvider";
 import type { Credentials } from "@/db";
 
 export type CredentialsViewProps = {
@@ -15,10 +16,11 @@ export function CredentialsView({
   credentials,
   tomlSnippet,
 }: CredentialsViewProps) {
+  const { t } = useLang();
   return (
     <div className="space-y-6" data-testid="credentials-view">
       <CredentialBlock
-        title="Plane"
+        title={t("creds.plane")}
         testId="creds-plane"
         pairs={[
           { label: "URL", value: credentials.plane.url },
@@ -33,7 +35,7 @@ export function CredentialsView({
         ]}
       />
       <CredentialBlock
-        title="Mattermost"
+        title={t("creds.mattermost")}
         testId="creds-mattermost"
         pairs={[
           { label: "URL", value: credentials.mattermost.url },
@@ -110,6 +112,7 @@ function SecretRow({ pair }: { pair: Pair }) {
         <button
           type="button"
           onClick={copy}
+          aria-label={`Copy ${pair.label}`}
           className="rounded border border-neutral-300 px-1.5 py-0.5 text-xs font-sans text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
         >
           {copied ? "Copied" : "Copy"}

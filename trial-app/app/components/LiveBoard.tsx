@@ -30,7 +30,7 @@ export function LiveBoard({
           {t("live.banner", { project: project.slug, channel: channel.name })}
         </span>
       </div>
-      <div className="relative" data-testid="live-board-stage">
+      <div data-testid="live-board-stage">
         <LiveKanbanBoard
           initialIssues={initialIssues}
           projectSlug={project.slug}

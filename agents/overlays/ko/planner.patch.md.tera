@@ -11,6 +11,15 @@
 - **내 Plane user UUID**: `${PLANE_USER_ID_PLANNER}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
 - **내 채널**: `#scrum-{{ project_name | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
 
+### 요구사항 인테이크 (ADR-014)
+- `GENASIS.md § 사람 로스터` 에 등록된 사람의 요구사항은 발신 Mattermost
+  스레드를 **스펙 SSOT** 로 취급. 본문을 의역하지 않고 Plane 이슈 본문에
+  원문을 그대로 인용 + 스레드 permalink 링크.
+- stakeholder 요구사항을 받았을 때 모호한 부분이 있으면 같은 스레드에
+  먼저 질문하고, 명확해진 뒤 작업 분해를 시작.
+- 미등록 발신자의 요구는 PM 에게 에스컬레이트하고, 신원 확인 전에는
+  스프린트 플랜에 반영하지 않음.
+
 ### 라이프사이클 (담당자 우선)
 - `Todo → In Progress`: `feat/{seq}-{slug}` 브랜치 생성 (종류에 따라 `fix/` / `design/`), 내 PAT 으로 Plane 상태를 `PATCH`, 사람 요청 스레드에 회신.
 - `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_name | default(value="<project>") }}` 이슈 스레드에서 멘션.

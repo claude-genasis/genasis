@@ -82,6 +82,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
                     WizardStep::Lang => widgets::step_lang::render(frame, chunks[1], state),
                     WizardStep::Team => widgets::step_team::render(frame, chunks[1], state),
                     WizardStep::Connect => widgets::step_connect::render(frame, chunks[1], state),
+                    WizardStep::Humans => widgets::step_humans::render(frame, chunks[1], state),
                     WizardStep::Overlay => widgets::step_overlay::render(frame, chunks[1], state),
                     WizardStep::Done => widgets::step_done::render(frame, chunks[1], state),
                 }
@@ -103,36 +104,43 @@ async fn run_loop<B: ratatui::backend::Backend>(
 }
 
 fn handle_key(state: &mut WizardState, code: KeyCode) {
-    // Global keys.
-    match code {
-        KeyCode::Char('q') | KeyCode::Esc => {
-            state.should_quit = true;
-            return;
-        }
-        KeyCode::Left => {
-            if let Some(prev) = state.current_step.prev() {
-                if state.steps[prev.index()].status.is_complete() {
-                    state.current_step = prev;
+    // The Humans step opens a modal CRUD form. While the form is open
+    // we suppress the global Esc-quit / numeric jumps / arrow nav so
+    // typing 'q', '1', etc. flows into the form fields.
+    let humans_form_open = state.current_step == WizardStep::Humans && state.humans.form_open();
+
+    if !humans_form_open {
+        // Global keys.
+        match code {
+            KeyCode::Char('q') | KeyCode::Esc => {
+                state.should_quit = true;
+                return;
+            }
+            KeyCode::Left => {
+                if let Some(prev) = state.current_step.prev() {
+                    if state.steps[prev.index()].status.is_complete() {
+                        state.current_step = prev;
+                    }
                 }
+                return;
             }
-            return;
-        }
-        KeyCode::Right => {
-            if let Some(next) = state.current_step.next() {
-                if state.steps[state.current_step.index()].status.is_complete() {
-                    state.go_to(next);
+            KeyCode::Right => {
+                if let Some(next) = state.current_step.next() {
+                    if state.steps[state.current_step.index()].status.is_complete() {
+                        state.go_to(next);
+                    }
                 }
+                return;
             }
-            return;
-        }
-        KeyCode::Char(c @ '1'..='6') => {
-            let idx = (c as usize) - ('1' as usize);
-            if let Some(target) = WizardStep::from_index(idx) {
-                state.go_to(target);
+            KeyCode::Char(c @ '1'..='7') => {
+                let idx = (c as usize) - ('1' as usize);
+                if let Some(target) = WizardStep::from_index(idx) {
+                    state.go_to(target);
+                }
+                return;
             }
-            return;
+            _ => {}
         }
-        _ => {}
     }
 
     // Delegate to current step.
@@ -141,6 +149,7 @@ fn handle_key(state: &mut WizardState, code: KeyCode) {
         WizardStep::Lang => steps::lang::handle_key(state, code),
         WizardStep::Team => steps::team::handle_key(state, code),
         WizardStep::Connect => steps::connect::handle_key(state, code),
+        WizardStep::Humans => steps::humans::handle_key(state, code),
         WizardStep::Overlay => steps::overlay::handle_key(state, code),
         WizardStep::Done => steps::done::handle_key(state, code),
     }
