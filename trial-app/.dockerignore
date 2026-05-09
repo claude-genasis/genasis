@@ -7,7 +7,6 @@ data
 .env.local
 .env.*.local
 *.log
-ralph
 progress.md
 README.md
 .vscode
