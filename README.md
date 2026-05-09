@@ -7,6 +7,8 @@
 Install a full agentic development team that works alongside humans — picking up tickets in Plane, discussing in Mattermost threads, running sprints, and shipping code through the same workflow your team already uses.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/ci.yml?branch=main&label=CI&style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/claude-genasis/genasis?branch=main&style=flat-square&logo=codecov)](https://codecov.io/gh/claude-genasis/genasis)
+[![Nightly E2E](https://img.shields.io/github/actions/workflow/status/claude-genasis/genasis/nightly-e2e.yml?branch=main&label=nightly%20E2E&style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/actions/workflows/nightly-e2e.yml)
 [![Release](https://img.shields.io/github/v/release/claude-genasis/genasis?include_prereleases&style=flat-square&logo=github&label=release)](https://github.com/claude-genasis/genasis/releases)
 [![License](https://img.shields.io/github/license/claude-genasis/genasis?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/claude-genasis/genasis?style=flat-square&logo=github)](https://github.com/claude-genasis/genasis/stargazers)
