@@ -1,8 +1,11 @@
 # Trial App — Progress
 
-> Ralph 자율 이터레이션의 사람이 읽을 수 있는 요약본.
-> 상세 빌드 로그는 `ralph/progress.txt`, 스토리 정의는 `ralph/prd.json`.
-> Branch: `ralph/trial-webapp` · 작업 디렉터리: `/work/genasis/trial-app/`.
+> 사람이 한눈에 읽을 수 있는 마일스톤 요약본.
+> 작업 디렉터리: `/work/genasis/trial-app/`.
+>
+> _초기 22개 user story (US-001..US-022) 는 Ralph 자율 이터레이션 루프로
+> 구현됐으며, 그 상태 파일(`ralph/`) 은 v0.1 작업 종료 후 retire 됐습니다.
+> 후속 이터레이션은 일반 PR 흐름을 사용합니다._
 
 ## 한눈에 보기 — 22 / 22 ✅
 
@@ -177,5 +180,5 @@ cd /work/genasis && cargo test -p genasis-cli --bin genasis
 
 ## 참고
 
-- 이 문서는 사람이 한 번에 상태를 파악하기 위한 요약본입니다. 자동화 루프(Ralph)는 `ralph/progress.txt` 와 `ralph/prd.json` 만 읽고 씁니다.
+- 이 문서는 사람이 한 번에 상태를 파악하기 위한 요약본입니다. 초기 22개 user story 는 Ralph 자율 루프로 구현됐으나, 해당 상태 파일은 v0.1 종료 후 retire 됐습니다 — 이후 작업은 일반 PR 흐름을 따릅니다.
 - 모든 인터랙티브 UX (드래그-드롭 / 키보드 입력 / 클립보드 복사 / 타이머 애니메이션)는 SSR + 클라이언트 정적 검증이 끝났지만, 최종 시각/동작 확인은 브라우저에서 수동으로 한 번 해주세요.
