@@ -23,7 +23,31 @@ cd genasis
 cargo test --workspace --no-fail-fast
 ```
 
-If `cargo test` returns "120 passed" you're ready to contribute.
+If `cargo test` returns "245+ passed" you're ready to contribute.
+
+---
+
+## Local regression layers
+
+Genasis ships several layers of regression coverage. CI runs L1–L3 + L8 on
+every push; the rest are runnable locally and surface different failure
+classes. Pick the layer that matches what you touched.
+
+| Layer | Command | What it covers | Time | In CI? |
+|---|---|---|---|---|
+| **L1** fmt + lint | `cargo fmt --all -- --check` · `cargo clippy --workspace --all-targets` | style + lint | ~10s | ✅ `ci.yml :: test` |
+| **L2** unit + integration | `cargo test --workspace --all-targets` | 245+ Rust tests including golden fixtures | ~60s | ✅ `ci.yml :: test` |
+| **L3** i18n drift | `scripts/check-i18n-drift.sh` · `scripts/i18n-extract-keys.sh` | EN↔KO mirror parity + i18n key parity | ~5s | ✅ `ci.yml :: lint-i18n` |
+| **L4** trial-app build | `cd trial-app && npm run typecheck && npm run build` | TypeScript + Next.js 15 build | ~30s | ❌ |
+| **L5** trial-app E2E | `cd trial-app && npx playwright test` | 23 Playwright specs (M21) | ~5min | ❌ |
+| **L6** README-parity E2E | `cargo test -p genasis-e2e` | every command advertised in README (M19) | ~30s | ✅ rolled into L2 |
+| **L7** live-server E2E | `scripts/e2e-test.sh [--mock\|--quick]` | full lifecycle vs real Plane + Mattermost | ~10min | ❌ |
+| **L8** coverage | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | line coverage → Codecov | ~80s | ✅ `ci.yml :: coverage` |
+| **L9** nightly real-server | `gh workflow run nightly-e2e.yml` (manual) | L7 against `servers/docker-compose.yml` | ~30min | ✅ `nightly-e2e.yml` (cron 02:00 UTC) |
+| **L10** build-from-source | `./build.sh` | release binary + `~/.local/bin` install | ~3min | (release verification) |
+
+**Quick path before pushing a PR**: `cargo fmt --all && cargo test --workspace`
+covers L1 + L2 + L6 in one go and matches what `ci.yml :: test` will run.
 
 ---
 

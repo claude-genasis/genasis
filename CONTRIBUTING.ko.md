@@ -23,7 +23,31 @@ cd genasis
 cargo test --workspace --no-fail-fast
 ```
 
-`cargo test` 가 "120 passed" 를 출력하면 기여 준비 완료입니다.
+`cargo test` 가 "245+ passed" 를 출력하면 기여 준비 완료입니다.
+
+---
+
+## 로컬 regression 계층
+
+Genasis 는 여러 계층의 regression 검증을 제공합니다. CI 는 매 푸시마다 L1–L3 + L8
+을 자동 수행하고, 나머지는 로컬에서 직접 실행 가능합니다. 작업 범위에 맞는
+계층을 선택해서 돌리세요.
+
+| 계층 | 명령 | 검증 항목 | 소요 | CI 포함? |
+|---|---|---|---|---|
+| **L1** fmt + lint | `cargo fmt --all -- --check` · `cargo clippy --workspace --all-targets` | 스타일 + 린트 | ~10s | ✅ `ci.yml :: test` |
+| **L2** 단위 + 통합 | `cargo test --workspace --all-targets` | 245+ Rust 테스트 (golden fixture 포함) | ~60s | ✅ `ci.yml :: test` |
+| **L3** i18n drift | `scripts/check-i18n-drift.sh` · `scripts/i18n-extract-keys.sh` | EN↔KO 미러 + i18n 키 parity | ~5s | ✅ `ci.yml :: lint-i18n` |
+| **L4** trial-app 빌드 | `cd trial-app && npm run typecheck && npm run build` | TypeScript + Next.js 15 빌드 | ~30s | ❌ |
+| **L5** trial-app E2E | `cd trial-app && npx playwright test` | 23개 Playwright spec (M21) | ~5분 | ❌ |
+| **L6** README parity E2E | `cargo test -p genasis-e2e` | README 의 모든 커맨드 (M19) | ~30s | ✅ L2 에 포함 |
+| **L7** 라이브 서버 E2E | `scripts/e2e-test.sh [--mock\|--quick]` | 실제 Plane + Mattermost 풀 라이프사이클 | ~10분 | ❌ |
+| **L8** 커버리지 | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | 라인 커버리지 → Codecov | ~80s | ✅ `ci.yml :: coverage` |
+| **L9** 야간 실서버 | `gh workflow run nightly-e2e.yml` (수동) | `servers/docker-compose.yml` 대상 L7 | ~30분 | ✅ `nightly-e2e.yml` (cron 02:00 UTC) |
+| **L10** 소스 빌드 | `./build.sh` | release 바이너리 + `~/.local/bin` 설치 | ~3분 | (릴리즈 검증) |
+
+**PR 푸시 전 빠른 경로**: `cargo fmt --all && cargo test --workspace` —
+L1 + L2 + L6 한 번에 돌리며 `ci.yml :: test` 와 동일한 검증을 수행합니다.
 
 ---
 
