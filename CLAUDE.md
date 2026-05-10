@@ -72,6 +72,7 @@ following commit at most) to maintain structural and content parity.
 | `docs/MONITOR.md` | `docs/ko/MONITOR.md` |
 | `docs/impact-of-multilang-prompts.md` | `docs/ko/impact-of-multilang-prompts.md` |
 | `docs/TUTORIAL.md` | `docs/ko/TUTORIAL.md` |
+| `docs/TESTING.md` | `docs/ko/TESTING.md` |
 | `docs/ADR/ADR-*.md` | `docs/ko/ADR/ADR-*.md` |
 
 ### Rules

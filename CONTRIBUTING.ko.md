@@ -49,6 +49,10 @@ Genasis 는 여러 계층의 regression 검증을 제공합니다. CI 는 매 �
 **PR 푸시 전 빠른 경로**: `cargo fmt --all && cargo test --workspace` —
 L1 + L2 + L6 한 번에 돌리며 `ci.yml :: test` 와 동일한 검증을 수행합니다.
 
+전체 계층별 지침, 시나리오별 선택 가이드 ("X 를 바꿨을 때 무엇을
+돌려야 하는가"), 트러블슈팅은 **[`docs/ko/TESTING.md`](docs/ko/TESTING.md)**
+를 참조하세요.
+
 ---
 
 ## 각 prerequisite 가 필요한 이유
