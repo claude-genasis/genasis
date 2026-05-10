@@ -17,7 +17,7 @@ Genasis 변경을 push 하기 전에 안전성을 검증하는 방법. 10초짜�
 | `crates/genasis-providers/` | + `scripts/nightly-e2e.sh` |
 | `crates/genasis-cli/` (init / attach 라이프사이클) | + `scripts/nightly-e2e.sh` |
 | `servers/docker-compose.yml` | + `scripts/nightly-e2e.sh` |
-| trial-app 프론트엔드 | _v0.6+ 에서 비공개 [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) 로 이동 — 별도 운영. `genasis init --trial` 은 https://genasis-trial.realstory.blog 의 운영자-호스팅 인스턴스를 사용._ |
+| trial-app 프론트엔드 | _v0.6+ 에서 비공개 [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) 로 이동 — 별도 운영. `genasis init --trial` 은 https://mmplane-trial.realstory.blog 의 운영자-호스팅 인스턴스를 사용._ |
 | `docs/ko/` 외부 `*.md` | `scripts/check-i18n-drift.sh --warn` |
 | `crates/genasis-i18n/locales/*.yml` | `scripts/i18n-extract-keys.sh` |
 | `tests/golden/**` 픽스처 | `BLESS=1 cargo test -p genasis-overlay` 후 diff 확인 |
@@ -127,7 +127,7 @@ Trial-app 소스 코드가 v0.6 에서 비공개
 으로 이동했습니다. genasis 본 리포는 더 이상 Next.js 앱, Playwright
 suite, `trial-app/` 디렉터리를 ship 하지 않습니다.
 
-운영자-호스팅 배포는 **https://genasis-trial.realstory.blog** 에서 동작
+운영자-호스팅 배포는 **https://mmplane-trial.realstory.blog** 에서 동작
 하며, 운영자 호스트의 `/work/genasis-trial/` 에서 Caddy 가 reverse-proxy
 합니다 (해당 디렉터리 내부의 README 참조).
 

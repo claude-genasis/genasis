@@ -106,7 +106,7 @@ pub struct TrialConfig {
     #[serde(default)]
     pub enabled: bool,
     /// Base URL of the trial-app. Defaults to the operator-hosted
-    /// public instance at `https://genasis-trial.realstory.blog`.
+    /// public instance at `https://mmplane-trial.realstory.blog`.
     /// Override only if you self-host the trial-app at a different
     /// location (rare — the trial flow is meant to be zero-setup).
     #[serde(default = "default_trial_url")]
@@ -121,7 +121,7 @@ pub struct TrialConfig {
 }
 
 fn default_trial_url() -> String {
-    "https://genasis-trial.realstory.blog".to_string()
+    "https://mmplane-trial.realstory.blog".to_string()
 }
 
 /// Locale configuration recorded by `genasis init` / `attach` and read by

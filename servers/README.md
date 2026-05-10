@@ -49,7 +49,7 @@ docker compose up -d                                # Plane + MM
 # 충돌 없이 공존.
 
 # Trial app 은 별개 운영 — agents-pool/trial-app/ 소스를
-# /work/genasis-trial/ 에 배포하고 https://genasis-trial.realstory.blog
+# /work/genasis-trial/ 에 배포하고 https://mmplane-trial.realstory.blog
 # 에서 제공 (이 stack 과 무관).
 ```
 
@@ -93,7 +93,7 @@ alice-mm.example.com    { reverse_proxy localhost:38501 }
    시각을 운영자별로 어긋나게 두거나 락파일 운영.
 7. **trial-app 은 v0.6+ 부터 이 stack 과 분리** — `agents-pool/trial-app/`
    의 소스를 `/work/genasis-trial/` 에 별도 배포하고 Caddy 가
-   `genasis-trial.realstory.blog` 로 reverse-proxy 합니다. 이 docker-compose
+   `mmplane-trial.realstory.blog` 로 reverse-proxy 합니다. 이 docker-compose
    파일에는 더 이상 trial 컨테이너가 정의되지 않습니다.
 
 ## Architecture

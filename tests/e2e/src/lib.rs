@@ -3,7 +3,7 @@
 //! Each spec file under `tests/` exercises one command from
 //! `README.md §CLI Reference`. The default backend for any command
 //! touching Plane / Mattermost is the `trial` flavor (forwarded to
-//! the operator-hosted trial app at https://genasis-trial.realstory.blog
+//! the operator-hosted trial app at https://mmplane-trial.realstory.blog
 //! — sourced privately from agents-pool/trial-app/). The local
 //! `scripts/nightly-e2e.sh` script re-runs this suite against real
 //! Plane + Mattermost via `servers/docker-compose.yml`.

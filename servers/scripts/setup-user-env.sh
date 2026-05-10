@@ -6,7 +6,7 @@
 #   servers/.env       (Plane + Mattermost stack)
 #
 # (As of v0.6+, trial-app is operated separately at
-# https://genasis-trial.realstory.blog — sources in agents-pool/trial-app/,
+# https://mmplane-trial.realstory.blog — sources in agents-pool/trial-app/,
 # deployment in /work/genasis-trial/. This script no longer touches it.)
 #
 # Allocation strategy
@@ -134,6 +134,6 @@ Next steps:
   2) cd servers && docker compose up -d
 
 Trial app (optional, separate): runs on this host's
-  https://genasis-trial.realstory.blog
+  https://mmplane-trial.realstory.blog
   via /work/genasis-trial/ — see that directory's README.
 EOF
