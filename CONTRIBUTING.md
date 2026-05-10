@@ -49,6 +49,10 @@ classes. Pick the layer that matches what you touched.
 **Quick path before pushing a PR**: `cargo fmt --all && cargo test --workspace`
 covers L1 + L2 + L6 in one go and matches what `ci.yml :: test` will run.
 
+For the full layer-by-layer instructions, scenario-based picks ("I changed
+X, what should I run?"), and troubleshooting, see
+**[`docs/TESTING.md`](docs/TESTING.md)**.
+
 ---
 
 ## Why each prerequisite
