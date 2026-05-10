@@ -21,7 +21,7 @@ genasis init --trial
 ```
 
 This creates a blank project, installs the default agent team, and opens the
-**operator-hosted demo at [genasis-trial.realstory.blog](https://genasis-trial.realstory.blog)**
+**operator-hosted demo at [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
 in your browser. The demo shows an animated sprint simulation: agents picking
 up tickets, posting in chat, moving kanban cards. No local install — the demo
 runs on the operator's server.

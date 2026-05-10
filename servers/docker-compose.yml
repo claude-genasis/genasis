@@ -1,7 +1,7 @@
 # Genasis Server Stack — Plane + Mattermost
 #
 # (Trial app moved to private agents-pool/trial-app/ and is operator-
-# hosted at https://genasis-trial.realstory.blog as of v0.6+. This
+# hosted at https://mmplane-trial.realstory.blog as of v0.6+. This
 # compose file no longer references it.)
 #
 # Usage:

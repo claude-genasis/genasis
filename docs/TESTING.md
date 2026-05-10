@@ -18,7 +18,7 @@ kind of change.
 | `crates/genasis-providers/` | + `scripts/nightly-e2e.sh` |
 | `crates/genasis-cli/` (init / attach lifecycle) | + `scripts/nightly-e2e.sh` |
 | `servers/docker-compose.yml` | + `scripts/nightly-e2e.sh` |
-| trial-app frontend | _Now in private [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) (v0.6+) — runs separately. Use `genasis init --trial` to consume the operator-hosted instance at https://genasis-trial.realstory.blog._ |
+| trial-app frontend | _Now in private [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) (v0.6+) — runs separately. Use `genasis init --trial` to consume the operator-hosted instance at https://mmplane-trial.realstory.blog._ |
 | `*.md` outside `docs/ko/` | `scripts/check-i18n-drift.sh --warn` |
 | `crates/genasis-i18n/locales/*.yml` | `scripts/i18n-extract-keys.sh` |
 | `tests/golden/**` fixtures | `BLESS=1 cargo test -p genasis-overlay` then verify diff |
@@ -129,7 +129,7 @@ in v0.6. The genasis main repo no longer ships the Next.js app, the
 Playwright suite, or the `trial-app/` directory.
 
 Operator-hosted deployment lives at
-**https://genasis-trial.realstory.blog**, served by Caddy from
+**https://mmplane-trial.realstory.blog**, served by Caddy from
 `/work/genasis-trial/` on the operator host (see the deployment
 README inside that directory).
 
