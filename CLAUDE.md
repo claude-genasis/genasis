@@ -73,6 +73,7 @@ following commit at most) to maintain structural and content parity.
 | `docs/impact-of-multilang-prompts.md` | `docs/ko/impact-of-multilang-prompts.md` |
 | `docs/TUTORIAL.md` | `docs/ko/TUTORIAL.md` |
 | `docs/TESTING.md` | `docs/ko/TESTING.md` |
+| `docs/MIGRATE-PG-CONSOLIDATION.md` | `docs/ko/MIGRATE-PG-CONSOLIDATION.md` |
 | `docs/ADR/ADR-*.md` | `docs/ko/ADR/ADR-*.md` |
 
 ### Rules
