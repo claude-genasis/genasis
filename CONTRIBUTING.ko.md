@@ -43,7 +43,7 @@ Genasis 는 여러 계층의 regression 검증을 제공합니다. CI 는 매 �
 | **L6** README parity E2E | `cargo test -p genasis-e2e` | README 의 모든 커맨드 (M19) | ~30s | ✅ L2 에 포함 |
 | **L7** 라이브 서버 E2E | `scripts/e2e-test.sh [--mock\|--quick]` | 실제 Plane + Mattermost 풀 라이프사이클 | ~10분 | ❌ |
 | **L8** 커버리지 | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | 라인 커버리지 → Codecov | ~80s | ✅ `ci.yml :: coverage` |
-| **L9** 야간 실서버 | `gh workflow run nightly-e2e.yml` (수동) | `servers/docker-compose.yml` 대상 L7 | ~30분 | ✅ `nightly-e2e.yml` (cron 02:00 UTC) |
+| **L9** 야간 실서버 | `scripts/nightly-e2e.sh` (로컬 pre-push 게이트) | `servers/docker-compose.yml` 대상 L7 | ~10분 (로컬) | ❌ — 의도적으로 로컬 전용 (GitHub free runner 는 Plane 풀스택을 돌리기엔 너무 느림) |
 | **L10** 소스 빌드 | `./build.sh` | release 바이너리 + `~/.local/bin` 설치 | ~3분 | (릴리즈 검증) |
 
 **PR 푸시 전 빠른 경로**: `cargo fmt --all && cargo test --workspace` —

@@ -43,7 +43,7 @@ classes. Pick the layer that matches what you touched.
 | **L6** README-parity E2E | `cargo test -p genasis-e2e` | every command advertised in README (M19) | ~30s | ✅ rolled into L2 |
 | **L7** live-server E2E | `scripts/e2e-test.sh [--mock\|--quick]` | full lifecycle vs real Plane + Mattermost | ~10min | ❌ |
 | **L8** coverage | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | line coverage → Codecov | ~80s | ✅ `ci.yml :: coverage` |
-| **L9** nightly real-server | `gh workflow run nightly-e2e.yml` (manual) | L7 against `servers/docker-compose.yml` | ~30min | ✅ `nightly-e2e.yml` (cron 02:00 UTC) |
+| **L9** nightly real-server | `scripts/nightly-e2e.sh` (local pre-push gate) | L7 against `servers/docker-compose.yml` | ~10min local | ❌ — local-only by design (GitHub free runners are too slow for the full Plane stack) |
 | **L10** build-from-source | `./build.sh` | release binary + `~/.local/bin` install | ~3min | (release verification) |
 
 **Quick path before pushing a PR**: `cargo fmt --all && cargo test --workspace`
