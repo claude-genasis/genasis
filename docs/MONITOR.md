@@ -54,6 +54,14 @@ Widget titles, status labels (`idle`, `In Progress`, `In Review`, `Done`), and t
 - All polls are independent tokio tasks; the UI thread only renders.
 - The `notify` watcher is debounced so a noisy log file doesn't flood the renderer.
 
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Cannot drag-select / double-click text in the monitor | Fixed in 0.1.x+. The earlier build called `EnableMouseCapture` even though no widget consumed mouse events, which silently disabled native terminal selection. Update to a build that includes the fix; no flag needed. |
+| Cannot select text in the `genasis init` / `attach` wizard while inside tmux | tmux's `set -g mouse on` intercepts clicks. Hold **Shift** while dragging to bypass tmux and use the host terminal's native selection. (The bottom hint bar shows this reminder.) |
+| Selection works in iTerm2 but not in `screen` | `screen` does not propagate selection like tmux's `mouse on`. Either run without `screen`, or copy via `screen`'s own copy-mode (`Ctrl-a [`). |
+
 ## See also
 
 - ADR-007 (`docs/ADR/ADR-007-monitor-tui.md`) — why Ratatui is shipped in 1.0 and not deferred.

@@ -10,9 +10,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind,
-};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -54,10 +52,14 @@ pub async fn run() -> Result<()> {
     collect_jsonl(&mut state);
     collect_ports(&mut state);
 
-    // Terminal setup
+    // Terminal setup. Mouse capture is intentionally NOT enabled so the
+    // host terminal retains native text selection (drag, double-click,
+    // triple-click). The monitor consumes only keyboard events; if a
+    // future widget needs click handling, gate EnableMouseCapture
+    // behind an opt-in flag rather than turning it on globally.
     enable_raw_mode().map_err(io_err)?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture).map_err(io_err)?;
+    execute!(stdout, EnterAlternateScreen).map_err(io_err)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).map_err(io_err)?;
 
@@ -65,12 +67,7 @@ pub async fn run() -> Result<()> {
 
     // Cleanup
     disable_raw_mode().map_err(io_err)?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )
-    .map_err(io_err)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen).map_err(io_err)?;
     terminal.show_cursor().map_err(io_err)?;
     res
 }
