@@ -38,8 +38,8 @@ classes. Pick the layer that matches what you touched.
 | **L1** fmt + lint | `cargo fmt --all -- --check` · `cargo clippy --workspace --all-targets` | style + lint | ~10s | ✅ `ci.yml :: test` |
 | **L2** unit + integration | `cargo test --workspace --all-targets` | 245+ Rust tests including golden fixtures | ~60s | ✅ `ci.yml :: test` |
 | **L3** i18n drift | `scripts/check-i18n-drift.sh` · `scripts/i18n-extract-keys.sh` | EN↔KO mirror parity + i18n key parity | ~5s | ✅ `ci.yml :: lint-i18n` |
-| **L4** trial-app build | `cd trial-app && npm run typecheck && npm run build` | TypeScript + Next.js 15 build | ~30s | ❌ |
-| **L5** trial-app E2E | `cd trial-app && npx playwright test` | 23 Playwright specs (M21) | ~5min | ❌ |
+| ~~L4~~ trial-app build | _Moved to private agents-pool repo (v0.6+). The trial-app source no longer lives in this repo — see [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app)._ | — | — | — |
+| ~~L5~~ trial-app E2E | _Same — Playwright specs live alongside the trial-app in agents-pool._ | — | — | — |
 | **L6** README-parity E2E | `cargo test -p genasis-e2e` | every command advertised in README (M19) | ~30s | ✅ rolled into L2 |
 | **L7** live-server E2E | `scripts/e2e-test.sh [--mock\|--quick]` | full lifecycle vs real Plane + Mattermost | ~10min | ❌ |
 | **L8** coverage | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | line coverage → Codecov | ~80s | ✅ `ci.yml :: coverage` |

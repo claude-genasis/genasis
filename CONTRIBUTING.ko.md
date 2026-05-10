@@ -38,8 +38,8 @@ Genasis 는 여러 계층의 regression 검증을 제공합니다. CI 는 매 �
 | **L1** fmt + lint | `cargo fmt --all -- --check` · `cargo clippy --workspace --all-targets` | 스타일 + 린트 | ~10s | ✅ `ci.yml :: test` |
 | **L2** 단위 + 통합 | `cargo test --workspace --all-targets` | 245+ Rust 테스트 (golden fixture 포함) | ~60s | ✅ `ci.yml :: test` |
 | **L3** i18n drift | `scripts/check-i18n-drift.sh` · `scripts/i18n-extract-keys.sh` | EN↔KO 미러 + i18n 키 parity | ~5s | ✅ `ci.yml :: lint-i18n` |
-| **L4** trial-app 빌드 | `cd trial-app && npm run typecheck && npm run build` | TypeScript + Next.js 15 빌드 | ~30s | ❌ |
-| **L5** trial-app E2E | `cd trial-app && npx playwright test` | 23개 Playwright spec (M21) | ~5분 | ❌ |
+| ~~L4~~ trial-app 빌드 | _v0.6+ 에서 비공개 agents-pool 리포로 이동. trial-app 소스는 더 이상 이 리포에 없음 — [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) 참조._ | — | — | — |
+| ~~L5~~ trial-app E2E | _마찬가지 — Playwright spec 도 agents-pool 의 trial-app 옆에 있음._ | — | — | — |
 | **L6** README parity E2E | `cargo test -p genasis-e2e` | README 의 모든 커맨드 (M19) | ~30s | ✅ L2 에 포함 |
 | **L7** 라이브 서버 E2E | `scripts/e2e-test.sh [--mock\|--quick]` | 실제 Plane + Mattermost 풀 라이프사이클 | ~10분 | ❌ |
 | **L8** 커버리지 | `cargo llvm-cov --workspace --lcov --output-path lcov.info` | 라인 커버리지 → Codecov | ~80s | ✅ `ci.yml :: coverage` |

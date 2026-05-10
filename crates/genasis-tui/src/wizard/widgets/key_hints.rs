@@ -17,7 +17,12 @@ pub fn render(frame: &mut Frame, area: Rect, _state: &WizardState) {
         Span::styled(" 1-7 ", Style::default().fg(Color::Cyan)),
         Span::raw("Go to step "),
         Span::styled(" q ", Style::default().fg(Color::Cyan)),
-        Span::raw("Quit"),
+        Span::raw("Quit "),
+        Span::styled(" Shift+drag ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "select text (in tmux)",
+            Style::default().fg(Color::DarkGray),
+        ),
     ]);
     frame.render_widget(Paragraph::new(hints), area);
 }

@@ -67,7 +67,7 @@ Genasis turns AI agents into **real team members** with a single Rust binary:
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-**2. Initialize with trial mode** — opens an interactive demo + trial signup in your browser
+**2. Initialize with trial mode** — opens the operator-hosted demo at [genasis-trial.realstory.blog](https://genasis-trial.realstory.blog) in your browser (no local install needed)
 
 ```bash
 mkdir my-project && cd my-project && genasis init --trial
