@@ -4,10 +4,12 @@ services:
       context: .
       dockerfile: Dockerfile
     image: genasis-trial-app:latest
-    container_name: genasis-trial-app
+    # container_name omitted intentionally so COMPOSE_PROJECT_NAME
+    # (set via .env or shell) auto-namespaces the container in
+    # multi-tenant deploys.
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${TRIAL_APP_PORT:-3000}:3000"
     environment:
       DATABASE_PATH: /data/trial.db
       MM_BOT_TOKEN: ${MM_BOT_TOKEN:-}
@@ -16,4 +18,7 @@ services:
       WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:-}
       TRIAL_SHARED_SECRET: ${TRIAL_SHARED_SECRET:-}
     volumes:
-      - ./data:/data
+      - trial-app-data:/data
+
+volumes:
+  trial-app-data:

@@ -9,38 +9,112 @@
 - DNS A 레코드가 서버 IP를 가리키도록 설정
 - 포트 80, 443 오픈 (Caddy 자동 TLS)
 
-## Quick Start
+## Quick Start (단일 운영자)
 
 ```bash
 # 1. 이 디렉토리로 이동
 cd servers/
 
-# 2. 환경 변수 설정
-cp .env.example .env
-# .env를 열어 도메인, 비밀번호 등 수정
+# 2. 환경 변수 자동 생성 (포트 자동 할당 + 시크릿 자동 생성)
+./scripts/setup-user-env.sh
+# 또는 수동: cp .env.example .env && $EDITOR .env
 
-# 3. 서비스 기동
+# 3. 서비스 기동 (Plane + Mattermost + 통합 PostgreSQL)
 docker compose up -d
 
-# 4. Caddy 설정 (호스트에 Caddy가 설치된 경우)
+# 4. (선택) trial-app 같이 띄우기
+cd ../trial-app && docker compose up -d
+
+# 5. Caddy 설정 (호스트에 Caddy가 설치된 경우)
 sudo cp Caddyfile /etc/caddy/Caddyfile.genasis
 # /etc/caddy/Caddyfile에 `import /etc/caddy/Caddyfile.genasis` 추가
 sudo systemctl reload caddy
 ```
+
+## Multi-tenant — 한 호스트에서 여러 운영자가 동시 사용
+
+ADR-015 참조. 각 운영자는 본인 계정에서 헬퍼 스크립트를 실행하면
+컨테이너·네트워크·볼륨·외부 노출 포트가 자동으로 격리됩니다.
+
+```bash
+# Alice (uid 1001) 가 본인 계정에서:
+cd servers/
+./scripts/setup-user-env.sh
+# → COMPOSE_PROJECT_NAME=genasis-alice
+#   PLANE_PORT=38401  MM_PORT=38501  TRIAL_APP_PORT=3101
+#   /work/.../servers/.env 와 trial-app/.env 자동 작성
+
+docker compose up -d                                # Plane + MM
+( cd ../trial-app && docker compose up -d )          # trial-app
+
+# Bob (uid 1002) 가 본인 계정에서 동일 절차 → 자동으로
+#   COMPOSE_PROJECT_NAME=genasis-bob
+#   PLANE_PORT=38402  MM_PORT=38502  TRIAL_APP_PORT=3102
+# 충돌 없이 공존.
+```
+
+스크립트 동작:
+- `COMPOSE_PROJECT_NAME=genasis-${USER}` 으로 컨테이너/볼륨 자동 격리
+- 포트 = base + (uid % 50) — `ss`/`lsof`로 점유 여부 확인 후 비어있는 다음 슬롯 자동 탐색
+- `openssl rand -hex 30` 으로 모든 비밀번호·시크릿 자동 생성
+- `servers/.env`와 `trial-app/.env`를 같은 `TRIAL_SHARED_SECRET` 으로 동기화 → Rust 트라이얼 프로바이더가 곧바로 본인 trial-app으로 라우팅됨
+
+### Caddy per-user 라우팅 패턴
+
+각 운영자가 본인 sub-도메인을 갖도록 Caddyfile 을 분리합니다.
+
+```caddyfile
+# /etc/caddy/Caddyfile (전역, root가 한 번 작성)
+import /etc/caddy/sites/genasis-*.caddy
+```
+
+```caddyfile
+# /etc/caddy/sites/genasis-alice.caddy (alice 전용)
+alice-plane.example.com { reverse_proxy localhost:38401 }
+alice-mm.example.com    { reverse_proxy localhost:38501 }
+alice-trial.example.com { reverse_proxy localhost:3101 }
+```
+
+운영자별 파일을 추가/제거하면 `sudo systemctl reload caddy` 한 번으로
+반영됩니다.
+
+### ⚠️ 다중 사용자 운영 시 주의사항
+
+1. **`COMPOSE_PROJECT_NAME` 미지정 금지** — 디렉토리명 기반 fallback 으로
+   다른 운영자의 볼륨을 덮어쓰는 사고가 발생할 수 있음. 헬퍼 스크립트가
+   항상 명시적으로 설정.
+2. **메모리 예산** — 운영자당 ≈ **5–7GB** (plane × 12 컨테이너 + mm + 통합
+   pg + redis + mq + minio). 32GB 호스트 기준 동시 4명이 한계.
+3. **디스크 사용량** — 사용자별 `pg-shared-data`, `plane-uploads`, `mm-data`
+   볼륨이 누적 — 첨부파일이 많으면 N×선형 증가. `docker system df` 로 추적.
+4. **TLS rate limit** — 동일 등록 도메인 기준 Let's Encrypt 50 certs/주
+   한도. 운영자 50명을 넘어서면 와일드카드 1장으로 회피 권장.
+5. **포트 점유 사전 확인** — 헬퍼 스크립트가 자동 체크하지만 수동 편집
+   시에는 `ss -tln | grep :38XXX` 로 사전 점검.
+6. **백업 충돌** — 통합 PG 인스턴스가 동시에 dump 되면 잠금 발생. cron
+   시각을 운영자별로 어긋나게 두거나 락파일 운영.
+7. **trial-app `./data` 바인드 마운트 → 명명 볼륨 변경됨** — 기존 배포는
+   `docker cp` 로 데이터 이전 필요 (마이그레이션 가이드 참조).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     Internet -->|HTTPS| Caddy
-    Caddy -->|":38381"| Plane["Plane<br/>(proxy→web→api→worker)"]
-    Caddy -->|":38385"| MM["Mattermost<br/>(app→postgres)"]
-    Plane --> PlaneDB[("Plane DB<br/>PostgreSQL 15")]
+    Caddy -->|":${PLANE_PORT}"| Plane["Plane<br/>(proxy→web→api→worker)"]
+    Caddy -->|":${MM_PORT}"| MM["Mattermost"]
+    Caddy -->|":${TRIAL_APP_PORT}"| Trial["trial-app<br/>(Next.js)"]
+    Plane --> SharedPG[("Shared PostgreSQL 15<br/>(plane DB + mattermost DB)")]
+    MM --> SharedPG
     Plane --> Redis[("Valkey/Redis")]
     Plane --> RabbitMQ[("RabbitMQ")]
     Plane --> MinIO[("MinIO<br/>File Storage")]
-    MM --> MMDB[("MM DB<br/>PostgreSQL 18")]
+    Trial --> SQLite[("SQLite<br/>(trial-app/data)")]
 ```
+
+ADR-015 — Postgres 통합 결정. 두 인스턴스 → 한 인스턴스로 ~400MB
+RAM 절감 + 백업 1벌. 트레이드오프와 마이그레이션 절차는
+[`docs/MIGRATE-PG-CONSOLIDATION.md`](../docs/MIGRATE-PG-CONSOLIDATION.md) 참조.
 
 ## Genasis에 필요한 키 추출 방법
 
