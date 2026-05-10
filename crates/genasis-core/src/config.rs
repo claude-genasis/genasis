@@ -105,18 +105,23 @@ pub struct TrialConfig {
     /// `flavor = "trial"`.
     #[serde(default)]
     pub enabled: bool,
-    /// Base URL of the running trial-app (e.g. `http://localhost:3000`).
+    /// Base URL of the trial-app. Defaults to the operator-hosted
+    /// public instance at `https://genasis-trial.realstory.blog`.
+    /// Override only if you self-host the trial-app at a different
+    /// location (rare — the trial flow is meant to be zero-setup).
     #[serde(default = "default_trial_url")]
     pub url: String,
     /// Shared secret sent in the `X-Genasis-Trial-Secret` header by
     /// server-to-server callers (the genasis Rust providers). Must
     /// match `TRIAL_SHARED_SECRET` on the trial-app side.
+    /// Empty value = browser-tab same-origin enforcement only; set
+    /// this when calling the trial-app from a non-browser caller.
     #[serde(default)]
     pub shared_secret: String,
 }
 
 fn default_trial_url() -> String {
-    "http://localhost:3000".to_string()
+    "https://genasis-trial.realstory.blog".to_string()
 }
 
 /// Locale configuration recorded by `genasis init` / `attach` and read by

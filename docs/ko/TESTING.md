@@ -17,7 +17,7 @@ Genasis 변경을 push 하기 전에 안전성을 검증하는 방법. 10초짜�
 | `crates/genasis-providers/` | + `scripts/nightly-e2e.sh` |
 | `crates/genasis-cli/` (init / attach 라이프사이클) | + `scripts/nightly-e2e.sh` |
 | `servers/docker-compose.yml` | + `scripts/nightly-e2e.sh` |
-| `trial-app/` (프론트엔드) | `cd trial-app && npm run typecheck && npm run build && npm run e2e` |
+| trial-app 프론트엔드 | _v0.6+ 에서 비공개 [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) 로 이동 — 별도 운영. `genasis init --trial` 은 https://genasis-trial.realstory.blog 의 운영자-호스팅 인스턴스를 사용._ |
 | `docs/ko/` 외부 `*.md` | `scripts/check-i18n-drift.sh --warn` |
 | `crates/genasis-i18n/locales/*.yml` | `scripts/i18n-extract-keys.sh` |
 | `tests/golden/**` 픽스처 | `BLESS=1 cargo test -p genasis-overlay` 후 diff 확인 |
@@ -44,8 +44,8 @@ L1–L3 + L8 을 자동 수행합니다. 나머지 계층은 로컬에서 — �
 | **L1** fmt + lint | `cargo fmt --check`, `cargo clippy` | 매 commit | ~10 s | ✅ `ci.yml :: test` |
 | **L2** 단위 + 통합 | `cargo test --workspace --all-targets` | 매 PR | ~60 s | ✅ `ci.yml :: test` |
 | **L3** i18n drift | `check-i18n-drift.sh`, `i18n-extract-keys.sh` | docs/template 변경 시 | ~5 s | ✅ `ci.yml :: lint-i18n` (PR 에서 warn-only) |
-| **L4** trial-app 빌드 | `npm run typecheck && npm run build` | `trial-app/` 변경 시 | ~30 s | ❌ |
-| **L5** trial-app E2E | `npm run e2e` | `trial-app/` 변경 시 | ~5 분 | ❌ |
+| ~~L4~~ trial-app 빌드 | _v0.6+ 에서 agents-pool/trial-app 으로 이동 — 아래 "L4/L5 retire" 노트 참조._ | — | — | — |
+| ~~L5~~ trial-app E2E | _L4 와 동일 — retire 노트 참조._ | — | — | — |
 | **L6** README parity | `cargo test -p genasis-e2e` | CLI 표면 변경 시 | ~30 s | ✅ L2 에 포함 |
 | **L7** 실서버 | `scripts/e2e-test.sh` | 릴리즈 전 | ~10 분 | ❌ |
 | **L8** 커버리지 | `cargo llvm-cov` | 정보 제공 | ~80 s | ✅ `ci.yml :: coverage` → Codecov |
@@ -120,44 +120,28 @@ drift 가 hard-fail 합니다. drift 해결 방법:
 
 ---
 
-## L4 — Trial-app 빌드
+## L4 + L5 — retired (v0.6+)
 
-```bash
-cd trial-app
-npm install   # 첫 회만
-npm run typecheck   # tsc --noEmit
-npm run build       # next build
-```
+Trial-app 소스 코드가 v0.6 에서 비공개
+[claude-genasis/agents-pool](https://github.com/claude-genasis/agents-pool/tree/main/trial-app)
+으로 이동했습니다. genasis 본 리포는 더 이상 Next.js 앱, Playwright
+suite, `trial-app/` 디렉터리를 ship 하지 않습니다.
 
-**검출 대상**: TypeScript 타입 오류, 깨진 Next.js 15 SSR / hydration,
-누락된 의존성.
+운영자-호스팅 배포는 **https://genasis-trial.realstory.blog** 에서 동작
+하며, 운영자 호스트의 `/work/genasis-trial/` 에서 Caddy 가 reverse-proxy
+합니다 (해당 디렉터리 내부의 README 참조).
 
-`trial-app/` 은 브라우저에서 도는 Plane + Mattermost 시뮬레이터입니다
-(`docs/TUTORIAL.md` 참조). cargo workspace 에 속하지 않으므로 CI 의
-`cargo test` 는 절대 건드리지 않습니다 — TypeScript / React / Tailwind
-코드 변경 시 L4 + L5 를 직접 돌려야 합니다.
+### 본 리포에서 L4/L5 의 대체
+- **Genasis CLI 사용자**: `genasis init --trial` 이 호스팅 인스턴스를
+  자동 가리킵니다. Genasis 평가에 trial-app 로컬 설치 불필요.
+- **trial-app 기여자**: `claude-genasis/agents-pool` (비공개) 클론 후
+  `trial-app/` 편집, 거기서 `npm run typecheck && npm run build &&
+  npm run e2e` 실행. 운영자가 `deploy.sh` 로 `/work/genasis-trial/`
+  에 변경사항 ship.
 
----
-
-## L5 — Trial-app Playwright E2E
-
-```bash
-cd trial-app
-npx playwright install chromium   # 첫 회만
-npm run e2e          # headless
-npm run e2e:ui       # 인터랙티브 UI 모드
-```
-
-trial-webapp PRD 의 US-001..US-022 (M21) 을 다루는 23 개 spec.
-Spec 위치는 `trial-app/e2e/`:
-- `smoke.spec.ts` — 부팅 + 네비게이션 (M21.1)
-- `demo.spec.ts` — 스크립트 8단계 데모 스프린트 (M21.2)
-- `signup.spec.ts` — 호스팅 트라이얼 신청 폼 (M21.3)
-- `live.spec.ts` — 라이브 trial-bridge 라운드트립 (M21.4)
-
-`npm run e2e` 가 "starting webServer" 에서 멈추면 `playwright.config.ts`
-의 dev server 설정이 3000 포트에서 다른 프로세스와 충돌하는 것 — kill
-후 재시도.
+원래 계층 번호(L1, L2, L3, L6, L7, L8, L9, L10) 는 유지 — 이전 PR /
+커밋 메시지의 prose 참조가 그대로 유효하도록. 새 계층 번호는 4 또는
+5 를 재사용하지 않습니다.
 
 ---
 
@@ -296,7 +280,7 @@ fresh-machine install 이 여전히 작동하는지 확인할 때 유용.
 | Agent overlay `.tera` 템플릿 | L2 + L3 | — |
 | 새 `t!()` 키 | L2 + L3 (i18n 키 parity) | — |
 | `docs/**` 만 (코드 무관) | L3 | — |
-| `trial-app/app/**` (프론트엔드) | L4 + L5 | — |
+| trial-app 프론트엔드 (agents-pool 리포) | (agents-pool 의 trial-app L4/L5 거기서 실행) | — |
 | `servers/docker-compose.yml` | L9 | — |
 | GitHub workflow 파일 | (없음 — push 후 관찰) | — |
 | 릴리즈 준비 | L1 + L2 + L6 + **L7** + **L9** + L10 | — |
@@ -310,7 +294,9 @@ PR 마다 ~50 초 소요. 흔한 실패 클래스를 잡도록 튜닝됨: fmt, c
 깨진 테스트, 누락된 번역, 커버리지 하락. 의도적으로 무거운 계층은
 **돌리지 않습니다** — 이유:
 
-1. **L4/L5 (trial-app)** 는 CI 시간을 두 배로 늘리고 Playwright
+1. ~~**L4/L5 (trial-app)**~~ 더 이상 해당 안 됨 — trial-app 소스가 v0.6+
+   에서 비공개 agents-pool 리포로 이동 ("L4 + L5 — retired" 섹션 참조).
+   원본 주: 이전에는 CI 시간을 두 배로 늘리고 Playwright
    브라우저가 필요. 사소한 Rust PR 을 막을 가치 없음.
 2. **L7 (실서버)** 는 repo secrets 에 진짜 Plane + Mattermost
    자격증명이 필요. 공개 repo 의 보안 위험.
@@ -346,8 +332,10 @@ PR 마다 ~50 초 소요. 흔한 실패 클래스를 잡도록 튜닝됨: fmt, c
    안정적인지 확인
 
 ### 새 Playwright spec
-`trial-app/e2e/` 아래 `.spec.ts` 파일 추가. 인터랙티브 디버깅은
-`npm run e2e -- --ui`.
+Trial-app Playwright spec 은 **비공개 agents-pool 리포** 의
+`trial-app/e2e/` 아래에 있습니다 (이 리포 아님).
+[agents-pool/trial-app](https://github.com/claude-genasis/agents-pool/tree/main/trial-app)
+에서 테스트 러너 셋업을 참조하세요.
 
 ### 새 테스트 헬퍼
 crate 간 공유 헬퍼는 `tests/e2e/src/lib.rs`. `tests/unit/` 디렉터리는

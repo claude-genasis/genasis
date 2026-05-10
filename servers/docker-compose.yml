@@ -1,4 +1,8 @@
-# Genasis Server Stack — Plane + Mattermost + (optional) trial-app
+# Genasis Server Stack — Plane + Mattermost
+#
+# (Trial app moved to private agents-pool/trial-app/ and is operator-
+# hosted at https://genasis-trial.realstory.blog as of v0.6+. This
+# compose file no longer references it.)
 #
 # Usage:
 #   ./scripts/setup-user-env.sh   # generate .env with non-conflicting ports

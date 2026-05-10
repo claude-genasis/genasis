@@ -67,7 +67,7 @@ Genasis는 하나의 Rust 바이너리로 AI 에이전트를 **진짜 팀원**�
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-**2. Trial 모드로 초기화** — 인터랙티브 데모 + 체험 신청 화면이 브라우저에 열립니다
+**2. Trial 모드로 초기화** — 운영자 호스팅 데모 [genasis-trial.realstory.blog](https://genasis-trial.realstory.blog)가 브라우저에 열립니다 (로컬 설치 불필요)
 
 ```bash
 mkdir my-project && cd my-project && genasis init --trial

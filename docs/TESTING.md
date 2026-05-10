@@ -18,7 +18,7 @@ kind of change.
 | `crates/genasis-providers/` | + `scripts/nightly-e2e.sh` |
 | `crates/genasis-cli/` (init / attach lifecycle) | + `scripts/nightly-e2e.sh` |
 | `servers/docker-compose.yml` | + `scripts/nightly-e2e.sh` |
-| `trial-app/` (frontend) | `cd trial-app && npm run typecheck && npm run build && npm run e2e` |
+| trial-app frontend | _Now in private [agents-pool/trial-app/](https://github.com/claude-genasis/agents-pool/tree/main/trial-app) (v0.6+) — runs separately. Use `genasis init --trial` to consume the operator-hosted instance at https://genasis-trial.realstory.blog._ |
 | `*.md` outside `docs/ko/` | `scripts/check-i18n-drift.sh --warn` |
 | `crates/genasis-i18n/locales/*.yml` | `scripts/i18n-extract-keys.sh` |
 | `tests/golden/**` fixtures | `BLESS=1 cargo test -p genasis-overlay` then verify diff |
@@ -46,8 +46,8 @@ services with credentials).
 | **L1** fmt + lint | `cargo fmt --check`, `cargo clippy` | every commit | ~10 s | ✅ `ci.yml :: test` |
 | **L2** unit + integration | `cargo test --workspace --all-targets` | every PR | ~60 s | ✅ `ci.yml :: test` |
 | **L3** i18n drift | `check-i18n-drift.sh`, `i18n-extract-keys.sh` | when docs/templates change | ~5 s | ✅ `ci.yml :: lint-i18n` (warn-only on PRs) |
-| **L4** trial-app build | `npm run typecheck && npm run build` | when `trial-app/` changes | ~30 s | ❌ |
-| **L5** trial-app E2E | `npm run e2e` | when `trial-app/` changes | ~5 min | ❌ |
+| ~~L4~~ trial-app build | _Moved to agents-pool/trial-app (v0.6+) — see "L4/L5 retirement" note below._ | — | — | — |
+| ~~L5~~ trial-app E2E | _Same as L4 — see retirement note._ | — | — | — |
 | **L6** README parity | `cargo test -p genasis-e2e` | when CLI surface changes | ~30 s | ✅ rolled into L2 |
 | **L7** live-server | `scripts/e2e-test.sh` | before a release | ~10 min | ❌ |
 | **L8** coverage | `cargo llvm-cov` | informational | ~80 s | ✅ `ci.yml :: coverage` → Codecov |
@@ -121,44 +121,30 @@ Korean character slips into an English-source file, CI fails outright.
 
 ---
 
-## L4 — Trial-app build
+## L4 + L5 — retired (v0.6+)
 
-```bash
-cd trial-app
-npm install   # first time only
-npm run typecheck   # tsc --noEmit
-npm run build       # next build
-```
+Trial-app source code moved out of this repo into the private
+[claude-genasis/agents-pool](https://github.com/claude-genasis/agents-pool/tree/main/trial-app)
+in v0.6. The genasis main repo no longer ships the Next.js app, the
+Playwright suite, or the `trial-app/` directory.
 
-**What it catches**: TypeScript type errors, broken Next.js 15 SSR /
-hydration, missing dependencies.
+Operator-hosted deployment lives at
+**https://genasis-trial.realstory.blog**, served by Caddy from
+`/work/genasis-trial/` on the operator host (see the deployment
+README inside that directory).
 
-The `trial-app/` is the in-browser Plane + Mattermost simulator
-(see `docs/TUTORIAL.md`). It's not part of the cargo workspace, so
-CI's `cargo test` never touches it — you must run L4 + L5 manually
-when changing TypeScript / React / Tailwind code.
+### What replaces L4/L5 inside this repo
+- **For Genasis CLI users**: `genasis init --trial` now points at the
+  hosted instance. No local install of trial-app is needed to evaluate
+  Genasis.
+- **For trial-app contributors**: clone `claude-genasis/agents-pool`
+  (private), edit `trial-app/`, run `npm run typecheck && npm run
+  build && npm run e2e` there. The operator runs `deploy.sh` to ship
+  changes to `/work/genasis-trial/`.
 
----
-
-## L5 — Trial-app Playwright E2E
-
-```bash
-cd trial-app
-npx playwright install chromium   # first time only
-npm run e2e          # headless
-npm run e2e:ui       # interactive UI mode
-```
-
-23 specs cover US-001..US-022 from the trial-webapp PRD (M21).
-Specs live in `trial-app/e2e/`:
-- `smoke.spec.ts` — boot + nav (M21.1)
-- `demo.spec.ts` — scripted 8-step demo sprint (M21.2)
-- `signup.spec.ts` — request hosted trial form (M21.3)
-- `live.spec.ts` — live trial-bridge round-trip (M21.4)
-
-If `npm run e2e` hangs at "starting webServer", the dev server
-config in `playwright.config.ts` may collide with another process on
-3000 — kill it and retry.
+The original layer numbering is preserved (L1, L2, L3, L6, L7, L8,
+L9, L10) so that prose references in older PRs / commit messages
+still resolve. New layer numbers will not reuse 4 or 5.
 
 ---
 
@@ -300,7 +286,7 @@ still works.
 | Agent overlay `.tera` template | L2 + L3 | — |
 | New `t!()` key | L2 + L3 (i18n key parity) | — |
 | `docs/**` only (no code) | L3 | — |
-| `trial-app/app/**` (frontend) | L4 + L5 | — |
+| trial-app frontend (in agents-pool repo) | (run agents-pool's trial-app L4/L5 there) | — |
 | `servers/docker-compose.yml` | L9 | — |
 | GitHub workflow file | (none — push and observe) | — |
 | Release prep | L1 + L2 + L6 + **L7** + **L9** + L10 | — |
@@ -315,8 +301,8 @@ common failure classes: fmt, clippy, broken tests, missing
 translations, coverage drop. It deliberately does **not** run the
 heavy layers because:
 
-1. **L4/L5 (trial-app)** would double CI time and require Playwright
-   browsers; not worth blocking trivial Rust PRs.
+1. ~~**L4/L5 (trial-app)**~~ no longer apply — trial-app source moved
+   to the private agents-pool repo in v0.6+ (see "L4 + L5 — retired").
 2. **L7 (live-server)** would need real Plane + Mattermost
    credentials in repo secrets; security risk for a public repo.
 3. **L9 (real-server smoke)** can't fit on free-tier runners —
@@ -351,8 +337,10 @@ helpers in `tests/e2e/src/lib.rs` (the `harness` module exposes
    to confirm the fixture is stable.
 
 ### A new Playwright spec
-Add a `.spec.ts` file under `trial-app/e2e/`. Run `npm run e2e --
---ui` for interactive debugging.
+Trial-app Playwright specs live in the **private agents-pool repo**
+under `trial-app/e2e/` (not this repo). See
+[agents-pool/trial-app](https://github.com/claude-genasis/agents-pool/tree/main/trial-app)
+for the test runner setup.
 
 ### A new test helper
 Helpers shared across crates go in `tests/e2e/src/lib.rs`. The

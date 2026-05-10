@@ -22,10 +22,7 @@ cd servers/
 # 3. 서비스 기동 (Plane + Mattermost + 통합 PostgreSQL)
 docker compose up -d
 
-# 4. (선택) trial-app 같이 띄우기
-cd ../trial-app && docker compose up -d
-
-# 5. Caddy 설정 (호스트에 Caddy가 설치된 경우)
+# 4. Caddy 설정 (호스트에 Caddy가 설치된 경우)
 sudo cp Caddyfile /etc/caddy/Caddyfile.genasis
 # /etc/caddy/Caddyfile에 `import /etc/caddy/Caddyfile.genasis` 추가
 sudo systemctl reload caddy
@@ -41,23 +38,25 @@ ADR-015 참조. 각 운영자는 본인 계정에서 헬퍼 스크립트를 실�
 cd servers/
 ./scripts/setup-user-env.sh
 # → COMPOSE_PROJECT_NAME=genasis-alice
-#   PLANE_PORT=38401  MM_PORT=38501  TRIAL_APP_PORT=3101
-#   /work/.../servers/.env 와 trial-app/.env 자동 작성
+#   PLANE_PORT=38401  MM_PORT=38501
+#   /work/.../servers/.env 자동 작성
 
 docker compose up -d                                # Plane + MM
-( cd ../trial-app && docker compose up -d )          # trial-app
 
 # Bob (uid 1002) 가 본인 계정에서 동일 절차 → 자동으로
 #   COMPOSE_PROJECT_NAME=genasis-bob
-#   PLANE_PORT=38402  MM_PORT=38502  TRIAL_APP_PORT=3102
+#   PLANE_PORT=38402  MM_PORT=38502
 # 충돌 없이 공존.
+
+# Trial app 은 별개 운영 — agents-pool/trial-app/ 소스를
+# /work/genasis-trial/ 에 배포하고 https://genasis-trial.realstory.blog
+# 에서 제공 (이 stack 과 무관).
 ```
 
 스크립트 동작:
 - `COMPOSE_PROJECT_NAME=genasis-${USER}` 으로 컨테이너/볼륨 자동 격리
 - 포트 = base + (uid % 50) — `ss`/`lsof`로 점유 여부 확인 후 비어있는 다음 슬롯 자동 탐색
 - `openssl rand -hex 30` 으로 모든 비밀번호·시크릿 자동 생성
-- `servers/.env`와 `trial-app/.env`를 같은 `TRIAL_SHARED_SECRET` 으로 동기화 → Rust 트라이얼 프로바이더가 곧바로 본인 trial-app으로 라우팅됨
 
 ### Caddy per-user 라우팅 패턴
 
@@ -72,7 +71,6 @@ import /etc/caddy/sites/genasis-*.caddy
 # /etc/caddy/sites/genasis-alice.caddy (alice 전용)
 alice-plane.example.com { reverse_proxy localhost:38401 }
 alice-mm.example.com    { reverse_proxy localhost:38501 }
-alice-trial.example.com { reverse_proxy localhost:3101 }
 ```
 
 운영자별 파일을 추가/제거하면 `sudo systemctl reload caddy` 한 번으로
@@ -93,8 +91,10 @@ alice-trial.example.com { reverse_proxy localhost:3101 }
    시에는 `ss -tln | grep :38XXX` 로 사전 점검.
 6. **백업 충돌** — 통합 PG 인스턴스가 동시에 dump 되면 잠금 발생. cron
    시각을 운영자별로 어긋나게 두거나 락파일 운영.
-7. **trial-app `./data` 바인드 마운트 → 명명 볼륨 변경됨** — 기존 배포는
-   `docker cp` 로 데이터 이전 필요 (마이그레이션 가이드 참조).
+7. **trial-app 은 v0.6+ 부터 이 stack 과 분리** — `agents-pool/trial-app/`
+   의 소스를 `/work/genasis-trial/` 에 별도 배포하고 Caddy 가
+   `genasis-trial.realstory.blog` 로 reverse-proxy 합니다. 이 docker-compose
+   파일에는 더 이상 trial 컨테이너가 정의되지 않습니다.
 
 ## Architecture
 
@@ -103,13 +103,11 @@ flowchart LR
     Internet -->|HTTPS| Caddy
     Caddy -->|":${PLANE_PORT}"| Plane["Plane<br/>(proxy→web→api→worker)"]
     Caddy -->|":${MM_PORT}"| MM["Mattermost"]
-    Caddy -->|":${TRIAL_APP_PORT}"| Trial["trial-app<br/>(Next.js)"]
     Plane --> SharedPG[("Shared PostgreSQL 15<br/>(plane DB + mattermost DB)")]
     MM --> SharedPG
     Plane --> Redis[("Valkey/Redis")]
     Plane --> RabbitMQ[("RabbitMQ")]
     Plane --> MinIO[("MinIO<br/>File Storage")]
-    Trial --> SQLite[("SQLite<br/>(trial-app/data)")]
 ```
 
 ADR-015 — Postgres 통합 결정. 두 인스턴스 → 한 인스턴스로 ~400MB
