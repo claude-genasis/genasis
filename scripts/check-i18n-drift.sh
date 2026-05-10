@@ -42,6 +42,10 @@ while IFS= read -r en_path; do
         en/*) continue ;;          # Pages locale landing page — has ko/ sibling
         _*) continue ;;            # Jekyll plugins / includes
         example-*) continue ;;     # design-system sample reference, not Genasis own
+        famous-agents.md) continue ;;  # Editorial analysis of external agent
+                                        # frameworks (Ralph, ECC, etc.); not a
+                                        # Genasis product doc — bilingual mirror
+                                        # not required.
         i18n/*) ko_path="docs/ko/$rel" ;;
         ADR/*) ko_path="docs/ko/$rel" ;;
         *) ko_path="docs/ko/$rel" ;;

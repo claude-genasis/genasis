@@ -15,12 +15,12 @@ members = [
 ]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.78"
 license = "MIT"
-repository = "https://github.com/OWNER/genasis"
-homepage = "https://github.com/OWNER/genasis"
+repository = "https://github.com/claude-genasis/genasis"
+homepage = "https://github.com/claude-genasis/genasis"
 authors = ["Genasis contributors"]
 
 [workspace.dependencies]
