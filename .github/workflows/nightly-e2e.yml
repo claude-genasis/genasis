@@ -11,6 +11,22 @@ name: Nightly E2E (real servers)
 #
 # Failure policy: opens (or comments on) a labelled issue automatically
 # so the maintainer sees a green/red signal without polling Actions.
+#
+# ── Self-bootstrap design (no secrets required) ──────────────────────
+# Earlier versions referenced `secrets.PLANE_API_KEY` and
+# `secrets.MM_ADMIN_TOKEN`. These are only useful when the workflow
+# wants to do *authenticated* lifecycle work (issue create, channel
+# post, etc.). The current real-server step is `genasis init
+# --probe-only`, which only hits Plane `/health` and Mattermost
+# `/system/ping` — both unauthenticated. genasis's binary requires the
+# env vars to be SET for non-trial flavors but never validates them on
+# probe paths, so stub values are sufficient.
+#
+# Removing the secret dependency lets a fresh fork run nightly E2E
+# without any maintainer setup. When we later expand this workflow to
+# do real provisioning (M22+), we'll bootstrap a genuine Mattermost
+# admin via `POST /api/v4/users` (first user becomes system admin) and
+# capture a personal access token in-band — still no secrets needed.
 
 on:
   schedule:
@@ -77,12 +93,16 @@ jobs:
         run: cargo test --workspace --release --no-fail-fast
 
       - name: Smoke `genasis init --probe-only` against the live stack
-        # Probe mode hits Plane health + MM ping without provisioning.
+        # Probe mode hits Plane health + MM ping without provisioning,
+        # so authenticated tokens are not required. genasis's binary
+        # nevertheless mandates the env vars exist for non-trial
+        # flavors; we set deterministic stubs so this workflow stays
+        # secret-free (see the header comment for the trade-off).
         # We accept either success (servers green) or a non-zero exit
         # (servers slow to come up); the nightly is a signal, not a gate.
         env:
-          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
-          MM_ADMIN_TOKEN: ${{ secrets.MM_ADMIN_TOKEN }}
+          PLANE_API_KEY: nightly-stub-no-auth-required-for-probe
+          MM_ADMIN_TOKEN: nightly-stub-no-auth-required-for-probe
         run: |
           mkdir -p /tmp/nightly-project
           cat > /tmp/nightly-project/genasis.toml <<'TOML'
