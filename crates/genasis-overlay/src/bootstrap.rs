@@ -19,7 +19,7 @@
 
 use std::path::{Path, PathBuf};
 
-use genasis_core::error::{Error, Result};
+use genasis_core::error::Result;
 use genasis_core::fs as gfs;
 
 use crate::role_inference::Role;
@@ -71,10 +71,21 @@ pub struct BootstrapChange {
 
 #[derive(Debug, Clone)]
 pub enum BootstrapAction {
-    /// File missing → render and write `body`.
-    Create { body: String },
+    /// File missing on disk → render and write `body`. `source_alias`
+    /// records which entry from [`Role::aliases`](crate::Role::aliases)
+    /// resolved to a catalog file (often the canonical slug, but may
+    /// be a field-observed alias like `frontend-developer` when the
+    /// canonical `frontend.md` isn't shipped — see ADR-011 v1.0.0
+    /// catalog and the `real_catalog_sim` integration test).
+    Create { body: String, source_alias: String },
     /// File already exists → leave it alone.
     Skip { reason: &'static str },
+    /// No alias from [`Role::aliases`](crate::Role::aliases) matched
+    /// any catalog file for this role. Bootstrap **does not abort** —
+    /// the remaining roles still get planned, and the user sees a
+    /// warning listing what was tried. This makes a partial catalog
+    /// (e.g. v1.0.0 missing `pm.md`) usable instead of fatal.
+    Missing { tried: Vec<String> },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -95,6 +106,16 @@ impl BootstrapPlan {
             .iter()
             .filter(|c| matches!(c.action, BootstrapAction::Skip { .. }))
     }
+
+    /// Iterator over roles for which no catalog alias resolved.
+    /// `apply_bootstrap` skips these silently; CLI callers surface
+    /// them as warnings so the user can patch the catalog or
+    /// hand-author the base file.
+    pub fn missing(&self) -> impl Iterator<Item = &BootstrapChange> {
+        self.changes
+            .iter()
+            .filter(|c| matches!(c.action, BootstrapAction::Missing { .. }))
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -104,8 +125,14 @@ pub struct BootstrapReport {
 
 /// Plan a bootstrap pass. Pure — checks file existence only, no writes.
 ///
-/// ADR-011: `store` is the loaded agents catalog from disk cache.
-/// Base agent .md files are read from `store.get_file("base/{role}.md")`.
+/// ADR-011: `store` is the loaded agents catalog from disk cache. Base
+/// agent `.md` files are read from `store.get_file("base/{alias}.md")`
+/// where `alias` comes from [`Role::aliases`](crate::Role::aliases) —
+/// canonical slug first, field-observed aliases after. First match
+/// wins; if none match, the role is recorded as
+/// [`BootstrapAction::Missing`] instead of aborting the whole plan.
+/// This lets a partial catalog (e.g. v1.0.0 missing `pm.md` but
+/// shipping `product-manager.md`) still install what it can.
 pub fn plan_bootstrap(
     project_root: &Path,
     opts: &BootstrapOptions,
@@ -120,14 +147,7 @@ pub fn plan_bootstrap(
         let action = if path.exists() {
             BootstrapAction::Skip { reason: "exists" }
         } else {
-            // ADR-011: read plain .md from catalog (no Tera rendering needed).
-            let base_path = format!("base/{slug}.md");
-            let body = store.get_file(&base_path).ok_or_else(|| {
-                Error::Overlay(format!(
-                    "base agent template missing from catalog: {base_path}"
-                ))
-            })?;
-            BootstrapAction::Create { body }
+            resolve_via_aliases(*role, store)
         };
         changes.push(BootstrapChange {
             role: *role,
@@ -138,13 +158,30 @@ pub fn plan_bootstrap(
     Ok(BootstrapPlan { changes })
 }
 
-/// Apply a bootstrap plan. `Skip` actions are no-ops; `Create` writes the
-/// rendered body via [`gfs::atomic_write`] (which auto-creates the
-/// parent directory).
+fn resolve_via_aliases(role: Role, store: &genasis_templates::AgentStore) -> BootstrapAction {
+    let mut tried = Vec::new();
+    for alias in role.aliases() {
+        let base_path = format!("base/{alias}.md");
+        tried.push((*alias).to_string());
+        if let Some(body) = store.get_file(&base_path) {
+            return BootstrapAction::Create {
+                body,
+                source_alias: (*alias).to_string(),
+            };
+        }
+    }
+    BootstrapAction::Missing { tried }
+}
+
+/// Apply a bootstrap plan. `Skip` and `Missing` actions are no-ops;
+/// only `Create` writes the rendered body via [`gfs::atomic_write`]
+/// (which auto-creates the parent directory). Missing roles are
+/// expected to surface to the user via the CLI consumer's logging
+/// path so they can be hand-authored or the catalog patched.
 pub fn apply_bootstrap(plan: &BootstrapPlan) -> Result<BootstrapReport> {
     let mut written = Vec::new();
     for change in &plan.changes {
-        if let BootstrapAction::Create { body } = &change.action {
+        if let BootstrapAction::Create { body, .. } = &change.action {
             gfs::atomic_write(&change.path, body.as_bytes())?;
             written.push(change.path.clone());
         }
@@ -235,8 +272,8 @@ mod tests {
         let (_cat, store) = mock_store();
         let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
         for change in plan.creates() {
-            let body = match &change.action {
-                BootstrapAction::Create { body } => body,
+            let (body, source_alias) = match &change.action {
+                BootstrapAction::Create { body, source_alias } => (body, source_alias),
                 _ => unreachable!(),
             };
             assert!(
@@ -247,6 +284,14 @@ mod tests {
             for key in ["name:", "description:", "tools:", "model:", "color:"] {
                 assert!(body.contains(key), "{} missing {key}", change.role.slug());
             }
+            // Mock store writes files at the canonical slug, so the
+            // first alias should always resolve and source_alias
+            // must equal slug.
+            assert_eq!(
+                source_alias,
+                change.role.slug(),
+                "mock store should resolve via canonical slug"
+            );
         }
     }
 
@@ -272,7 +317,12 @@ mod tests {
     }
 
     #[test]
-    fn missing_base_file_in_store_errors() {
+    fn partial_catalog_yields_missing_actions_not_error() {
+        // ADR-017 §field-feedback: real users running v1.0.0 hit this
+        // path — the catalog only ships some canonical slugs, the
+        // rest are field aliases. Bootstrap must not abort; it should
+        // emit Missing for unresolved roles and Create for resolved
+        // ones.
         let catalog = tempdir().unwrap();
         fs::create_dir_all(catalog.path().join("base")).unwrap();
         fs::write(
@@ -280,7 +330,7 @@ mod tests {
             r#"{"version":"0.0.1"}"#,
         )
         .unwrap();
-        // Only write one role — the rest will be missing.
+        // Only write one role's base file; the rest are absent.
         fs::write(
             catalog.path().join("base/pm.md"),
             "---\nname: pm\n---\n# PM\n",
@@ -289,7 +339,63 @@ mod tests {
         let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
 
         let d = tempdir().unwrap();
-        let err = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap_err();
-        assert!(format!("{err:?}").contains("missing from catalog"));
+        let plan = plan_bootstrap(d.path(), &BootstrapOptions::default(), &store).unwrap();
+
+        assert_eq!(plan.changes.len(), Role::ALL.len());
+        assert_eq!(plan.creates().count(), 1, "only pm.md resolves");
+        assert_eq!(
+            plan.missing().count(),
+            Role::ALL.len() - 1,
+            "every other role records what it tried"
+        );
+
+        // The Missing action carries the alias list so callers can
+        // print a useful diagnostic.
+        let frontend_missing = plan
+            .missing()
+            .find(|c| c.role == Role::Frontend)
+            .expect("frontend is missing");
+        match &frontend_missing.action {
+            BootstrapAction::Missing { tried } => {
+                assert!(tried.contains(&"frontend".to_string()));
+                assert!(tried.contains(&"frontend-developer".to_string()));
+            }
+            other => panic!("expected Missing, got {other:?}"),
+        }
+
+        // apply_bootstrap must not write anything for Missing rows.
+        let report = apply_bootstrap(&plan).unwrap();
+        assert_eq!(report.written.len(), 1);
+    }
+
+    #[test]
+    fn alias_walk_picks_field_observed_filename_when_slug_absent() {
+        // v1.0.0-style catalog: no `frontend.md` but yes
+        // `frontend-developer.md`. The alias walk must pick it up.
+        let catalog = tempdir().unwrap();
+        fs::create_dir_all(catalog.path().join("base")).unwrap();
+        fs::write(
+            catalog.path().join("manifest.json"),
+            r#"{"version":"0.0.1"}"#,
+        )
+        .unwrap();
+        fs::write(
+            catalog.path().join("base/frontend-developer.md"),
+            "---\nname: frontend-developer\n---\n# FE Dev\n",
+        )
+        .unwrap();
+        let store = AgentStore::from_dir(catalog.path().to_path_buf()).unwrap();
+
+        let d = tempdir().unwrap();
+        let opts = BootstrapOptions::default().with_roles(vec![Role::Frontend]);
+        let plan = plan_bootstrap(d.path(), &opts, &store).unwrap();
+
+        assert_eq!(plan.changes.len(), 1);
+        match &plan.changes[0].action {
+            BootstrapAction::Create { source_alias, .. } => {
+                assert_eq!(source_alias, "frontend-developer");
+            }
+            other => panic!("expected Create via alias, got {other:?}"),
+        }
     }
 }

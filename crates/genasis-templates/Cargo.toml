@@ -13,7 +13,7 @@ tera.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 genasis-core.workspace = true
-reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false }
 flate2 = "1"
 tar = "0.4"
 dirs = "5"

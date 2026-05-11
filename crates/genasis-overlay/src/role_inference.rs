@@ -51,6 +51,37 @@ impl Role {
             Role::CodeReviewer => "code-reviewer",
         }
     }
+
+    /// Candidate base-agent filenames (without `.md` extension) to try
+    /// when resolving this role against a catalog tarball, in priority
+    /// order. The canonical [`slug`](Self::slug) is always first; the
+    /// remaining entries cover community naming conventions actually
+    /// observed in the v1.0.0 catalog shipped via GitHub Releases.
+    ///
+    /// Used by [`plan_bootstrap`](crate::plan_bootstrap) when the
+    /// canonical slug is absent from the catalog (e.g. v1.0.0 ships
+    /// `frontend-developer.md` rather than `frontend.md`). Walking the
+    /// alias list lets bootstrap succeed against partial catalogs
+    /// instead of failing hard on the first miss.
+    pub fn aliases(self) -> &'static [&'static str] {
+        match self {
+            Role::Pm => &["pm", "product-manager", "scrum-master", "chief-of-staff"],
+            Role::Planner => &["planner"],
+            Role::Architect => &["architect", "backend-architect", "cloud-architect"],
+            Role::Frontend => &["frontend", "frontend-developer"],
+            Role::Backend => &["backend", "backend-developer", "backend-architect"],
+            Role::Qa => &["qa", "qa-expert", "qa-coordinator", "tester"],
+            Role::Designer => &["designer", "design-system-architect"],
+            Role::Security => &[
+                "security",
+                "security-engineer",
+                "security-auditor",
+                "security-reviewer",
+            ],
+            Role::Devops => &["devops", "devops-engineer", "platform-engineer"],
+            Role::CodeReviewer => &["code-reviewer", "reviewer", "architect-reviewer"],
+        }
+    }
 }
 
 /// Either a known role or a custom name (preserved verbatim).
@@ -113,5 +144,34 @@ mod tests {
                 Classified::Custom(_) => panic!("slug {slug} not recognised"),
             }
         }
+    }
+
+    #[test]
+    fn aliases_first_entry_is_canonical_slug() {
+        // The first alias is always the canonical slug — that keeps
+        // tarballs shipped with `pm.md` etc. resolving via the most
+        // obvious path, and only falls back when the slug isn't there.
+        for r in Role::ALL {
+            assert_eq!(
+                r.aliases().first().copied(),
+                Some(r.slug()),
+                "Role::{r:?}.aliases() must start with slug() = {:?}",
+                r.slug()
+            );
+        }
+    }
+
+    #[test]
+    fn aliases_cover_v1_catalog_field_observations() {
+        // Spot-check the field-observed filenames in the v1.0.0
+        // tarball (which is what real users get from GitHub Releases).
+        // If a future catalog refresh renames these, the alias list
+        // here should be expanded — not narrowed.
+        assert!(Role::Frontend.aliases().contains(&"frontend-developer"));
+        assert!(Role::Backend.aliases().contains(&"backend-developer"));
+        assert!(Role::Devops.aliases().contains(&"devops-engineer"));
+        assert!(Role::Pm.aliases().contains(&"product-manager"));
+        assert!(Role::Qa.aliases().contains(&"qa-expert"));
+        assert!(Role::Security.aliases().contains(&"security-engineer"));
     }
 }

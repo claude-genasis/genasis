@@ -94,10 +94,46 @@ pub async fn run(
         );
     }
     for change in plan.creates() {
-        println!("  + {}", change.path.display());
+        match &change.action {
+            BootstrapAction::Create { source_alias, .. } if source_alias != change.role.slug() => {
+                // Field alias was used because the canonical slug
+                // wasn't shipped in the catalog (e.g. v1.0.0 has
+                // `frontend-developer.md`, not `frontend.md`). Surface
+                // it so the user can verify they got what they wanted.
+                println!(
+                    "  + {} (resolved via {}.md)",
+                    change.path.display(),
+                    source_alias
+                );
+            }
+            _ => {
+                println!("  + {}", change.path.display());
+            }
+        }
     }
     for change in plan.skips() {
         println!("  = {} (exists)", change.path.display());
+    }
+    // ADR-017 field-feedback: surface roles the catalog couldn't
+    // satisfy instead of aborting hard. Users can patch the catalog
+    // or hand-author the base file; bootstrap installs everything
+    // else.
+    let missing: Vec<_> = plan.missing().collect();
+    if !missing.is_empty() {
+        eprintln!(
+            "\n⚠ {} role(s) had no catalog match — bootstrap skipped them:",
+            missing.len()
+        );
+        for change in &missing {
+            let tried = match &change.action {
+                BootstrapAction::Missing { tried } => tried.join(", "),
+                _ => String::new(),
+            };
+            eprintln!("  ! {} — tried {}", change.role.slug(), tried);
+        }
+        eprintln!(
+            "  hint: hand-author `.claude/agents/<role>.md` or run `genasis agents update` for a newer catalog\n"
+        );
     }
 
     if args.dry_run {
