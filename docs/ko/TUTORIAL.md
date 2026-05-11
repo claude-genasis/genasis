@@ -16,15 +16,25 @@ curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install
 ### Step 2 — Trial 모드로 초기화
 
 ```bash
-mkdir my-first-project && cd my-first-project
-genasis init --trial
+mkdir marketing-squad && cd marketing-squad
+genasis init --trial --name "Marketing Squad"
 ```
 
-빈 프로젝트를 생성하고 기본 에이전트 팀을 설치한 뒤, 브라우저에서
-**운영자 호스팅 데모 [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
-를 엽니다. 데모에서는 에이전트가 티켓을 가져가고, 채팅에 글을 올리고,
-칸반 카드를 이동하는 스프린트 시뮬레이션이 자동으로 재생됩니다. 로컬
-설치 불필요 — 데모는 운영자 서버에서 동작합니다.
+빈 프로젝트를 생성하고 `genasis.toml`을 작성합니다 — `[plane]`,
+`[mattermost]`, `[trial]` 섹션이 모두 **사용자가 선택한** 팀 이름을
+담습니다. `workspace_slug = "marketing-squad"`,
+`team_name = "marketing-squad"`, `[[mattermost.channels]]` 아래
+`scrum-marketing-squad` 채널, `[trial]` 아래 새로 생성된 `team_token`.
+`--name`을 생략하면 대화형 프롬프트(인터랙티브)나 디렉터리 이름의
+사람-읽기 변환(`marketing-squad` → "Marketing Squad")으로 채워집니다.
+
+이어서 **운영자 호스팅 데모
+[mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
+를 *사용자 팀 전용* 토큰 URL — `/?tab=live&team=<token>` — 으로 바로
+엽니다. 따라서 칸반 헤더와 채팅 사이드바에 "Marketing Squad"가
+표시되고, 공유 샌드박스의 일반 이름이 아닌 사용자 팀이 보입니다.
+`team_token`은 호스팅 인스턴스에서 동시 데모 중인 다른 사용자의 sim
+행과 격리합니다 (ADR-016).
 
 데모 앱에서 **Trial Plane + Mattermost 환경을 신청**할 수도 있습니다 —
 서버 설치 없이 바로 시작.

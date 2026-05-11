@@ -10,11 +10,19 @@ url = "{{ plane_url }}"
 flavor = "{{ plane_flavor | default(value=\"auto\") }}"
 workspace_slug = "{{ plane_workspace_slug }}"
 {% if plane_project_id %}project_id = "{{ plane_project_id }}"{% endif %}
+{% if plane_project_name %}project_name = "{{ plane_project_name }}"{% else %}project_name = "{{ project_name }}"{% endif %}
 
 [mattermost]
 url = "{{ mm_url }}"
 flavor = "{{ mm_flavor | default(value=\"auto\") }}"
 team_name = "{{ mm_team_name }}"
+# Channels provisioned for this team. The `key = "scrum"` channel is
+# the binding-stakeholder channel (ADR-014). Add more entries (design,
+# design-incoming, etc.) as the team grows.
+channels = [
+{% if mm_channels %}{% for ch in mm_channels %}  { key = "{{ ch.key }}", name = "{{ ch.name }}", display_name = "{{ ch.display_name }}" },
+{% endfor %}{% else %}  { key = "scrum", name = "scrum-{{ project_slug }}", display_name = "{{ project_name }} — Scrum" },
+{% endif %}]
 
 # Human team members. Their messages on #scrum-{{ project_name }} are
 # treated by agents as binding stakeholder requirements (ADR-014).

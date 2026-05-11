@@ -16,15 +16,25 @@ curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install
 ### Step 2 — Initialize with Trial Mode
 
 ```bash
-mkdir my-first-project && cd my-first-project
-genasis init --trial
+mkdir marketing-squad && cd marketing-squad
+genasis init --trial --name "Marketing Squad"
 ```
 
-This creates a blank project, installs the default agent team, and opens the
-**operator-hosted demo at [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
-in your browser. The demo shows an animated sprint simulation: agents picking
-up tickets, posting in chat, moving kanban cards. No local install — the demo
-runs on the operator's server.
+This creates a blank project and writes a `genasis.toml` whose `[plane]`,
+`[mattermost]`, and `[trial]` sections all carry **your** team name —
+`workspace_slug = "marketing-squad"`, `team_name = "marketing-squad"`,
+a `scrum-marketing-squad` channel under `[[mattermost.channels]]`, and a
+freshly generated `team_token` under `[trial]`. Omit `--name` and the CLI
+either prompts (interactive) or humanises the directory name
+(`marketing-squad` → "Marketing Squad").
+
+The command then opens the **operator-hosted demo at
+[mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
+straight into *your* team's per-token URL —
+`/?tab=live&team=<token>` — so the kanban header and chat sidebar show
+"Marketing Squad" instead of a generic shared sandbox. The `team_token`
+isolates your sim rows from any other concurrent demos on the hosted
+instance (ADR-016).
 
 From the demo app, you can also **request a trial Plane + Mattermost
 environment** — no server setup needed.

@@ -67,10 +67,11 @@ Genasis는 하나의 Rust 바이너리로 AI 에이전트를 **진짜 팀원**�
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-**2. Trial 모드로 초기화** — 운영자 호스팅 데모 [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)가 브라우저에 열립니다 (로컬 설치 불필요)
+**2. Trial 모드로 초기화** — 운영자 호스팅 데모 [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)가 *사용자 팀 전용* 토큰 URL로 브라우저에 열립니다 (로컬 설치 불필요). `--name` 플래그가 trial-app 칸반과 채팅 사이드바로 그대로 전달돼, 데모가 일반 공유 샌드박스가 아닌 *사용자 팀*을 보여줍니다 (ADR-016).
 
 ```bash
-mkdir my-project && cd my-project && genasis init --trial
+mkdir marketing-squad && cd marketing-squad
+genasis init --trial --name "Marketing Squad"
 ```
 
 **3. 샘플 PRD 생성** — 에이전트가 바로 작업할 수 있는 요구사항 문서

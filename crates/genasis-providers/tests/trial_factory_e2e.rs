@@ -21,6 +21,7 @@ fn trial_cfg() -> TrialConfig {
         enabled: true,
         url: std::env::var("TRIAL_BASE").unwrap_or_else(|_| "http://localhost:3000".into()),
         shared_secret: std::env::var("TRIAL_SECRET").unwrap_or_else(|_| "trialsecret".into()),
+        team_token: std::env::var("TRIAL_TEAM_TOKEN").ok(),
     }
 }
 

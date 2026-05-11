@@ -91,6 +91,7 @@ mod tests {
             enabled: true,
             url: "http://localhost:3000".into(),
             shared_secret: "trialsecret".into(),
+            team_token: None,
         }
     }
 

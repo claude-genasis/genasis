@@ -67,10 +67,11 @@ Genasis turns AI agents into **real team members** with a single Rust binary:
 curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh | sh
 ```
 
-**2. Initialize with trial mode** — opens the operator-hosted demo at [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog) in your browser (no local install needed)
+**2. Initialize with trial mode** — opens the operator-hosted demo at [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog) at *your* team's per-token URL (no local install needed). The `--name` flag carries through into the trial-app kanban + chat sidebar so the demo shows your team, not a generic shared sandbox (ADR-016).
 
 ```bash
-mkdir my-project && cd my-project && genasis init --trial
+mkdir marketing-squad && cd marketing-squad
+genasis init --trial --name "Marketing Squad"
 ```
 
 **3. Generate a sample PRD** for your agents to work on
