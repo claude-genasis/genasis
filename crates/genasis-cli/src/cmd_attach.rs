@@ -129,6 +129,29 @@ pub async fn pub_run(
         )
     );
 
+    // v0.5.2 — install the overlay artifacts the README has always
+    // promised (GENASIS.md + .claude/genasis/{commands,hooks,skills}/)
+    // but `apply()` never produced. Field testing surfaced that
+    // attach was writing only the agent fence, leaving sprint-start
+    // / issue-done / db-migrate slash commands and session hooks
+    // entirely unscaffolded — even though the catalog tarball
+    // already ships them. Fix is non-destructive (overwrites on
+    // re-attach so user-edited bodies need backup; matches how
+    // agent fences are handled today).
+    let install_count =
+        install_genasis_overlay_artifacts(&project_root, &store, decision.lang.code())
+            .unwrap_or_else(|e| {
+                tracing::warn!(reason = %e, "overlay artifacts install failed");
+                eprintln!("  ⚠ failed to install commands/hooks/skills: {e}");
+                0
+            });
+    if install_count > 0 {
+        println!(
+            "  + {} overlay artifact(s) under .claude/genasis/ + GENASIS.md",
+            install_count
+        );
+    }
+
     // M15.2 — refresh `.claude/genasis/.manifest.json` so the next CLI
     // invocation can detect drift against this canonical state.
     if let Err(e) = update_manifest_after_apply(&project_root, &applied, decision.lang.code()) {
@@ -136,6 +159,76 @@ pub async fn pub_run(
     }
 
     Ok(())
+}
+
+/// Install the GENASIS.md protocol contract + slash commands + hooks
+/// + skills that the catalog ships under `<lang>/GENASIS.md.tera`,
+/// `commands/*.tera`, `hooks/*.tera`, and `skills/*.tera` (Issue #11
+/// from the v0.5.0 field test log). Returns the count of files
+/// written so the CLI can report it.
+///
+/// The v1.0.0 catalog's templates do not contain Tera variables —
+/// they're pre-rendered protocol text — so we pass them through
+/// `Tera::one_off` with the standard project-name / project-domain
+/// context anyway. Future catalogs that DO want variables get them
+/// automatically via the same context.
+///
+/// Hooks ending in `.sh` are chmod'd 0755 on Unix so Claude Code's
+/// PostToolUse / SessionStart hook runner can execute them directly.
+fn install_genasis_overlay_artifacts(
+    project_root: &std::path::Path,
+    store: &genasis_templates::AgentStore,
+    lang_code: &str,
+) -> Result<usize> {
+    use std::fs;
+
+    let ctx_value = build_context(project_root)?;
+    let ctx = tera::Context::from_value(ctx_value)
+        .map_err(|e| anyhow::anyhow!("build Tera context: {e}"))?;
+    let mut written: usize = 0;
+
+    // GENASIS.md at project root — the protocol contract that
+    // CLAUDE.md @imports. The catalog only ships `en/GENASIS.md.tera`
+    // and `ko/GENASIS.md.tera`, so fall back to English if the
+    // active lang isn't present.
+    let genasis_md_template = store
+        .get_file(&format!("{lang_code}/GENASIS.md.tera"))
+        .or_else(|| store.get_file("en/GENASIS.md.tera"));
+    if let Some(body) = genasis_md_template {
+        let rendered = tera::Tera::one_off(&body, &ctx, true)
+            .map_err(|e| anyhow::anyhow!("render GENASIS.md: {e}"))?;
+        let target = project_root.join("GENASIS.md");
+        fs::write(&target, rendered).with_context(|| format!("write {}", target.display()))?;
+        written += 1;
+    }
+
+    for (subdir, out_subdir) in [
+        ("commands", ".claude/genasis/commands"),
+        ("hooks", ".claude/genasis/hooks"),
+        ("skills", ".claude/genasis/skills"),
+    ] {
+        let out_dir = project_root.join(out_subdir);
+        fs::create_dir_all(&out_dir).with_context(|| format!("create {}", out_dir.display()))?;
+        let files = match store.get_dir_files(subdir, ".tera") {
+            Ok(f) => f,
+            Err(_) => continue, // empty / missing subdir is fine
+        };
+        for (name, body) in files {
+            let rendered = tera::Tera::one_off(&body, &ctx, true)
+                .map_err(|e| anyhow::anyhow!("render {name}: {e}"))?;
+            let out_name = name.strip_suffix(".tera").unwrap_or(&name);
+            let target = out_dir.join(out_name);
+            fs::write(&target, rendered).with_context(|| format!("write {}", target.display()))?;
+            #[cfg(unix)]
+            if out_name.ends_with(".sh") {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o755));
+            }
+            written += 1;
+        }
+    }
+
+    Ok(written)
 }
 
 fn update_manifest_after_apply(

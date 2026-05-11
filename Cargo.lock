@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-cli"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -797,6 +797,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "tera",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -806,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -825,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-db"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -842,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-design"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -859,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-e2e"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -870,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-i18n"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "once_cell",
  "rust-i18n",
@@ -880,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-monitor"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -904,7 +905,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-overlay"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "genasis-core",
@@ -922,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-providers"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -939,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-templates"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "dirs",
@@ -957,7 +958,7 @@ dependencies = [
 
 [[package]]
 name = "genasis-tui"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "crossterm 0.27.0",

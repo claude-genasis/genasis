@@ -135,17 +135,26 @@ minutes. Available for ongoing use by agreement; no hard time limit
 **Option B — Self-host (full control)**
 
 ```bash
-cd servers && docker compose up -d
+cd servers && ./scripts/setup-user-env.sh && docker compose up -d
 ```
 
-Plane at `localhost:8080`, Mattermost at `localhost:8065`.
-See [`servers/README.md`](servers/README.md) for details.
+`setup-user-env.sh` allocates a per-user port pair (default base
+`38400` for Plane, `38500` for Mattermost, with a `uid % 50` offset
+so multiple users on the same host don't collide). The exact ports
+land in `servers/.env` — `grep -E "^(PLANE|MM)_PORT" servers/.env`
+to see what was assigned. See [`servers/README.md`](servers/README.md)
+for the full port-allocation rationale.
 
-After setup, configure credentials:
+After setup, configure credentials. On Mattermost the team id is
+auto-resolved from `[mattermost].team_name`, but if the lookup
+fails (e.g. the team doesn't exist yet at init time) set
+`MM_TEAM_ID` explicitly:
 
 ```bash
 export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
+# Optional — only when auto-resolution can't reach MM:
+# export MM_TEAM_ID="your-mattermost-team-id"
 ```
 
 ### 3. Connect & Launch
@@ -230,6 +239,15 @@ genasis debug status           # local drift summary
 genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
+
+## Known limitations (v0.5.2)
+
+These are documented gaps the next patch will close — none block
+the Quick Path on Linux today, but Step-by-Step / Option B users
+may hit them:
+
+- **Self-hosted Plane: CSRF cookies are `Secure`-flagged over plain HTTP.** The default `servers/docker-compose.yml` stack exposes Plane on plain `http://localhost:<port>/`, but Plane's `/auth/get-csrf-token/` endpoint sets the cookie with the `Secure` attribute, so browsers silently drop it and the sign-up form fails CSRF validation. Workarounds: (a) run Caddy on the host with a self-signed cert and proxy HTTPS → the compose stack, (b) use a browser dev-tools "Disable CSRF check" override for the initial admin sign-up. A patch that terminates TLS at the host Caddy by default is on the roadmap.
+- **`genasis agents list / install / browse`**: the v1.0.0 catalog publishes `index.json` as an alias of `manifest.json`, which lacks the `agents` / `categories` / `presets` arrays the marketplace UI expects. Patch tracked in `agents-pool` — once a fresh catalog ships, these commands light up without binary changes.
 
 ## Supported Platforms
 

@@ -49,23 +49,117 @@ impl UpstreamPlane {
         );
         h
     }
+
+    /// Idempotence helper for `ensure_project` (Issue #10): GET the
+    /// workspace's project list and return the first matching id by
+    /// name OR identifier. Returns `None` when no match is found —
+    /// the caller falls through to a fresh POST.
+    ///
+    /// Plane's `/projects/` endpoint paginates with a `next` URL
+    /// (cursor model). We walk until we find a match or run out;
+    /// callers that have hundreds of projects pay an O(N/page_size)
+    /// list scan, which is acceptable for init flows that run once
+    /// per project lifetime.
+    async fn find_project_by_name_or_identifier(
+        &self,
+        name: &str,
+        identifier: &str,
+    ) -> Result<Option<String>> {
+        let mut next: Option<String> = Some(self.url("/projects/"));
+        while let Some(url) = next.take() {
+            let resp = self
+                .client
+                .get(&url)
+                .headers(self.headers())
+                .send()
+                .await
+                .map_err(|e| Error::Provider(format!("plane list_projects: {e}")))?;
+            if !resp.status().is_success() {
+                // Some Plane deployments return 404 for an empty
+                // workspace's projects list. Treat that as "no match".
+                return Ok(None);
+            }
+            let v: serde_json::Value = resp
+                .json()
+                .await
+                .map_err(|e| Error::Provider(format!("plane list_projects json: {e}")))?;
+            // Plane wraps results in `{ results: [...], next: "..." }`
+            // for the paginated endpoint and returns a bare array for
+            // the unpaginated form. Handle both.
+            let results: Option<&Vec<serde_json::Value>> = v
+                .get("results")
+                .and_then(|x| x.as_array())
+                .or_else(|| v.as_array());
+            if let Some(arr) = results {
+                for item in arr {
+                    let item_name = item.get("name").and_then(|x| x.as_str()).unwrap_or("");
+                    let item_id = item
+                        .get("identifier")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("");
+                    if item_name.eq_ignore_ascii_case(name)
+                        || item_id.eq_ignore_ascii_case(identifier)
+                    {
+                        if let Some(id) = item.get("id").and_then(|x| x.as_str()) {
+                            return Ok(Some(id.to_string()));
+                        }
+                    }
+                }
+            }
+            next = v
+                .get("next")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty());
+        }
+        Ok(None)
+    }
 }
 
 #[async_trait]
 impl PlaneProvider for UpstreamPlane {
     async fn health(&self) -> Result<serde_json::Value> {
-        let url = format!("{}/api/v1/health/", self.base_url);
+        // v0.5.2 (Issue #8): Plane v1.2.3 has no `/api/v1/health/`
+        // endpoint — it returns `{"error":"Page not found."}` and
+        // looks alarming in `genasis init` output. The most stable
+        // workspace-scoped probe is `/api/v1/workspaces/<slug>/`:
+        // 200 = workspace reachable, 401 = auth wrong (we still
+        // surface as "server up" with the status code), 404 =
+        // workspace doesn't exist yet (also "server up"). Anything
+        // else is a real transport failure.
+        let url = format!(
+            "{}/api/v1/workspaces/{}/",
+            self.base_url, self.workspace_slug
+        );
         let resp = self
             .client
             .get(&url)
+            .headers(self.headers())
             .send()
             .await
             .map_err(|e| Error::Provider(format!("plane health: {e}")))?;
-        let text = resp.text().await.unwrap_or_default();
-        Ok(serde_json::from_str(&text).unwrap_or_else(|_| json!({"raw": text})))
+        let status = resp.status().as_u16();
+        Ok(json!({
+            "status": status,
+            "url": url,
+            "workspace_slug": self.workspace_slug,
+        }))
     }
 
     async fn ensure_project(&self, name: &str, identifier: &str) -> Result<String> {
+        // v0.5.2 (Issue #10): the original implementation always
+        // POSTed `/projects/` which fails on the second invocation
+        // with "The project name is already taken". `ensure_*` is
+        // supposed to be idempotent: list first, return the
+        // existing id if name + identifier match, only POST when
+        // genuinely absent. Plane paginates the list endpoint so we
+        // walk pages until we hit a match or run out.
+        if let Some(existing) = self
+            .find_project_by_name_or_identifier(name, identifier)
+            .await?
+        {
+            return Ok(existing);
+        }
         let body = json!({"name": name, "identifier": identifier});
         let resp = self
             .client

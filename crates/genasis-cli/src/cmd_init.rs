@@ -66,7 +66,7 @@ pub async fn run_with_globals(
             .await;
     }
     if args.trial {
-        return run_trial(args).await;
+        return run_trial(args, lang_flag, non_interactive, assume_yes).await;
     }
     let project_root = resolve_project_root(args.project.as_deref())?;
     let cfg_path = project_root.join(CONFIG_FILE_NAME);
@@ -169,7 +169,23 @@ pub async fn run_with_globals(
         "\n{}",
         tr_args("init.ensure_channel", &[("channel", &scrum.name)])
     );
-    let team_id = std::env::var("MM_TEAM_ID").unwrap_or_default();
+    // v0.5.2 (Issue #9): if MM_TEAM_ID isn't set, try to auto-resolve
+    // it from `[mattermost].team_name` via Mattermost's REST endpoint
+    // GET /api/v4/teams/name/{name} (returns the team's id). This
+    // closes a gap where the README + help text only document
+    // MM_ADMIN_TOKEN, leaving users to discover MM_TEAM_ID by trial
+    // and error. Falls through to the old "skipped" message when
+    // we can't resolve (network failure, team doesn't exist yet,
+    // trial flavor with no admin token).
+    let mut team_id = std::env::var("MM_TEAM_ID").unwrap_or_default();
+    if team_id.is_empty() && !mm_token.is_empty() {
+        if let Some(resolved) =
+            lookup_mm_team_id_by_name(&mm_cfg.url, &mm_cfg.team_name, &mm_token).await
+        {
+            println!("  resolved MM_TEAM_ID = {resolved} (from team_name)");
+            team_id = resolved;
+        }
+    }
     if !team_id.is_empty() {
         let ch = mm_client
             .ensure_channel(&team_id, &scrum.name, &scrum.display_name)
@@ -202,6 +218,36 @@ pub async fn run_with_globals(
 
     println!("\n{}", tr("init.next_step"));
     Ok(())
+}
+
+/// v0.5.2 Issue #9 helper: GET `/api/v4/teams/name/<name>` on the
+/// Mattermost server and return the resolved team id. Returns `None`
+/// on any failure (network / not-found / auth) so the caller falls
+/// through to the legacy "skipped" message instead of aborting init.
+async fn lookup_mm_team_id_by_name(
+    mm_base_url: &str,
+    team_name: &str,
+    admin_token: &str,
+) -> Option<String> {
+    let url = format!(
+        "{}/api/v4/teams/name/{}",
+        mm_base_url.trim_end_matches('/'),
+        team_name
+    );
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .ok()?
+        .get(&url)
+        .bearer_auth(admin_token)
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let v: serde_json::Value = resp.json().await.ok()?;
+    v.get("id").and_then(|x| x.as_str()).map(String::from)
 }
 
 fn resolve_project_root(arg: Option<&std::path::Path>) -> Result<PathBuf> {
@@ -383,7 +429,12 @@ async fn try_bootstrap_trial_app(
     Ok(())
 }
 
-async fn run_trial(args: Args) -> Result<()> {
+async fn run_trial(
+    args: Args,
+    lang_flag: Option<String>,
+    non_interactive: bool,
+    assume_yes: bool,
+) -> Result<()> {
     use std::fs;
     use std::process::{Command, Stdio};
 
@@ -451,6 +502,46 @@ async fn run_trial(args: Args) -> Result<()> {
 
     fs::create_dir_all(project_root.join(".claude/agents")).ok();
     fs::create_dir_all(project_root.join(".genasis")).ok();
+
+    // Scaffold the 10 base agent .md files + apply overlay fences in
+    // one shot. ADR-010 + CLAUDE.md §"Turnkey bootstrap for new
+    // teams": `genasis init --trial` is supposed to be "minute-one
+    // ready" — a fully populated `.claude/agents/` is the visible
+    // proof that the team exists. The previous implementation only
+    // mkdir'd the directory, leaving the user to discover `genasis
+    // bootstrap` on their own; users reported the empty folder as a
+    // bug, which it was.
+    //
+    // `cmd_bootstrap::run` chains into `cmd_attach::pub_run`
+    // automatically (`no_attach_after: false`), so this single call
+    // produces both base files AND marker-fence overlay content.
+    //
+    // Failures are surfaced as a warning rather than aborting init —
+    // `try_bootstrap_trial_app` and the summary box still need to
+    // run so the user gets their team_token regardless of catalog
+    // hiccups. `--probe-only` skips this entirely; tests that just
+    // want the toml round-trip don't pay the catalog-fetch cost.
+    if !args.probe_only {
+        println!("\n→ Scaffolding base agents into .claude/agents/…");
+        let bootstrap_args = crate::cmd_bootstrap::Args {
+            project: Some(project_root.clone()),
+            roles: None,
+            no_attach_after: false,
+            dry_run: false,
+        };
+        if let Err(e) = crate::cmd_bootstrap::run(
+            bootstrap_args,
+            lang_flag.clone(),
+            non_interactive,
+            assume_yes,
+        )
+        .await
+        {
+            eprintln!(
+                "  ⚠ agent bootstrap failed: {e}\n  re-run `genasis bootstrap` once the issue is fixed. Trial init will continue with the rest of the setup."
+            );
+        }
+    }
 
     if let Some(tok) = team_token.as_deref() {
         // Re-derive name + slug from the freshly written config so the
@@ -574,7 +665,9 @@ mod tests {
             bootstrap: false,
             roles: None,
         };
-        run_trial(args).await.expect("trial probe_only succeeds");
+        run_trial(args, None, true, true)
+            .await
+            .expect("trial probe_only succeeds");
         let cfg = std::fs::read_to_string(tmp.path().join(CONFIG_FILE_NAME)).unwrap();
         assert!(cfg.contains("[trial]"));
         assert!(cfg.contains("enabled = true"));
@@ -610,7 +703,7 @@ mod tests {
             bootstrap: false,
             roles: None,
         };
-        run_trial(args).await.unwrap();
+        run_trial(args, None, true, true).await.unwrap();
         let cfg = std::fs::read_to_string(&cfg_path).unwrap();
         assert_eq!(cfg, "# existing config\n");
     }
@@ -628,7 +721,9 @@ mod tests {
             bootstrap: false,
             roles: None,
         };
-        run_trial(args).await.expect("derive-from-dir succeeds");
+        run_trial(args, None, true, true)
+            .await
+            .expect("derive-from-dir succeeds");
         let cfg = std::fs::read_to_string(dir.join(CONFIG_FILE_NAME)).unwrap();
         assert!(
             cfg.contains("Brand New Team"),

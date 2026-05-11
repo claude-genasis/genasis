@@ -113,20 +113,36 @@ services:
       - ./init/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
 
   # ─── Plane Services ────────────────────────────────────
+  # NOTE: Each service exposes a short alias matching what Plane's
+  # baked-in `plane-proxy` Caddyfile expects (`web`, `api`, `space`,
+  # `admin`, `live` — see plane/plane proxy/Caddyfile). Without these
+  # aliases, plane-proxy can't resolve the upstreams via Docker's
+  # embedded DNS and every request to `localhost:${PLANE_PORT}`
+  # returns 502 with `dial tcp: lookup web: i/o timeout`. v0.5.0
+  # field test (Issue #6) hit this in a fresh `docker compose up -d`.
   plane-web:
     image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-v1.2.3}
     restart: unless-stopped
     depends_on: [plane-api, plane-worker]
+    networks:
+      default:
+        aliases: [web]
 
   plane-space:
     image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-v1.2.3}
     restart: unless-stopped
     depends_on: [plane-api]
+    networks:
+      default:
+        aliases: [space]
 
   plane-admin:
     image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-v1.2.3}
     restart: unless-stopped
     depends_on: [plane-api]
+    networks:
+      default:
+        aliases: [admin]
 
   plane-live:
     image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-v1.2.3}
@@ -136,6 +152,9 @@ services:
       LIVE_SERVER_SECRET_KEY: ${PLANE_SECRET_KEY:-60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5}
       <<: *plane-redis-env
     depends_on: [plane-api]
+    networks:
+      default:
+        aliases: [live]
 
   plane-api:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}
@@ -144,6 +163,9 @@ services:
     environment:
       <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-proxy-env]
     depends_on: [pg-shared, plane-redis, plane-mq]
+    networks:
+      default:
+        aliases: [api]
 
   plane-worker:
     image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-v1.2.3}

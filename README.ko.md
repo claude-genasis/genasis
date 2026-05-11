@@ -134,17 +134,24 @@ Genasis 에이전트는 **Plane** (이슈 관리)과 **Mattermost** (팀 채팅)
 **방법 B — 직접 설치 (완전한 통제)**
 
 ```bash
-cd servers && docker compose up -d
+cd servers && ./scripts/setup-user-env.sh && docker compose up -d
 ```
 
-Plane `localhost:8080`, Mattermost `localhost:8065`.
-상세: [`servers/README.md`](servers/README.md).
+`setup-user-env.sh` 가 사용자별 포트 쌍을 할당합니다 (기본 베이스
+Plane `38400`, Mattermost `38500`. `uid % 50` 오프셋으로 동일
+호스트의 여러 사용자 간 충돌 방지). 정확한 포트는 `servers/.env`에
+기록 — `grep -E "^(PLANE|MM)_PORT" servers/.env`로 확인. 포트
+할당 근거 전체는 [`servers/README.md`](servers/README.md) 참조.
 
-설치 후 인증 정보 설정:
+설치 후 인증 정보 설정. Mattermost team id 는 `[mattermost].team_name`
+에서 자동 해석되지만, 해석 실패 시 (예: init 시점에 팀이 아직 없음)
+`MM_TEAM_ID` 를 명시:
 
 ```bash
 export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
+# 선택 — 자동 해석이 MM 에 도달 못할 때만:
+# export MM_TEAM_ID="your-mattermost-team-id"
 ```
 
 ### 3. 연결 및 시작
@@ -222,6 +229,15 @@ genasis design swap <ref>      # 디자인 시스템 교체
 genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
+
+## 알려진 한계 (v0.5.2)
+
+다음 패치에서 닫을 예정인 documented gap — Linux 의 Quick Path 는
+지금도 문제없이 동작하지만, Step-by-Step / Option B 사용자가
+부딪힐 수 있는 항목들:
+
+- **Self-host Plane: CSRF 쿠키가 plain HTTP 위에서 `Secure` flag.** 기본 `servers/docker-compose.yml` 스택이 Plane 을 plain `http://localhost:<port>/` 로 노출하는데, Plane 의 `/auth/get-csrf-token/` 은 쿠키에 `Secure` 속성을 붙여서 브라우저가 silently drop 함 → sign-up 폼의 CSRF 검증 실패. 우회: (a) 호스트에서 Caddy 로 self-signed cert + HTTPS 프록시, (b) 첫 admin sign-up 만 브라우저 dev-tools 의 "Disable CSRF check" override 사용. 호스트 Caddy 가 기본으로 TLS terminate 하도록 하는 패치가 로드맵.
+- **`genasis agents list / install / browse`**: v1.0.0 카탈로그가 `index.json` 을 `manifest.json` 의 alias 로 publish 하는데, 마켓플레이스 UI 가 기대하는 `agents` / `categories` / `presets` 배열이 빠져 있음. `agents-pool` 에서 패치 진행 중 — 새 카탈로그 ship 되면 바이너리 변경 없이 동작.
 
 ## 지원 플랫폼
 
