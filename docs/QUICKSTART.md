@@ -9,8 +9,8 @@ collaborating with humans on Plane and Mattermost.
 ## Prerequisites
 
 - **Claude Code** installed and authenticated
-- **Plane** instance (self-hosted or [trial](https://trial.realstory.blog))
-- **Mattermost** instance (self-hosted or [trial](https://trial.realstory.blog))
+- **Plane** instance (self-hosted or [borrow one](https://mmplane-trial.realstory.blog/?tab=signup))
+- **Mattermost** instance (self-hosted or [borrow one](https://mmplane-trial.realstory.blog/?tab=signup))
 - (Optional) Rust toolchain if building from source
 
 ## Step 1: Install genasis
@@ -63,8 +63,8 @@ MM_ADMIN_TOKEN=your-mm-admin-token
 MM_TEAM_ID=your-team-id
 ```
 
-> **Using the trial?** Paste the credentials you received from
-> [trial.realstory.blog](https://trial.realstory.blog).
+> **Borrowing a real env?** Paste the credentials you received from
+> [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog/?tab=signup).
 
 ## Step 4: Initialize
 

@@ -123,9 +123,12 @@ Genasis agents collaborate through **Plane** (issue tracking) and **Mattermost**
 
 **Option A — Trial Server (fastest, no setup)**
 
-A shared environment is available at [**trial.realstory.blog**](https://trial.realstory.blog).
-Request access from the repository maintainer — credentials within minutes.
-Available for ongoing use by agreement; no hard time limit.
+Borrow a real Plane + Mattermost project from the operator's shared
+infrastructure at
+[**mmplane-trial.realstory.blog**](https://mmplane-trial.realstory.blog/?tab=signup).
+Click `Borrow real env` and submit a short form — credentials within
+minutes. Available for ongoing use by agreement; no hard time limit
+(ADR-017).
 
 **Option B — Self-host (full control)**
 

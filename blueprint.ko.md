@@ -1700,12 +1700,17 @@ genasis를 처음 접하는 사용자가 서버 설치 없이 즉시 에이전�
 
 ### 22.2 Trial 데모 앱
 
-`trial.realstory.blog`에 호스팅되는 웹 앱:
-- **체험하기 탭**: 칸반 보드 + 채팅 스레드로 스프린트 시뮬레이션 재생
-  (PM → frontend → reviewer → QA, 8단계 스크립트, 12초 자동 재생)
-- **신청하기 탭**: Plane + Mattermost 체험 환경 신청 → MM #genasis-trial
-  채널에 알림 → 관리자 응답 → 인증 정보 제공
-- `genasis init --trial` 실행 시 localhost:3000에서 자동 실행
+`mmplane-trial.realstory.blog`에 호스팅되는 웹 앱 (ADR-016 + ADR-017):
+- **라이브 트라이얼 탭**: 사용자가 `genasis init --trial`로 생성한 팀별
+  team_token 으로 격리된 칸반 + 채팅 시뮬레이터. 에이전트의 실제 호출이
+  실시간으로 흘러들어오며, 좌측 슬라이딩 ShowcasePanel 이
+  `genasis example prd` 의 결과물(Claude Code 전문가 퀴즈 앱) 을 모바일
+  폰 프레임 안에 드러낸다 — 단, 팀의 `app_status = 'complete'` 일 때만
+  활성화 (`genasis trial publish` 가 신호).
+- **실환경 빌리기 탭**: 운영자 인프라에서 실제 Plane + Mattermost 프로젝트
+  한 세트를 빌리는 폼 → 운영자 응답 → 인증 정보 제공.
+- `genasis init --trial` 실행 시 운영자 호스팅 인스턴스가 자동으로 열림
+  (`https://mmplane-trial.realstory.blog/?tab=live&team=<token>`).
 
 ### 22.3 `genasis example` 서브커맨드
 

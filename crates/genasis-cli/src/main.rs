@@ -16,6 +16,7 @@ mod cmd_lang;
 mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
+mod cmd_trial;
 mod cmd_upgrade;
 mod cmd_version;
 mod lang_prompt;
@@ -80,6 +81,10 @@ enum Cmd {
     /// Manage human team-member roster: list, add, edit, remove,
     /// and provision into Mattermost + Plane (ADR-014).
     Humans(cmd_humans::Args),
+    /// Operate on the trial-app companion (ADR-017). Currently
+    /// supports `publish` — flip the team's `app_status` to
+    /// `'complete'` so the ShowcasePanel unlocks for the user.
+    Trial(cmd_trial::Args),
 }
 
 #[tokio::main]
@@ -121,6 +126,7 @@ async fn main() -> Result<()> {
         Cmd::Agents(a) => cmd_agents::run(a),
         Cmd::Debug(a) => cmd_debug::run(a),
         Cmd::Humans(a) => cmd_humans::run(a).await,
+        Cmd::Trial(a) => cmd_trial::run(a).await,
     }
 }
 

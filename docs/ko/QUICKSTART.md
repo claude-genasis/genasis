@@ -8,8 +8,8 @@ Mattermost에서 사람과 협업하기까지의 전 과정을 안내합니다.
 ## 사전 요구
 
 - **Claude Code** 설치 + 인증 완료
-- **Plane** 인스턴스 (자체 호스팅 또는 [체험 신청](https://trial.realstory.blog))
-- **Mattermost** 인스턴스 (자체 호스팅 또는 [체험 신청](https://trial.realstory.blog))
+- **Plane** 인스턴스 (자체 호스팅 또는 [실환경 빌리기](https://mmplane-trial.realstory.blog/?tab=signup))
+- **Mattermost** 인스턴스 (자체 호스팅 또는 [실환경 빌리기](https://mmplane-trial.realstory.blog/?tab=signup))
 - (선택) 소스 빌드 시 Rust 툴체인
 
 ## 1단계: genasis 설치
@@ -62,8 +62,8 @@ MM_ADMIN_TOKEN=your-mm-admin-token
 MM_TEAM_ID=your-team-id
 ```
 
-> **체험 환경 사용 시?** [trial.realstory.blog](https://trial.realstory.blog)에서
-> 받은 접속 정보를 붙여넣으세요.
+> **빌린 환경 사용 시?** [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog/?tab=signup)
+> 에서 받은 접속 정보를 붙여넣으세요.
 
 ## 4단계: 초기화
 

@@ -36,8 +36,9 @@ straight into *your* team's per-token URL —
 isolates your sim rows from any other concurrent demos on the hosted
 instance (ADR-016).
 
-From the demo app, you can also **request a trial Plane + Mattermost
-environment** — no server setup needed.
+From the trial app's **Borrow real env** tab you can also request a
+real Plane + Mattermost project on the operator's shared infrastructure
+— no server setup needed (ADR-017).
 
 ### Step 3 — Generate a Sample PRD
 
@@ -45,9 +46,16 @@ environment** — no server setup needed.
 genasis example prd
 ```
 
-This creates `PRD.md` — a realistic product requirements document that your
-agent team can immediately start working on. The PRD describes a simple
-todo-app with authentication, CRUD operations, and a responsive UI.
+This creates `PRD.md` — a realistic product requirements document that
+your agent team can immediately start working on. The reference PRD
+describes **"I Am a Claude Code Expert"** — a mobile-phone-bordered
+quiz app that grades the user's Claude Code knowledge as Beginner /
+Intermediate / Advanced (ADR-017).
+
+The file is locale-aware: a project initialised in Korean (`[i18n].active
+= "ko"`) gets a Korean PRD describing "나는 Claude Code 전문가"; English
+projects get the English version. Override with `genasis example prd
+--lang en|ko`.
 
 ### Step 4 — Start Your Agentic Team
 
@@ -55,18 +63,33 @@ todo-app with authentication, CRUD operations, and a responsive UI.
 genasis init
 ```
 
-The PM agent reads `PRD.md`, decomposes it into Plane tickets, assigns roles,
-and the team begins working. You can watch the progress in Plane and
-Mattermost.
+The PM agent reads `PRD.md`, decomposes it into Plane tickets, assigns
+roles, and the team begins working. You can watch the progress in
+Plane and Mattermost — or, for trial-mode projects, in the live trial
+app at the URL `genasis init --trial` printed.
 
-### Step 5 — Monitor the Sprint
+### Step 5 — Reveal the Showcase
+
+When agents finish the build:
+
+```bash
+genasis trial publish
+```
+
+This flips your team's `app_status` to `complete` on the trial-app.
+Reload the live trial URL and the **"See the app the agents built"**
+button on the LiveBoard becomes active — clicking it slides a panel in
+from the left with the embedded quiz so you can play through the same
+deliverable the agents just shipped (ADR-017 §3-§4).
+
+### Step 6 — Monitor the Sprint
 
 ```bash
 genasis monitor
 ```
 
-Open the Ratatui TUI dashboard to see real-time progress: which agents are
-working on what, token usage, ticket lifecycle, and chat activity.
+Open the Ratatui TUI dashboard to see real-time progress: which agents
+are working on what, token usage, ticket lifecycle, and chat activity.
 
 ---
 

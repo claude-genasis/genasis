@@ -123,8 +123,11 @@ Genasis 에이전트는 **Plane** (이슈 관리)과 **Mattermost** (팀 채팅)
 
 **방법 A — Trial 서버 (가장 빠름, 설치 불필요)**
 
-[**trial.realstory.blog**](https://trial.realstory.blog)에서 공유 환경을 신청합니다.
-관리자에게 접근 요청 → 수 분 내 접속 정보. 협의 하에 기간 제한 없이 이용 가능.
+운영자의 공유 인프라
+[**mmplane-trial.realstory.blog**](https://mmplane-trial.realstory.blog/?tab=signup)
+에서 실제 Plane + Mattermost 프로젝트를 한 세트 빌립니다. `실환경 빌리기`
+탭에서 짧은 폼을 제출하면 수 분 내 접속 정보를 받습니다. 협의 하에 기간
+제한 없이 이용 가능 (ADR-017).
 
 **방법 B — 직접 설치 (완전한 통제)**
 

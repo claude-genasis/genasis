@@ -36,8 +36,8 @@ genasis init --trial --name "Marketing Squad"
 `team_token`은 호스팅 인스턴스에서 동시 데모 중인 다른 사용자의 sim
 행과 격리합니다 (ADR-016).
 
-데모 앱에서 **Trial Plane + Mattermost 환경을 신청**할 수도 있습니다 —
-서버 설치 없이 바로 시작.
+trial 앱의 **실환경 빌리기** 탭에서 운영자 공유 인프라의 실제 Plane +
+Mattermost 프로젝트를 빌릴 수도 있습니다 — 서버 설치 없이 (ADR-017).
 
 ### Step 3 — 샘플 PRD 생성
 
@@ -45,8 +45,14 @@ genasis init --trial --name "Marketing Squad"
 genasis example prd
 ```
 
-에이전트 팀이 바로 작업할 수 있는 `PRD.md`를 생성합니다.
-인증, CRUD, 반응형 UI를 갖춘 간단한 todo-app PRD입니다.
+에이전트 팀이 바로 작업할 수 있는 `PRD.md`를 생성합니다. 레퍼런스 PRD는
+**"나는 Claude Code 전문가"** — 모바일 폰 테두리 안의 자가 진단 퀴즈
+앱으로 사용자의 Claude Code 지식을 초급 / 중급 / 고급으로 등급화합니다
+(ADR-017).
+
+파일은 로케일 인식 — 한국어로 init한 프로젝트(`[i18n].active = "ko"`)는
+한국어 PRD를, 영어 프로젝트는 영어 버전을 받습니다. 강제 지정하려면
+`genasis example prd --lang en|ko`.
 
 ### Step 4 — 에이전트 팀 가동
 
@@ -54,10 +60,26 @@ genasis example prd
 genasis init
 ```
 
-PM 에이전트가 `PRD.md`를 읽고 Plane 티켓으로 분해, 역할을 배정하고
-팀이 작업을 시작합니다. Plane과 Mattermost에서 진행을 볼 수 있습니다.
+PM 에이전트가 `PRD.md`를 읽고 Plane 티켓으로 분해, 역할을 배정하고 팀이
+작업을 시작합니다. Plane과 Mattermost에서 진행을 볼 수 있습니다 — 또는
+trial 모드 프로젝트라면, `genasis init --trial`이 출력한 URL에서 라이브
+trial 앱으로.
 
-### Step 5 — 스프린트 모니터링
+### Step 5 — 쇼케이스 공개
+
+에이전트가 빌드를 끝내면:
+
+```bash
+genasis trial publish
+```
+
+이 명령은 trial-app에서 팀의 `app_status`를 `complete`로 전환합니다.
+라이브 trial URL을 새로고침하면 LiveBoard의 **"에이전트가 만든 앱
+보기"** 버튼이 활성화되고 — 클릭하면 패널이 좌측에서 슬라이드 인하며
+임베드된 퀴즈를 보여줘 에이전트가 방금 ship한 결과물을 그대로
+플레이해볼 수 있습니다 (ADR-017 §3-§4).
+
+### Step 6 — 스프린트 모니터링
 
 ```bash
 genasis monitor
