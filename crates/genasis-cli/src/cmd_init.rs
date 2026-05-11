@@ -504,9 +504,41 @@ async fn run_trial(args: Args) -> Result<()> {
         }
     }
 
-    println!("\nTrial app: {landing}");
+    // Always print the explicit-token-gating summary at the end so
+    // the user can copy the team_token even if the browser-open path
+    // was skipped (probe_only / GENASIS_TRIAL_AUTOLAUNCH=0 / headless
+    // CI / xdg-open not found). The trial-app's TokenBar requires
+    // this value before any of the Live Trial UI activates
+    // (ADR-017 §6).
+    if let Some(tok) = team_token.as_deref() {
+        let project_label = Config::load(&cfg_path)
+            .ok()
+            .map(|c| c.project.name)
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| "(unnamed)".to_string());
+        let bar = "━".repeat(64);
+        println!("\n{bar}");
+        println!("  Trial team ready · {project_label}");
+        println!("{bar}");
+        println!();
+        println!("  Team token (paste into the Live Trial top input):");
+        println!();
+        println!("    {tok}");
+        println!();
+        println!("  Open directly with the token pre-filled:");
+        println!();
+        println!("    {landing}");
+        println!();
+        println!("  Save this token. It's the only key that ties YOUR agents'");
+        println!("  kanban cards + chat messages to YOUR Live Trial view —");
+        println!("  without it the trial-app keeps the whole panel disabled");
+        println!("  (multi-tenant partition, ADR-017 §6).");
+        println!("{bar}");
+    } else {
+        println!("\nTrial app: {landing}");
+    }
     println!(
-        "Open the three tabs:\n  체험하기      — scripted 8-step agent sprint\n  라이브 트라이얼 — kanban + chat that mirrors agent calls live\n  신청하기      — request a hosted Plane + Mattermost trial environment"
+        "\nTwo tabs:\n  Live trial      — kanban + chat that mirrors agent calls live (requires team token)\n  Borrow real env — request a real Plane + Mattermost project from the operator"
     );
     println!(
         "\nThe trial app is operator-hosted — no local install needed. To self-host instead, see\nhttps://github.com/claude-genasis/agents-pool/tree/main/trial-app (private repo)\nand point [trial].url in genasis.toml at your own deployment."

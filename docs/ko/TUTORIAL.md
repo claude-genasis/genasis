@@ -28,6 +28,11 @@ genasis init --trial --name "Marketing Squad"
 `--name`을 생략하면 대화형 프롬프트(인터랙티브)나 디렉터리 이름의
 사람-읽기 변환(`marketing-squad` → "Marketing Squad")으로 채워집니다.
 
+명령 종료 시 복사하기 좋은 ASCII-bar 요약이 **팀 토큰** (32자 hex) +
+토큰이 pre-fill된 **랜딩 URL** 을 출력합니다. 이 토큰을 보관하세요 —
+이게 사용자 에이전트의 칸반 카드와 채팅 메시지를 사용자의 Live
+Trial 뷰에 연결하는 유일한 키입니다.
+
 이어서 **운영자 호스팅 데모
 [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
 를 *사용자 팀 전용* 토큰 URL — `/?tab=live&team=<token>` — 으로 바로
@@ -35,6 +40,13 @@ genasis init --trial --name "Marketing Squad"
 표시되고, 공유 샌드박스의 일반 이름이 아닌 사용자 팀이 보입니다.
 `team_token`은 호스팅 인스턴스에서 동시 데모 중인 다른 사용자의 sim
 행과 격리합니다 (ADR-016).
+
+**만약 도메인만 열렸다면 (URL에 `?team=` 없음)**, Live Trial 화면은
+비활성 상태로 렌더되고 상단에 **"팀 토큰을 입력하세요"** 바가
+표시됩니다 — CLI 요약 박스의 토큰을 그 바에 붙여넣고 **연결**을
+클릭하세요. 연결되면 칸반/채팅/쇼케이스 패널이 모두 활성화되고,
+trial-app이 토큰을 기억합니다 (쿠키 + localStorage, 1년 max-age)
+— 다음 방문에도 연결 상태 유지 (ADR-017 §6).
 
 trial 앱의 **실환경 빌리기** 탭에서 운영자 공유 인프라의 실제 Plane +
 Mattermost 프로젝트를 빌릴 수도 있습니다 — 서버 설치 없이 (ADR-017).

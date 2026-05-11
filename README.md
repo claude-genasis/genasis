@@ -74,6 +74,8 @@ mkdir marketing-squad && cd marketing-squad
 genasis init --trial --name "Marketing Squad"
 ```
 
+The command ends with a copy-friendly summary that prints the **team token** (32-char hex) and the **landing URL** with the token pre-filled. The Live Trial screen requires this token before it activates — when the browser opens, look for the **"Enter your team token"** bar at the top of the Live trial tab. If you pasted only the landing URL, the token is already filled in; if you arrived at the bare domain, paste the token into that bar to connect (ADR-017 §6). All Live Trial functionality (kanban, chat, showcase panel) stays disabled until a valid token is connected — that's the multi-tenant partition gate that keeps your team's kanban cards separate from every other concurrent demo.
+
 **3. Generate a sample PRD** for your agents to work on
 
 ```bash

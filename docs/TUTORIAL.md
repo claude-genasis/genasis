@@ -28,6 +28,11 @@ freshly generated `team_token` under `[trial]`. Omit `--name` and the CLI
 either prompts (interactive) or humanises the directory name
 (`marketing-squad` → "Marketing Squad").
 
+The command ends with a copy-friendly ASCII-bar summary that prints
+the **team token** (32-char hex) and the **landing URL** with the
+token pre-filled. Save the token — it's the only key that ties your
+agents' kanban cards + chat messages to your Live Trial view.
+
 The command then opens the **operator-hosted demo at
 [mmplane-trial.realstory.blog](https://mmplane-trial.realstory.blog)**
 straight into *your* team's per-token URL —
@@ -35,6 +40,14 @@ straight into *your* team's per-token URL —
 "Marketing Squad" instead of a generic shared sandbox. The `team_token`
 isolates your sim rows from any other concurrent demos on the hosted
 instance (ADR-016).
+
+**If you arrive at the bare domain (no `?team=` in the URL)**, the
+Live Trial screen renders dimmed with an **"Enter your team token"**
+bar at the top — paste the token from the CLI summary into that bar
+and click **Connect**. Once connected, the kanban / chat / showcase
+panel all activate; the trial-app remembers the token (cookie +
+localStorage, 1 year) so subsequent visits stay connected
+(ADR-017 §6).
 
 From the trial app's **Borrow real env** tab you can also request a
 real Plane + Mattermost project on the operator's shared infrastructure

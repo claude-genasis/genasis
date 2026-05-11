@@ -124,6 +124,51 @@ because: (a) the trial-app sim is fed by the agents themselves, so
 (b) operators may want to publish a partial milestone before every
 issue closes.
 
+### 6. Explicit team-token gating on Live Trial (TokenBar)
+
+Field feedback after ADR-017 §3 shipped: anonymous visitors silently
+landed in the `DEFAULT_TEAM_TOKEN` sandbox, which made the
+multi-partition story confusing — users couldn't tell which view
+"belonged" to them until they opened the per-team URL the CLI
+printed. And if a user pasted that URL on a different machine, the
+URL `?team=<token>` worked but a subsequent navigation that dropped
+the query string silently fell back to the shared sandbox.
+
+This ADR amendment removes the default-fallback rendering and
+introduces an explicit token-gate at the top of the Live Trial view.
+The full behaviour:
+
+- A new client component **`TeamTokenBar`** sits at the top of the
+  Live tab. It's the single owner of token persistence.
+- Token resolution order (server-side, in `page.tsx`):
+  1. `?team=<token>` URL query — wins, lets per-team landing URLs
+     work cross-machine.
+  2. `genasis-trial-team` cookie — set client-side by TokenBar
+     after a successful `Connect`. Lasts 1 year (tokens are stable
+     per `genasis init --trial` run).
+  3. Empty — render the LiveBoard in `disabled` mode: kanban,
+     chat, and ShowcasePanel all dimmed with `pointer-events: none`
+     plus a `live.disabled.overlay` banner. The TokenBar is the
+     only interactive surface.
+- TokenBar validates pasted tokens via
+  `GET /api/trial/team-app/status?team=<token>` (extended in this
+  amendment to return `team_exists` + `project_name`). A token that
+  no `sim_teams` row matches surfaces as `live.tokenbar.error.unknown`,
+  pointing the user back to `genasis.toml [trial].team_token` or a
+  re-run of `genasis init --trial`.
+- The `DEFAULT_TEAM_TOKEN` sandbox is no longer auto-displayed; it
+  remains reachable for the public shared demo only via explicit
+  `?team=default` URL (rarely useful in practice — kept for
+  bookmark compatibility, not promoted).
+
+CLI cooperation: `genasis init --trial` now ends with a hard-to-miss
+ASCII-bar summary that prints (a) the project name, (b) the
+`team_token`, (c) the landing URL with the token pre-filled. The
+"copy this into Live Trial's top input" message is the same
+language as the `live.tokenbar.idle.*` strings, so a user who pastes
+the URL and a user who pastes only the token see consistent
+guidance.
+
 ### 5. Apply tab rename: "Borrow real env" / "실환경 빌리기"
 
 The tab and form headings shift from "Apply" / "신청하기" to

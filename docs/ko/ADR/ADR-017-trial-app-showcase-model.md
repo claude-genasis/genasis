@@ -113,6 +113,46 @@ genasis trial publish
 독립적 확증을 못 주고, (b) 운영자는 모든 이슈가 닫히기 전에 부분
 마일스톤을 publish하고 싶을 수 있다.
 
+### 6. Live Trial 명시적 팀-토큰 게이팅 (TokenBar)
+
+ADR-017 §3가 ship된 후 현장 피드백: 익명 방문자가 조용히
+`DEFAULT_TEAM_TOKEN` 샌드박스로 떨어져서 multi-partition 이야기가
+헷갈렸음 — 사용자가 CLI가 출력한 per-team URL을 열기 전까지는
+어느 뷰가 "자신의 것"인지 알 수 없었음. 그리고 사용자가 그 URL을
+다른 머신에 붙여넣었을 때 `?team=<token>` 쿼리는 동작하지만, 그
+다음 네비게이션에서 쿼리가 떨어지면 다시 공유 샌드박스로 조용히
+fallback 됐음.
+
+이 amendment는 default-fallback 렌더링을 제거하고 Live Trial 뷰
+상단에 명시적 token-gate 를 도입한다. 전체 동작:
+
+- 신규 client 컴포넌트 **`TeamTokenBar`** 가 Live 탭 상단에 위치.
+  토큰 영속성의 단일 소유자.
+- 토큰 resolution 순서 (server-side, `page.tsx`):
+  1. `?team=<token>` URL 쿼리 — 최우선, per-team 랜딩 URL이
+     머신 간 cross-machine 동작.
+  2. `genasis-trial-team` 쿠키 — TokenBar가 성공적인 Connect
+     후 client-side에서 set. 1년 max-age (토큰은
+     `genasis init --trial` 실행마다 stable).
+  3. 비어있음 — LiveBoard 가 `disabled` 모드로 렌더: 칸반,
+     채팅, ShowcasePanel 모두 `pointer-events: none` + dim 처리
+     + `live.disabled.overlay` 배너. TokenBar 만 인터랙티브.
+- TokenBar는 붙여넣은 토큰을
+  `GET /api/trial/team-app/status?team=<token>` 로 검증 (이
+  amendment에서 `team_exists` + `project_name` 반환하도록 확장).
+  `sim_teams` 행 없는 토큰은 `live.tokenbar.error.unknown` 으로
+  surface, 사용자를 `genasis.toml [trial].team_token` 확인 또는
+  `genasis init --trial` 재실행으로 안내.
+- `DEFAULT_TEAM_TOKEN` 샌드박스는 더 이상 자동 표시 안 됨. 공개
+  공유 데모로의 도달은 명시적 `?team=default` URL 만 — 실제
+  유용성 낮음 (북마크 호환 목적으로만 유지, 적극 홍보 안 함).
+
+CLI 협조: `genasis init --trial` 종료 시 눈에 띄는 ASCII-bar 요약
+출력 — (a) 프로젝트명, (b) `team_token`, (c) 토큰이 pre-filled된
+랜딩 URL. "이 값을 Live Trial 상단 input에 복사" 안내가
+`live.tokenbar.idle.*` 문자열과 동일 언어이므로, URL을 붙여넣은
+사용자와 토큰만 붙여넣은 사용자 모두 같은 가이드를 본다.
+
 ### 5. Apply 탭 리네이밍: "Borrow real env" / "실환경 빌리기"
 
 탭과 폼 헤딩이 "Apply" / "신청하기"에서 **"Borrow real env"** /
