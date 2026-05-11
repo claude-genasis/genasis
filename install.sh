@@ -33,15 +33,24 @@ NON_INTERACTIVE=0      # --non-interactive
 ASSUME_YES=0           # --yes / -y
 
 # ---- parse args -------------------------------------------------------------
-for arg in "$@"; do
-    case "$arg" in
+# Each flag with a value accepts BOTH `--lang ko` (space) and `--lang=ko`
+# (equal sign). The space form is what every other CLI in the genasis
+# tree uses (genasis attach, genasis init …), and it's what the help
+# text below documents — so the installer mirrors that. Earlier versions
+# only accepted the `=` form which silently rejected `--lang ko` with
+# "unknown flag", which was caught in field testing.
+while [ $# -gt 0 ]; do
+    case "$1" in
         --no-run) RUN_AFTER_INSTALL=0 ;;
         --skip-prereqs) SKIP_PREREQS=1 ;;
         --non-interactive) NON_INTERACTIVE=1 ;;
         -y|--yes) ASSUME_YES=1 ;;
-        --lang=*) LANG_FLAG="${arg#--lang=}" ;;
-        --prefix=*) PREFIX="${arg#--prefix=}" ;;
-        --version=*) RELEASE_VERSION="${arg#--version=}" ;;
+        --lang) shift; LANG_FLAG="${1:-}" ;;
+        --lang=*) LANG_FLAG="${1#--lang=}" ;;
+        --prefix) shift; PREFIX="${1:-}" ;;
+        --prefix=*) PREFIX="${1#--prefix=}" ;;
+        --version) shift; RELEASE_VERSION="${1:-}" ;;
+        --version=*) RELEASE_VERSION="${1#--version=}" ;;
         -h|--help)
             cat <<HELP
 Genasis installer
@@ -51,20 +60,24 @@ Usage:
   curl -fsSL .../install.sh | sh -s -- --lang ko --no-run
 
 Flags:
-  --lang=LANG          Agent-context language (en|ko). Rejects "both".
+  --lang LANG          Agent-context language (en|ko). Rejects "both".
                        Without this, an interactive prompt asks (TTY) or
                        \$LANG is parsed (non-TTY).
+                       Accepts both '--lang ko' and '--lang=ko' forms.
   --non-interactive    Skip the prompt; use \$LANG fallback.
   -y, --yes            Auto-accept the confirmation step.
   --no-run             Skip the auto attach run.
-  --prefix=PATH        Override install dir (default: ~/.local/bin).
-  --version=vX.Y.Z     Pin a release (default: latest).
+  --prefix PATH        Override install dir (default: ~/.local/bin).
+                       Accepts both '--prefix /opt/bin' and '--prefix=/opt/bin'.
+  --version vX.Y.Z     Pin a release (default: latest). Same dual-form
+                       syntax as --prefix.
   --skip-prereqs       Bypass prerequisite check.
 HELP
             exit 0
             ;;
-        *) echo "unknown flag: $arg" >&2; exit 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
     esac
+    shift
 done
 
 # ---- pretty printing --------------------------------------------------------
@@ -244,7 +257,25 @@ detect_platform() {
 
     case "$OS_KERNEL" in
         Linux) OS="linux" ;;
-        Darwin) OS="macos" ;;
+        Darwin)
+            # macOS pre-built binaries are not yet shipped — the release
+            # matrix only produces Linux musl-static tarballs. Native
+            # macOS builds are on the roadmap (TBD); see README §Supported
+            # Platforms. Until then, build from source.
+            cat <<MACOS >&2
+✘ macOS pre-built binary is not provided yet (TBD on the roadmap).
+
+  Build from source instead — same single-line install path, just from
+  the source tree:
+
+      git clone https://github.com/${OWNER}/${REPO}.git
+      cd ${REPO} && ./build.sh
+
+  See README "Supported Platforms" for status; Apple Silicon native
+  builds are planned but unscheduled.
+MACOS
+            exit 1
+            ;;
         MINGW*|MSYS*|CYGWIN*)
             die "Windows native is not supported. Please run inside WSL2 (Ubuntu recommended) and re-execute this installer."
             ;;

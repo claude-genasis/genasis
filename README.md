@@ -231,12 +231,30 @@ genasis debug submit           # contribute to genasis improvement (opt-in)
 
 ## Supported Platforms
 
-| Platform | Status |
-|---|---|
-| **Linux** (x86_64, aarch64) | Supported |
-| **macOS** (Apple Silicon, Intel) | Supported |
-| **WSL** (Windows Subsystem for Linux) | Supported |
-| Windows (native) | Not supported — use WSL |
+| Platform | Pre-built binary (`install.sh`) | Build from source (`./build.sh`) |
+|---|---|---|
+| **Linux** x86_64 | ✅ musl-static — runs on every distro (Alpine, CentOS 7+, RHEL, Debian 10+, Ubuntu 18.04+, Amazon Linux 2, …) | ✅ |
+| **Linux** aarch64 | ✅ musl-static, cross-compiled | ✅ |
+| **WSL** (Windows Subsystem for Linux) | ✅ — uses the Linux x86_64 binary | ✅ |
+| **macOS** (Apple Silicon / Intel) | ⏳ **TBD** — pre-built binaries not yet shipped; Apple Silicon notarisation + cross-compile signing on the roadmap | ✅ — `./build.sh` works today |
+| **Windows** (native) | ❌ not supported — run inside WSL2 | ❌ |
+
+> **Why musl-static for Linux?** GitHub's `ubuntu-latest` runner ships
+> glibc 2.39, which would otherwise bake a `GLIBC_2.39` floor into the
+> dynamic-linked binary and break older distros. Switching the release
+> matrix to `x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`
+> via `cross` produces fully statically-linked binaries with no glibc
+> dependency at all — the same tarball runs on glibc 2.17 (CentOS 7)
+> through current Alpine. A CI compatibility-smoke job re-runs the
+> packaged binary inside `debian:bullseye` (glibc 2.31) on every tag
+> to guard against accidental re-introduction of a glibc dep.
+
+> **macOS roadmap** — Apple Silicon native (`aarch64-apple-darwin`) is
+> the priority once we settle on a notarisation flow. Intel mac
+> support is best-effort and may be cut. Until then, macOS users build
+> from source — the same `rustls-tls` feature flag that lets the Linux
+> build avoid OpenSSL also makes the macOS build self-contained, so
+> `./build.sh` "just works" without Homebrew prerequisites.
 
 ## Architecture
 

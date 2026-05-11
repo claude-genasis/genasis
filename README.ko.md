@@ -223,12 +223,30 @@ genasis lang switch <en|ko>    # 에이전트 언어 전환
 
 ## 지원 플랫폼
 
-| 플랫폼 | 상태 |
-|---|---|
-| **Linux** (x86_64, aarch64) | 지원 |
-| **macOS** (Apple Silicon, Intel) | 지원 |
-| **WSL** (Windows Subsystem for Linux) | 지원 |
-| Windows (네이티브) | 미지원 — WSL 사용 |
+| 플랫폼 | 사전 빌드 바이너리 (`install.sh`) | 소스 빌드 (`./build.sh`) |
+|---|---|---|
+| **Linux** x86_64 | ✅ musl 정적 링크 — 모든 배포판 (Alpine, CentOS 7+, RHEL, Debian 10+, Ubuntu 18.04+, Amazon Linux 2, …) | ✅ |
+| **Linux** aarch64 | ✅ musl 정적 링크, cross 컴파일 | ✅ |
+| **WSL** (Windows Subsystem for Linux) | ✅ — Linux x86_64 바이너리 사용 | ✅ |
+| **macOS** (Apple Silicon / Intel) | ⏳ **TBD** — 사전 빌드 바이너리 아직 미제공. Apple Silicon notarisation + cross-compile 서명 작업이 로드맵에 있음 | ✅ — `./build.sh` 현재 동작 |
+| **Windows** (네이티브) | ❌ 미지원 — WSL2 사용 | ❌ |
+
+> **왜 Linux 는 musl 정적인가?** GitHub `ubuntu-latest` 러너가 glibc
+> 2.39를 ship 해서, 동적 링크 바이너리에 `GLIBC_2.39` floor가 박혀
+> 오래된 배포판을 깨먹는다. 릴리스 매트릭스를 `cross` 경유로
+> `x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`로 전환하면
+> glibc 의존이 전혀 없는 완전 정적 바이너리를 만들어준다 — 같은
+> tarball이 glibc 2.17 (CentOS 7) 부터 현행 Alpine 까지 그대로
+> 동작한다. CI compatibility-smoke 잡이 매 태그마다 패키징된
+> 바이너리를 `debian:bullseye` (glibc 2.31) 컨테이너에서 재실행해
+> 우발적인 glibc 의존 재유입을 방지한다.
+
+> **macOS 로드맵** — Apple Silicon 네이티브 (`aarch64-apple-darwin`)가
+> notarisation flow 가 잡히는 대로 우선 진행. Intel mac 지원은
+> best-effort 이며 dropped 될 수 있다. 그 사이 macOS 사용자는
+> 소스에서 빌드 — Linux 빌드가 OpenSSL을 피할 수 있게 해준 동일한
+> `rustls-tls` feature flag 덕에 macOS 빌드도 self-contained 라서
+> `./build.sh`가 Homebrew 사전 설치 없이 그대로 동작한다.
 
 ## 아키텍처
 

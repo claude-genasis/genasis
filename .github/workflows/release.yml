@@ -38,22 +38,28 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux pre-built binaries are statically linked against musl
+          # libc so the same tarball runs unchanged on every glibc
+          # version (Alpine 3.x, CentOS 7 [glibc 2.17], RHEL 8,
+          # Debian 10+, Ubuntu 18.04+, Amazon Linux 2, …). Without
+          # this, GitHub's ubuntu-latest (currently 24.04 / glibc 2.39)
+          # would bake a GLIBC_2.39 dynamic-link floor into the binary
+          # and break every older distro. `cross` picks the musl
+          # cross-compile image automatically when the target ends in
+          # -musl, so we don't need to install musl-tools by hand.
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             asset_name: genasis-linux-x86_64
-            use_cross: false
+            use_cross: true
           - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             asset_name: genasis-linux-aarch64
             use_cross: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            asset_name: genasis-macos-x86_64
-            use_cross: false
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            asset_name: genasis-macos-aarch64
-            use_cross: false
+          # macOS pre-built binaries are on the roadmap (TBD) but not
+          # yet shipped — Apple Silicon notarisation + cross-compile
+          # signing add operational cost we haven't justified yet.
+          # README §Supported Platforms tracks the gap; users on
+          # macOS are pointed at `./build.sh` for the time being.
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +79,19 @@ jobs:
             cargo build --release --target ${{ matrix.target }} --bin genasis
           fi
 
+      - name: Verify static linking
+        run: |
+          # musl-static binaries should report "statically linked" from
+          # `file`; if a future Cargo.toml edit re-introduces a glibc
+          # dep this guard catches it at release time instead of in the
+          # field.
+          BINARY="target/${{ matrix.target }}/release/genasis"
+          file "$BINARY"
+          if file "$BINARY" | grep -q "dynamically linked"; then
+            echo "::error::$BINARY is dynamically linked — musl-static target should produce a fully static binary"
+            exit 1
+          fi
+
       - name: Package tarball + sha256
         run: |
           BINARY="target/${{ matrix.target }}/release/genasis"
@@ -87,6 +106,25 @@ jobs:
           path: |
             ${{ matrix.asset_name }}.tar.gz
             ${{ matrix.asset_name }}.tar.gz.sha256
+
+  # Compatibility smoke test: run the freshly-built x86_64 musl binary
+  # inside an older glibc container to confirm "any Linux" claim. We
+  # don't gate the release on this; we just surface a clear failure if
+  # the binary inadvertently grows a glibc dep again. debian:bullseye
+  # ships glibc 2.31 (~Debian 11 / Ubuntu 20.04), so passing here means
+  # ≥10-year-old distros are still served.
+  compat-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: genasis-linux-x86_64
+          path: artifacts/
+      - name: Extract + run --version inside debian:bullseye
+        run: |
+          tar -xzf artifacts/genasis-linux-x86_64.tar.gz -C artifacts/
+          docker run --rm -v "$PWD/artifacts:/w" debian:bullseye /w/genasis --version
 
   publish:
     needs: build
@@ -109,7 +147,3 @@ jobs:
             artifacts/genasis-linux-x86_64.tar.gz.sha256
             artifacts/genasis-linux-aarch64.tar.gz
             artifacts/genasis-linux-aarch64.tar.gz.sha256
-            artifacts/genasis-macos-x86_64.tar.gz
-            artifacts/genasis-macos-x86_64.tar.gz.sha256
-            artifacts/genasis-macos-aarch64.tar.gz
-            artifacts/genasis-macos-aarch64.tar.gz.sha256
