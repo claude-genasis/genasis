@@ -16,14 +16,20 @@ use super::{CycleRef, IssueRef, LabelRef, PlaneProvider};
 pub struct TrialPlane {
     base_url: String,
     secret: String,
+    team_token: String,
     client: Client,
 }
 
 impl TrialPlane {
-    pub fn new(base_url: impl Into<String>, secret: impl Into<String>) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        secret: impl Into<String>,
+        team_token: impl Into<String>,
+    ) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             secret: secret.into(),
+            team_token: team_token.into(),
             client: Client::new(),
         }
     }
@@ -34,8 +40,19 @@ impl TrialPlane {
 
     fn headers(&self) -> HeaderMap {
         let mut h = HeaderMap::new();
-        if let Ok(v) = HeaderValue::from_str(&self.secret) {
-            h.insert("x-genasis-trial-secret", v);
+        if !self.secret.is_empty() {
+            if let Ok(v) = HeaderValue::from_str(&self.secret) {
+                h.insert("x-genasis-trial-secret", v);
+            }
+        }
+        // ADR-016 §3: scope every server-to-server call into the
+        // tenant's sim namespace. Empty token is allowed — the
+        // trial-app falls through to DEFAULT_TEAM_TOKEN for it,
+        // matching pre-ADR-016 behaviour.
+        if !self.team_token.is_empty() {
+            if let Ok(v) = HeaderValue::from_str(&self.team_token) {
+                h.insert("x-genasis-team-token", v);
+            }
         }
         h.insert(
             reqwest::header::CONTENT_TYPE,
@@ -216,15 +233,41 @@ mod tests {
         assert_eq!(slug_from_identifier("", "Cool App"), "cool-app");
     }
 
+    #[test]
+    fn headers_include_team_token_when_set() {
+        let p = TrialPlane::new("http://t", "sec", "abc123");
+        let h = p.headers();
+        assert_eq!(h.get("x-genasis-team-token").unwrap(), "abc123");
+        assert_eq!(h.get("x-genasis-trial-secret").unwrap(), "sec");
+    }
+
+    #[test]
+    fn headers_omit_team_token_when_empty() {
+        let p = TrialPlane::new("http://t", "sec", "");
+        let h = p.headers();
+        assert!(h.get("x-genasis-team-token").is_none());
+        assert_eq!(h.get("x-genasis-trial-secret").unwrap(), "sec");
+    }
+
+    #[test]
+    fn headers_omit_secret_when_empty() {
+        let p = TrialPlane::new("http://t", "", "abc123");
+        let h = p.headers();
+        assert_eq!(h.get("x-genasis-team-token").unwrap(), "abc123");
+        assert!(h.get("x-genasis-trial-secret").is_none());
+    }
+
     /// End-to-end smoke test against a running trial-app. Run with:
     /// `TRIAL_BASE=http://localhost:3000 TRIAL_SECRET=trialsecret \
+    ///   TRIAL_TEAM_TOKEN=<hex> \
     ///   cargo test -p genasis-providers --lib trial_e2e -- --ignored --nocapture`
     #[tokio::test]
     #[ignore]
     async fn trial_e2e_create_then_transition() {
         let base = std::env::var("TRIAL_BASE").unwrap_or_else(|_| "http://localhost:3000".into());
         let secret = std::env::var("TRIAL_SECRET").unwrap_or_else(|_| "trialsecret".into());
-        let p = TrialPlane::new(base, secret);
+        let team_token = std::env::var("TRIAL_TEAM_TOKEN").unwrap_or_default();
+        let p = TrialPlane::new(base, secret, team_token);
         let project = p
             .ensure_project("Rust E2E", "RUSTE2E")
             .await

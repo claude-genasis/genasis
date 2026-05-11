@@ -177,7 +177,43 @@ display name만 갱신, 기존 issue/post는 절대 삭제하지 않음.
 모든 Plane / Mattermost 브리지 라우트는 활성 팀을 다음 순서로
 해석한다 — `X-Genasis-Team-Token` 헤더 → `?team=` 쿼리 → fallback
 `"default"`. fallback이 있는 이유: 토큰 없이 익명 브라우저 탭으로
-열린 레거시 "click and play" 데모도 계속 동작해야 함.
+열린 레거시 "click and play" 데모도 계속 동작해야 함. Rust trial
+프로바이더(`crates/genasis-providers/src/{plane,mattermost}/trial.rs`)
+는 effective team token을 HTTP 클라이언트 구성 시점에 전달해두므로,
+에이전트의 모든 호출 — `ensure_project`, `create_issue`,
+`transition`, `ensure_channel`, `post_root`, `post_thread` — 이
+자동으로 `X-Genasis-Team-Token: <hex>`를 붙인다.
+
+### 4. 인증 모델 — 토큰이 곧 capability
+
+`/api/{plane,mattermost}/*`이 `TRIAL_SHARED_SECRET`을 요구하는 것과
+달리, 신규 `/api/trial/bootstrap` 라우트는 **shared secret을
+의도적으로 요구하지 않는다**. 요청 body의 32자 hex `team_token`이
+유일한 자격증명.
+
+근거:
+
+- **무작위성** — `random_team_token()`은 SHA-256(nanos + pid +
+  atomic counter)에서 mint. 다른 팀의 토큰을 추측하는 난이도는
+  여느 capability URL과 동일.
+- **멱등성** — 같은 payload로 두 번째 호출은 no-op, 충돌 payload는
+  first-write 프로젝트 이름을 유지하고 채널만 추가, 기존 데이터를
+  절대 삭제하지 않으므로 우발적 POST가 다른 테넌트 샌드박스를
+  훼손할 수 없음.
+- **운영자 단순성** — `TRIAL_SHARED_SECRET`을 요구하면 모든
+  `genasis init --trial` 사용자가 secret을 out-of-band로 받아야
+  하는데, 이는 스케일 불가. 기존 테넌트 데이터를 수정하는 라우트
+  (issues, posts)에는 shared-secret 경로를 유지 — server-to-server
+  caller는 신뢰됨.
+
+**SSE 이벤트 필터링**에도 같은 위협 모델이 거울처럼 적용된다:
+`/api/events/stream`은 `?team=<token>`을 읽고 (브라우저에서
+EventSource가 커스텀 헤더를 못 붙이므로) in-memory pub/sub 버스가
+server-side 필터링으로 각 연결된 탭이 자기 팀 이벤트만 받게 한다.
+ADR-016 이전에는 버스가 글로벌이었음 — 연결된 모든 탭이 모든
+테넌트의 create/transition/post 이벤트를 받았고, UI가 project_slug
+로 필터링해도 정보 누수는 남았음. server-side 필터가 wire protocol
+변경 없이 그 누수를 닫는다.
 
 ## Consequences
 

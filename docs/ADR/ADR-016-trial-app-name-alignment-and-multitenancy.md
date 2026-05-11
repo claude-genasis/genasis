@@ -185,7 +185,43 @@ All Plane / Mattermost bridge routes resolve the active team via
 (in order): `X-Genasis-Team-Token` header → `?team=` query string →
 fallback `"default"`. The fallback exists so the legacy "click and
 play" demo — opened by an anonymous browser tab without any token —
-still works.
+still works. The Rust trial providers
+(`crates/genasis-providers/src/{plane,mattermost}/trial.rs`)
+construct their HTTP client with the effective team token plumbed
+in, so every agent call — `ensure_project`, `create_issue`,
+`transition`, `ensure_channel`, `post_root`, `post_thread` — attaches
+`X-Genasis-Team-Token: <hex>` automatically.
+
+### 4. Auth model — token IS the capability
+
+Unlike the rest of `/api/{plane,mattermost}/*` which gate on
+`TRIAL_SHARED_SECRET`, the new `/api/trial/bootstrap` route
+**deliberately requires no shared secret**. The 32-char hex
+`team_token` in the request body is the only credential.
+
+Rationale:
+
+- **Unpredictability** — `random_team_token()` mints from
+  SHA-256(nanos + pid + atomic counter). Guessing another team's
+  token is the same difficulty as guessing any other capability URL.
+- **Idempotence** — bootstrap is a no-op on second call with the
+  same payload; conflicting payloads keep first-write project names
+  and add channels but never delete data, so a stray POST cannot
+  damage another tenant's sandbox.
+- **Operator simplicity** — requiring `TRIAL_SHARED_SECRET` would
+  force every `genasis init --trial` user to fetch the secret
+  out-of-band, which scales nowhere. The shared-secret path remains
+  for routes that mutate existing tenant data (issues, posts) where
+  the server-to-server caller is trusted.
+
+The same threat model applies in reverse to **SSE event filtering**:
+`/api/events/stream` reads `?team=<token>` (EventSource cannot
+attach custom headers in the browser) and the in-memory pub/sub bus
+filters events server-side so each connected tab only receives its
+own team's updates. Before ADR-016 the bus was global — any
+connected tab saw every tenant's create/transition/post events,
+even when its UI filtered by project_slug. The server-side filter
+closes that information leak without changing the wire protocol.
 
 ## Consequences
 

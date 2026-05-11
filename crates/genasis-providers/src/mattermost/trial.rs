@@ -20,14 +20,20 @@ const DEFAULT_ACTOR: &str = "agent";
 pub struct TrialMattermost {
     base_url: String,
     secret: String,
+    team_token: String,
     client: Client,
 }
 
 impl TrialMattermost {
-    pub fn new(base_url: impl Into<String>, secret: impl Into<String>) -> Self {
+    pub fn new(
+        base_url: impl Into<String>,
+        secret: impl Into<String>,
+        team_token: impl Into<String>,
+    ) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             secret: secret.into(),
+            team_token: team_token.into(),
             client: Client::new(),
         }
     }
@@ -38,8 +44,19 @@ impl TrialMattermost {
 
     fn headers(&self) -> HeaderMap {
         let mut h = HeaderMap::new();
-        if let Ok(v) = HeaderValue::from_str(&self.secret) {
-            h.insert("x-genasis-trial-secret", v);
+        if !self.secret.is_empty() {
+            if let Ok(v) = HeaderValue::from_str(&self.secret) {
+                h.insert("x-genasis-trial-secret", v);
+            }
+        }
+        // ADR-016 §3: scope every server-to-server call into the
+        // tenant's sim namespace. Empty token = trial-app falls
+        // through to DEFAULT_TEAM_TOKEN, matching pre-ADR-016
+        // behaviour.
+        if !self.team_token.is_empty() {
+            if let Ok(v) = HeaderValue::from_str(&self.team_token) {
+                h.insert("x-genasis-team-token", v);
+            }
         }
         h.insert(
             reqwest::header::CONTENT_TYPE,
@@ -222,15 +239,32 @@ impl MattermostProvider for TrialMattermost {
 mod tests {
     use super::*;
 
+    #[test]
+    fn headers_include_team_token_when_set() {
+        let p = TrialMattermost::new("http://t", "sec", "abc123");
+        let h = p.headers();
+        assert_eq!(h.get("x-genasis-team-token").unwrap(), "abc123");
+        assert_eq!(h.get("x-genasis-trial-secret").unwrap(), "sec");
+    }
+
+    #[test]
+    fn headers_omit_team_token_when_empty() {
+        let p = TrialMattermost::new("http://t", "sec", "");
+        let h = p.headers();
+        assert!(h.get("x-genasis-team-token").is_none());
+    }
+
     /// End-to-end smoke test against a running trial-app. Run with:
     /// `TRIAL_BASE=http://localhost:3000 TRIAL_SECRET=trialsecret \
+    ///   TRIAL_TEAM_TOKEN=<hex> \
     ///   cargo test -p genasis-providers --lib mm_trial_e2e -- --ignored --nocapture`
     #[tokio::test]
     #[ignore]
     async fn mm_trial_e2e_channel_then_post() {
         let base = std::env::var("TRIAL_BASE").unwrap_or_else(|_| "http://localhost:3000".into());
         let secret = std::env::var("TRIAL_SECRET").unwrap_or_else(|_| "trialsecret".into());
-        let p = TrialMattermost::new(base, secret);
+        let team_token = std::env::var("TRIAL_TEAM_TOKEN").unwrap_or_default();
+        let p = TrialMattermost::new(base, secret, team_token);
         let ch = p
             .ensure_channel("ignored-team-id", "scrum-rust-e2e", "Rust E2E Scrum")
             .await

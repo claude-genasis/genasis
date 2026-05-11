@@ -74,7 +74,11 @@ pub async fn build(
                         .into(),
                 ));
             }
-            Arc::new(TrialMattermost::new(&t.url, &t.shared_secret))
+            // ADR-016 §3: scope every call into the tenant's sim
+            // namespace via X-Genasis-Team-Token. Empty token =
+            // trial-app falls through to DEFAULT_TEAM_TOKEN.
+            let team_token = t.team_token.clone().unwrap_or_default();
+            Arc::new(TrialMattermost::new(&t.url, &t.shared_secret, team_token))
         }
         FlavorChoice::Auto => unreachable!("auto resolved above"),
     })
@@ -89,7 +93,7 @@ mod tests {
             enabled: true,
             url: "http://localhost:3000".into(),
             shared_secret: "trialsecret".into(),
-            team_token: None,
+            team_token: Some("test-token-abc".into()),
         }
     }
 
