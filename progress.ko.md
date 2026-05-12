@@ -1053,6 +1053,31 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.14 릴리스 — push 기반 reactive bridge (SSE/WebSocket) + daemon lifecycle (`bridgectl` 등가물) + 다라운드 자가테스트**. 사용자가 v0.5.13 의 listen daemon 에 3 follow-up: (1) 앱 "완성" 후에도 reactive loop 가 계속 살아 추가 수정 요청을 받을 수 있어야 함; (2) polling 말고 진짜 이벤트 기반 (SSE/WS) — Mattermost client lib 검토 권장; (3) `flavor=trial` 일 때는 진짜 Mattermost/Plane 인스턴스에 절대 안 닿아야 함.
+
+  **라이브러리 조사** — crates.io 의 mattermost 관련 crate 8 개 살펴봄. `mattermost_api` (DL 11.6k) + `mattermost-rust-client` (DL 11.7k) 가 REST 는 커버하지만 WS 가 patchy, `mattermost-rs` v0.1 은 너무 미성숙 (DL 33), `mattermost-bot` (DL 1.7k) 은 bot framework 전체 끌어옴. 결정: **`reqwest-eventsource` v0.6 (DL 7.5M) + `tokio-tungstenite` v0.29 (DL 177M) 직접 조합**. Mattermost WS 프로토콜은 단순 `authentication_challenge` → JSON event stream 이라 라이브러리 한 단계가 protocol 견고성도 binary 크기도 이득 못 줌.
+
+  **Binary 크기** (사용자가 "DL 177M 이라며 binary 너무 커지는 거 아닌가" 우려 — DL 은 누적 다운로드 카운트 = 인기도 지표일 뿐): v0.5.13 기준 11,640,928 bytes → v0.5.14 12,025,256 bytes. Δ **+384 KB / +3.3%**. 신규 TLS 의존성이 reqwest 의 기존 rustls 그래프와 dedupe 되어서 실 비용은 tungstenite frame parsing + eventsource SSE decoder 뿐.
+
+  **Listen 모듈 재설계** — `crates/genasis-cli/src/listen/` 신규:
+  - `mod.rs` — `InboundEvent::PostCreated` + `EventStream` / `EventSink` trait + `run_listen_loop` + `is_human_actor` / `message_requests_done` 휴리스틱.
+  - `trial_sse.rs` — `TrialAppSseStream` (`reqwest-eventsource` 가 SSE reconnect/heartbeat 추상화) + `TrialAppSink` (`/api/mattermost/posts` POST + "X 완료" 디렉티브 시 idempotent bootstrap re-seed).
+  - `mattermost_ws.rs` — `MattermostWsStream` (`tokio-tungstenite` 직접 사용, `wss://…/api/v4/websocket` 연결 후 `authentication_challenge` 전송, `event="posted"` 필터, exponential backoff 1→30s 재연결) + `MattermostSink` (`/api/v4/posts` POST, Plane transition 은 v0.6.0 후속으로).
+  - `lifecycle.rs` — `bridgectl.sh` 등가물. PID 파일 (`.genasis/listen.pid`), 로그 (`.genasis/listen.log`), `/proc/<pid>/cmdline` 매칭 고아 탐지, slug 당 1 프로세스 보장.
+  - `cmd_listen.rs` — Args 모두 `global = true` 라 `genasis listen start --trial --echo-only` 자연스러움. Foreground / start / stop / status / restart / logs.
+
+  **SSE 이벤트 포맷 디버깅** — 초기 구현은 `data.kind == "post.created"` 검사. 실제 trial-app SSE 는 `event: post.created\ndata: <SimPost JSON>` 형태 (kind 가 SSE `event:` 라인). reqwest-eventsource 의 `Event::Message { event, data }` 의 `event` 필드 검사하도록 1줄 패치 → reactive 활성화.
+
+  **다라운드 자가테스트** — `playwright-v514-multi.py` 가 호스팅 URL 에서:
+  - 1라운드: 사람 "TODO 앱 만들어줘 — 다크모드 지원" → `[pm]` 응답 visible
+  - 2라운드: 사람 "방금 만든 거 한국어로도 보이게 해줘" → `[pm]` 추가 응답 visible
+  - 데모 카드 4 개 모두 Done
+  - Playwright `__ALL_PASS__: true`
+
+  **flavor 격리 보존** — `cmd_listen.rs::build_loop_components` 가 `genasis.toml [trial].enabled` (또는 `--trial` 명시) 검사 → trial 분기는 trial-app `/api/*` 만, real 분기만 `MM_ADMIN_TOKEN` 요구하고 Mattermost 직접. genesis §0 대전제 (사람↔agent 소통 두 채널, 인스턴스 격리) 보존.
+
+  **v0.5.14 태그 푸시**가 `release.yml` 트리거.
+
 - 2026-05-12: **v0.5.13 릴리스 — `genasis listen` reactive bridge + 티켓 상태 정합성 (D-013 + D-014 + TR-3)**. 사용자가 호스팅 Live Trial URL 화면이 자가모순 (Todo + InProgress 에 init 단계 카드가 남은 채 Done 에 "🎉 Example app published" 가 이미 있음) + 11:35 의 사람 채팅 질문에 아무 에이전트도 무응답 이라고 지적. `/work/secusy/genesis/strategy.md` §0/§26/§28 점검 — 원천 genesis 설계는 사람↔에이전트 모든 소통이 Mattermost+Plane 으로만 흐르되, **reactive bridge daemon** (legacy stack 의 `scripts/mattermost-bridge.mjs`) 가 채널을 폴링 → 멘션 감지 → `claude --print` headless 호출. genasis trial flavor 는 그 설계의 정적 자산은 모두 이식 (10 agent overlay, 14 `/sprint-*` `/check-inbox` 명령, `GENASIS.md` 헌장) 했지만 **bridge daemon 자체가 빠짐** — 자율 loop 가 전적으로 수동.
 
   **D-013 (티켓 상태 정합성)**:

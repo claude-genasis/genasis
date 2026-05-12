@@ -15,7 +15,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.13"
+version = "0.5.14"
 edition = "2021"
 rust-version = "1.78"
 license = "MIT"
@@ -32,6 +32,8 @@ toml = "0.8"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "fs", "time", "io-util", "io-std", "sync"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+reqwest-eventsource = { version = "0.6", default-features = false }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 tera = "1"
 clap = { version = "4", features = ["derive", "env"] }
 ratatui = "=0.27.0"

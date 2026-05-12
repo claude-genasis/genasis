@@ -270,7 +270,40 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.13)
+## Known limitations (v0.5.14)
+
+- **Push-based reactive bridge.** `genasis listen` 이 polling (3 초)
+  에서 진짜 push 기반 (SSE / WebSocket) 으로 전환됐습니다. 두 갈래:
+
+  | flavor | event source | reply / transition sink |
+  |---|---|---|
+  | trial | trial-app `/api/events/stream` (Server-Sent Events) | `/api/mattermost/posts` + `/api/trial/bootstrap` 멱등 |
+  | real (Mattermost) | `/api/v4/websocket` (`authentication_challenge` 후 `event=posted` 필터) | `/api/v4/posts` + Plane REST |
+
+  `trial` 모드는 진짜 Mattermost/Plane 인스턴스를 일체 건드리지
+  않습니다 (genesis §0 대전제 격리 보존). `real` 모드만 `MM_ADMIN_TOKEN`
+  + `PLANE_API_KEY` 환경변수를 요구합니다.
+
+- **Daemon lifecycle (`bridgectl` 등가물).** PID 파일은
+  `.genasis/listen.pid`, 로그는 `.genasis/listen.log`. 명령 매트릭스:
+
+  ```bash
+  genasis listen start --trial --echo-only   # 백그라운드 (PID 파일 생성)
+  genasis listen status                       # 살아있는지 + 최근 로그 3 줄
+  genasis listen logs -f                      # tail follow
+  genasis listen restart                      # 무중단 재시작
+  genasis listen stop                         # SIGTERM → 3 초 → SIGKILL
+  ```
+
+  Slug 당 1 프로세스만 허용 (`start` 시 살아있는 PID 발견 시 거부),
+  stale PID 파일 자동 정리. 고아 프로세스 탐지는 `/proc/<pid>/cmdline`
+  매칭 (Linux/WSL).
+
+- **Binary 크기 영향**: v0.5.13 11.10 MB → v0.5.14 11.47 MB
+  (Δ +384 KB / +3.3%). 새 의존성 `reqwest-eventsource` v0.6 +
+  `tokio-tungstenite` v0.29 (rustls native roots 만, default-features
+  off). 기존 reqwest 의 rustls 그래프 재사용으로 TLS 추가 비용 거의
+  없음.
 
 - **`genasis listen` reactive bridge.** v0.5.13 ships a daemon that
   subscribes to the trial-app SSE stream and spawns `claude --print`

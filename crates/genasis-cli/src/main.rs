@@ -16,6 +16,7 @@ mod cmd_lang;
 mod cmd_listen;
 mod cmd_mm;
 mod cmd_monitor;
+mod listen;
 mod cmd_plane;
 mod cmd_trial;
 mod cmd_upgrade;
