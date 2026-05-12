@@ -6,7 +6,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-use genasis_i18n::tr;
 use genasis_templates::{cache, registry, store::AgentStore};
 
 #[derive(Parser, Debug)]
@@ -75,16 +74,141 @@ fn resolve_config() -> Result<(String, String, String)> {
     Ok((version, registry, cache_dir))
 }
 
+/// v0.5.6 D-002: resolve the agents catalog index for `list` / `browse` /
+/// `status` commands. Fallback chain:
+///   1. `./agents/index.json` (present only when the user clones the
+///      genasis repo itself — the published binary's release tarball
+///      does NOT include this file)
+///   2. `<cache>/v<ver>/index.json` (the agents-pool release will
+///      eventually ship this — currently absent from `agents-v1.0.0`)
+///   3. **build from cache base/ frontmatters** — walks every `.md`
+///      under `<cache>/v<ver>/base/`, parses YAML frontmatter for
+///      `name`, `description`, `category`, `tags`, and synthesises the
+///      `{agents, categories, presets}` shape the commands expect.
+///
+/// This makes `genasis agents list / browse / status` work against the
+/// stock release-tarball cache without a separate `agents-v1.0.1`
+/// drop. When the catalog eventually ships its own `index.json` the
+/// fallback becomes dead code.
+fn load_catalog_index(version: &str, cache_override: &str) -> Result<serde_json::Value> {
+    use genasis_core::frontmatter;
+
+    // 1. Project-local override
+    let local = std::path::Path::new("agents/index.json");
+    if local.exists() {
+        let s = std::fs::read_to_string(local).context("read agents/index.json")?;
+        return Ok(serde_json::from_str(&s)?);
+    }
+
+    let cache_dir = cache::cache_dir(version, cache_override)?;
+
+    // 2. Cache-shipped index
+    let cache_idx = cache_dir.join("index.json");
+    if cache_idx.exists() {
+        let s = std::fs::read_to_string(&cache_idx)
+            .with_context(|| format!("read cached {}", cache_idx.display()))?;
+        return Ok(serde_json::from_str(&s)?);
+    }
+
+    // 3. Build from base/ frontmatters (current v1.0.0 reality)
+    let base_dir = cache_dir.join("base");
+    if !base_dir.is_dir() {
+        anyhow::bail!(
+            "catalog cache not populated at {}. Run `genasis agents fetch` first.",
+            cache_dir.display()
+        );
+    }
+
+    let mut agents: Vec<serde_json::Value> = Vec::new();
+    let mut categories_seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for entry in
+        std::fs::read_dir(&base_dir).with_context(|| format!("read_dir {}", base_dir.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("md") {
+            continue;
+        }
+        let raw = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let split = frontmatter::split(&raw);
+        let fm = match split.frontmatter {
+            Some(f) => f,
+            None => continue,
+        };
+        let name = frontmatter::read_scalar(fm.raw, "name")
+            .map(str::to_string)
+            .or_else(|| {
+                path.file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        if name.is_empty() {
+            continue;
+        }
+        let description = frontmatter::read_scalar(fm.raw, "description")
+            .unwrap_or("")
+            .to_string();
+        let category = frontmatter::read_scalar(fm.raw, "category")
+            .unwrap_or("uncategorised")
+            .to_string();
+        categories_seen.insert(category.clone());
+
+        // Tags rarely appear as a single-line scalar in real
+        // frontmatters; treat absence as empty.
+        let tags_raw = frontmatter::read_scalar(fm.raw, "tags").unwrap_or("");
+        let tags: Vec<serde_json::Value> = if tags_raw.starts_with('[') && tags_raw.ends_with(']') {
+            tags_raw[1..tags_raw.len() - 1]
+                .split(',')
+                .map(|s| s.trim().trim_matches(['\'', '"']).to_string())
+                .filter(|s| !s.is_empty())
+                .map(serde_json::Value::String)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        agents.push(serde_json::json!({
+            "name": name,
+            "description": description,
+            "category": category,
+            "tags": tags,
+        }));
+    }
+
+    agents.sort_by(|a, b| {
+        let an = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let bn = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        an.cmp(bn)
+    });
+
+    let categories: Vec<serde_json::Value> = categories_seen
+        .into_iter()
+        .map(|c| {
+            serde_json::json!({
+                "id": c,
+                "name": c,
+                "description": "",
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "agents": agents,
+        "categories": categories,
+        "presets": {},
+        "_source": "synthesised-from-cache-base-frontmatters",
+    }))
+}
+
 fn cmd_browse() -> Result<()> {
     use dialoguer::{theme::ColorfulTheme, FuzzySelect, MultiSelect};
 
-    let index_path = std::path::Path::new("agents/index.json");
-    let index_content = if index_path.exists() {
-        std::fs::read_to_string(index_path)?
-    } else {
-        anyhow::bail!("agents/index.json not found. Run `genasis agents fetch` first.");
-    };
-    let index: serde_json::Value = serde_json::from_str(&index_content)?;
+    let (version, _, cache_override) = resolve_config()?;
+    let index = load_catalog_index(&version, &cache_override)?;
 
     let categories = index
         .get("categories")
@@ -231,26 +355,24 @@ fn install_single_agent(agent_name: &str, version: &str, cache_override: &str) -
 }
 
 fn install_preset(preset_name: &str, version: &str, cache_override: &str) -> Result<()> {
-    // Read index.json from cache to get preset definition
-    let dir = cache::cache_dir(version, cache_override)?;
-    let index_path = dir.join("manifest.json");
-    let index_content =
-        std::fs::read_to_string(&index_path).context("catalog manifest not found in cache")?;
-    let index: serde_json::Value = serde_json::from_str(&index_content)?;
-
-    // Also check local agents/index.json for preset definitions
-    let local_index_path = std::path::Path::new("agents/index.json");
-    let presets_source = if local_index_path.exists() {
-        std::fs::read_to_string(local_index_path)?
-    } else {
-        index_content.clone()
-    };
-    let presets_json: serde_json::Value = serde_json::from_str(&presets_source)?;
+    // v0.5.6 D-002: presets come from whichever source actually
+    // exposes a `presets` block — the synthesised index from cache
+    // base/ frontmatters does NOT (frontmatters don't carry preset
+    // membership). Use the unified loader; if presets are absent the
+    // user gets a clear error pointing at the catalog refresh.
+    let presets_json = load_catalog_index(version, cache_override)?;
 
     let presets = presets_json
         .get("presets")
         .and_then(|p| p.as_object())
-        .context("no presets defined in index")?;
+        .filter(|p| !p.is_empty())
+        .context(
+            "no presets defined in catalog. \
+             The current catalog (v1.0.0) ships agents but no preset \
+             definitions — install individual agents by name (e.g. \
+             `genasis agents install frontend-developer`). Presets \
+             land in `agents-v1.0.1`.",
+        )?;
 
     let preset = presets.get(preset_name).context(format!(
         "preset '{preset_name}' not found. Available: {}",
@@ -289,16 +411,8 @@ fn install_preset(preset_name: &str, version: &str, cache_override: &str) -> Res
 }
 
 fn cmd_list(category: Option<String>, search: Option<String>) -> Result<()> {
-    // Read index.json from local agents/ dir or from cache
-    let index_path = std::path::Path::new("agents/index.json");
-    let index_content = if index_path.exists() {
-        std::fs::read_to_string(index_path)?
-    } else {
-        // TODO: fetch index from registry if not local
-        anyhow::bail!("agents/index.json not found. Run `genasis agents fetch` first.");
-    };
-
-    let index: serde_json::Value = serde_json::from_str(&index_content)?;
+    let (version, _, cache_override) = resolve_config()?;
+    let index = load_catalog_index(&version, &cache_override)?;
     let agents = index
         .get("agents")
         .and_then(|a| a.as_array())
@@ -404,24 +518,26 @@ fn cmd_fetch(version_override: Option<String>) -> Result<()> {
 }
 
 fn cmd_status() -> Result<()> {
-    let (pinned, registry_url, _cache_override) = resolve_config()?;
+    let (pinned, registry_url, cache_override) = resolve_config()?;
 
     println!("Registry: {registry_url}");
     println!("Pinned version: {pinned}");
 
-    // Check index.json locally
-    let index_path = std::path::Path::new("agents/index.json");
-    if index_path.exists() {
-        let content = std::fs::read_to_string(index_path)?;
-        let index: serde_json::Value = serde_json::from_str(&content)?;
-        let count = index
-            .get("agents")
-            .and_then(|a| a.as_array())
-            .map(|a| a.len())
-            .unwrap_or(0);
-        println!("Index: {count} agents available");
-    } else {
-        println!("Index: not found locally");
+    match load_catalog_index(&pinned, &cache_override) {
+        Ok(index) => {
+            let count = index
+                .get("agents")
+                .and_then(|a| a.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
+            let source = index
+                .get("_source")
+                .and_then(|s| s.as_str())
+                .map(|s| format!(" ({s})"))
+                .unwrap_or_default();
+            println!("Index: {count} agents available{source}");
+        }
+        Err(_) => println!("Index: not available — run `genasis agents fetch`"),
     }
 
     // Check installed

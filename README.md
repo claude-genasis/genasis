@@ -250,7 +250,7 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.5)
+## Known limitations (v0.5.6)
 
 - **Hosted trial-app deployment lag is now self-healing for the Quick Path.** v0.5.5 routes `ensure_project` and `ensure_channel` through the auth-free `/api/trial/bootstrap` (which all deployed trial-app versions accept) when the binary detects the team was already seeded by `genasis init --trial`. The Quick Path therefore no longer hard-errors at step 4 against a stale operator deployment. Downstream **agent-driven** calls (`create_issue`, `transition`, `post_root`) still target the legacy `/api/plane/*` and `/api/mattermost/*` endpoints — these may still 401 when the deployed trial-app precedes `agents-pool@289876c`. If your agents fail at runtime with a 401 to `/api/plane/issues` or `/api/mattermost/posts`, ask the operator to redeploy. Self-hosted trial-app always matches the contract.
 
