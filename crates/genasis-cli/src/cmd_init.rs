@@ -400,6 +400,13 @@ async fn try_bootstrap_trial_app(
     project_name: &str,
 ) -> Result<()> {
     let endpoint = format!("{base_url}/api/trial/bootstrap");
+    // v0.5.9 D-009: include `demo_issues` + `welcome_message` so the
+    // Live Trial UI shows immediate visual proof of activity. Without
+    // these, users opening the post-init URL see an empty kanban + empty
+    // chat thread and reasonably wonder whether `genasis init --trial`
+    // did anything. The trial-app side is idempotent on
+    // `(team_token, project_slug, title)` / `(actor, message)` so
+    // re-running bootstrap never duplicates.
     let payload = serde_json::json!({
         "team_token": team_token,
         "project": {
@@ -413,6 +420,32 @@ async fn try_bootstrap_trial_app(
                 "display_name": format!("{project_name} — Scrum"),
             }
         ],
+        "demo_issues": [
+            {
+                "title": "Set up agentic team (you are here)",
+                "state": "done",
+                "assignee": "genasis",
+            },
+            {
+                "title": "Write PRD and split into tickets",
+                "state": "inprogress",
+                "assignee": "pm",
+            },
+            {
+                "title": "Build the example app from PRD",
+                "state": "todo",
+                "assignee": null,
+            },
+        ],
+        "welcome_message": {
+            "actor": "genasis",
+            "text": format!(
+                "👋 {project_name} 팀이 시작됐어요. 우측 칸반에 데모 카드가 보이고, \
+                 이 채팅 (#scrum-{project_slug}) 은 에이전트 활동을 실시간으로 \
+                 흘려보냅니다. 다음 단계: `genasis example prd` → `genasis init` → \
+                 Claude Code 세션 띄워서 작업 시키기."
+            ),
+        },
     });
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))

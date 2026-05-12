@@ -164,9 +164,73 @@ async fn run_publish(project_root: &std::path::Path, args: PublishArgs) -> Resul
         return Err(anyhow!("trial publish returned {status}: {text}"));
     }
 
+    // v0.5.9 D-009: also seed a "build complete" demo issue + chat
+    // message so the post-publish Live Trial view has visible state
+    // change beyond the showcase handle activating. Bootstrap is
+    // idempotent on `(team_token, title)` / `(actor, message)` so this
+    // is a no-op if the user re-publishes. Failure is non-fatal — the
+    // status flip already succeeded so we don't want to bail late.
+    let bootstrap_body = serde_json::json!({
+        "team_token": team_token,
+        "project": { "slug": project_slug, "name": project_name },
+        "channels": [
+            {
+                "key": "scrum",
+                "name": format!("scrum-{project_slug}"),
+                "display_name": format!("{project_name} — Scrum"),
+            }
+        ],
+        "demo_issues": [
+            {
+                "title": "Build the example app from PRD",
+                "state": "done",
+                "assignee": "frontend",
+            },
+            {
+                "title": "🎉 Example app published — open showcase",
+                "state": "done",
+                "assignee": "genasis",
+            },
+        ],
+        "welcome_message": {
+            "actor": "genasis",
+            "text": format!(
+                "✅ 빌드 완료 · {project_name} 의 예제 앱이 쇼케이스 패널에 \
+                 게시됐습니다. 라이브 트라이얼 화면의 모바일 폰 아이콘 \
+                 (📱 에이전트가 만든 앱 보기) 을 누르면 펼쳐집니다."
+            ),
+        },
+    });
+    let bootstrap_endpoint = format!("{trial_url}/api/trial/bootstrap");
+    let mut bootstrap_req = client
+        .post(&bootstrap_endpoint)
+        .json(&bootstrap_body)
+        .header("X-Genasis-Team-Token", &team_token);
+    if !trial.shared_secret.is_empty() {
+        bootstrap_req = bootstrap_req.header("X-Genasis-Trial-Secret", &trial.shared_secret);
+    }
+    let bootstrap_seed_ok = match bootstrap_req.send().await {
+        Ok(r) if r.status().is_success() => true,
+        Ok(r) => {
+            eprintln!(
+                "  ⚠ publish seed (build-complete demo) returned {} — UI may not reflect \
+                 the published state until the deployed trial-app catches up",
+                r.status()
+            );
+            false
+        }
+        Err(e) => {
+            eprintln!("  ⚠ publish seed (build-complete demo) failed: {e}");
+            false
+        }
+    };
+
     let token_short: String = team_token.chars().take(8).collect();
     let landing = format!("{trial_url}/?tab=live&team={team_token}");
     println!("✓ trial-app updated — team {token_short}… is now 'complete'");
+    if bootstrap_seed_ok {
+        println!("  + seeded build-complete card + chat message");
+    }
     println!("  open: {landing}");
     Ok(())
 }

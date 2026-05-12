@@ -1053,6 +1053,22 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.9 릴리스 — Live Trial UI 가 `init --trial` / `publish` 후 가시적 활동 표시 (D-009)**. 사용자가 직전 자가테스트 사이클의 publish 후 Live Trial URL 열어보니 "여전히 작업 진행했던 흔적이 남아 있지 않아" 라고 보고 — 칸반 비어있음, 채팅 비어있음, showcase 핸들 하나로는 시스템이 뭔가 했다는 신호가 충분치 않음. Root cause: `try_bootstrap_trial_app` 가 team + project + channel row 만 seed, `genasis publish` 가 `app_status` 만 `complete` 로 flip. 실제 카드/메시지 없음.
+
+  **Fix (D-009)**:
+  - **agents-pool@ec7f149**: `/api/trial/bootstrap` 에 두 optional 필드 추가:
+    - `demo_issues[]` — 초기 칸반 카드 (title + state + assignee), 신규 `ensureIssue()` 헬퍼가 `(team_token, project_slug, title)` 기준 idempotent seed.
+    - `welcome_message` — 첫 채널의 root post, 신규 `ensureWelcomePost()` 가 `(actor, message)` 기준 dedup.
+  - **genasis**: `try_bootstrap_trial_app` (init --trial 단계) 가 Done/InProgress/Todo 에 걸친 3개 데모 카드 + 다음 단계 안내 한국어 환영 메시지 전송. `run_publish` 는 추가 "build complete" 카드 2개 + publish 확인 메시지 — bootstrap 재호출로 idempotent 보장.
+  - `init --trial` 이나 `publish` 재실행해도 trial-app 측 dedup 으로 중복 없음. publish seed 실패는 non-fatal — status flip 이미 성공했으므로 informational warning 만 ("UI may not reflect ... until deployed trial-app catches up").
+  - Submodule pointer `agents-pool@ec7f149` 로 bump.
+
+  **검증**:
+  - `cargo build --release -p genasis-cli` clean, `cargo test --workspace --lib`: 162 passed
+  - `npx tsc --noEmit` on trial-app clean
+
+  **v0.5.9 태그 푸시**가 `release.yml` 트리거. 배포 후, 운영자 호스팅 trial-app 이 `agents-pool@ec7f149` 로 재배포되어야 신규 필드가 honored 됨 (그렇지 않으면 `z.optional()` 스키마로 silently drop — bootstrap 자체는 계속 동작, seeding 만 미반영).
+
 - 2026-05-12: **v0.5.8 릴리스 — install.sh prefix 안전성 + README Self-host 진입점 (D-005 + D-008)**. 자가테스트 사이클 (이번엔 Playwright 브라우저 검증 포함) 이 신규 사용자 시점에서 두 결함을 잡음.
 
   **Fix (D-005)** — `install.sh --prefix=<신규 경로>` 가 거짓 보고:
