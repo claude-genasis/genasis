@@ -22,6 +22,7 @@ use tracing::{info, warn};
 
 pub mod lifecycle;
 pub mod mattermost_ws;
+pub mod routing;
 pub mod trial_sse;
 
 /// 사람이 채팅 채널에 올린 메시지 → `claude --print` 입력으로 변환할
@@ -70,6 +71,13 @@ pub trait EventSink: Send + Sync {
     /// 별로 카드 transition (trial: bootstrap 재요청 / mm+plane: Plane
     /// REST PATCH). 인자 message 가 휴리스틱 입력.
     async fn maybe_transition_for_directive(&self, message: &str) -> Result<()>;
+
+    /// ADR-018: PM agent 응답에서 추출한 routing 결과를 sink 에 적용.
+    /// - app_kind/features → sim_teams 갱신 (trial) 또는 Plane meta 라벨
+    ///   (real, 추후 확장)
+    /// - new_cards → sim_issues 또는 Plane issue create
+    /// - transitions → sim_issues UPDATE 또는 Plane issue PATCH
+    async fn apply_pm_routing(&self, routing: &routing::PmRouting) -> Result<()>;
 }
 
 /// 모든 flavor 가 공유하는 메인 loop. EventStream / EventSink 가 어디로
@@ -113,12 +121,8 @@ pub async fn run_listen_loop(
                     message_preview = %message.chars().take(80).collect::<String>(),
                     "received human-authored post"
                 );
-                let response_text = generate_response(message, &cfg).await;
-                if let Err(e) = sink.reply(&event, &cfg.default_actor, &response_text).await {
-                    warn!("sink.reply failed: {e}");
-                }
-                if let Err(e) = sink.maybe_transition_for_directive(message).await {
-                    warn!("sink.transition failed: {e}");
+                if let Err(e) = handle_human_post(&event, message, sink, &cfg).await {
+                    warn!("handle_human_post failed: {e}");
                 }
             }
         }
@@ -128,6 +132,167 @@ pub async fn run_listen_loop(
             return Ok(());
         }
     }
+}
+
+/// 단일 사람 메시지를 다음 흐름으로 처리:
+///   1. PM 프롬프트로 `claude --print` → PM 응답 (echo-only 면 stub)
+///   2. PM 응답을 사람 메시지 스레드에 reply
+///   3. `routing::parse_pm_routing` 으로 app/카드/멘션 추출
+///   4. sink.apply_pm_routing(routing) — sim DB 업데이트
+///   5. 각 멘션된 agent 에 대해 follow-up `claude --print` → 같은 스레드 reply
+async fn handle_human_post(
+    event: &InboundEvent,
+    message: &str,
+    sink: &dyn EventSink,
+    cfg: &LoopConfig,
+) -> Result<()> {
+    // (1) PM 응답 생성
+    let pm_response = if cfg.echo_only {
+        build_echo_pm_response(message, cfg)
+    } else {
+        let prompt = routing::build_pm_prompt(
+            &cfg.project_name,
+            &cfg.project_slug,
+            message,
+            None,
+        );
+        match run_claude_print(&prompt, cfg).await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("PM claude --print failed: {e} — fallback to echo");
+                build_echo_pm_response(message, cfg)
+            }
+        }
+    };
+
+    // (2) PM 응답을 사람 메시지 스레드에 reply
+    if let Err(e) = sink.reply(event, &cfg.default_actor, &pm_response).await {
+        warn!("PM reply failed: {e}");
+    }
+
+    // (3) routing 추출
+    let route = routing::parse_pm_routing(&pm_response);
+    info!(target: "listen", routing = %routing::render_routing_summary(&route), "PM routing parsed");
+
+    // (4) sim DB 적용 (sim_teams app_kind/features + sim_issues 카드)
+    if let Err(e) = sink.apply_pm_routing(&route).await {
+        warn!("apply_pm_routing failed: {e}");
+    }
+
+    // (5) 각 멘션된 agent 에 대해 follow-up
+    for assignment in &route.assignments {
+        let agent_reply = if cfg.echo_only {
+            build_echo_agent_response(assignment, cfg)
+        } else {
+            // 카드 제목은 new_cards 의 같은 assignee 중 첫 번째와 매칭.
+            let card_title = route
+                .new_cards
+                .iter()
+                .find(|c| c.assignee.as_deref() == Some(assignment.role.as_str()))
+                .map(|c| c.title.clone());
+            let prompt = routing::build_agent_prompt(
+                &assignment.role,
+                &assignment.task,
+                &cfg.project_name,
+                &cfg.project_slug,
+                card_title.as_deref(),
+            );
+            match run_claude_print(&prompt, cfg).await {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!(
+                        "agent {} claude --print failed: {e} — fallback to echo",
+                        assignment.role
+                    );
+                    build_echo_agent_response(assignment, cfg)
+                }
+            }
+        };
+        if let Err(e) = sink.reply(event, &assignment.role, &agent_reply).await {
+            warn!("agent {} reply failed: {e}", assignment.role);
+        }
+        // agent 응답에서 추가 [CARD: ... → state] 마커가 있을 수 있음 — 한 번 더 parse.
+        let agent_route = routing::parse_pm_routing(&agent_reply);
+        if !agent_route.transitions.is_empty() {
+            let _ = sink.apply_pm_routing(&agent_route).await;
+        }
+    }
+    Ok(())
+}
+
+fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
+    // echo-only 모드에서도 routing 마커 일부는 deterministic 하게 채워서
+    // sink.apply_pm_routing 이 의미 있는 동작을 하도록 한다. 이렇게 하면
+    // 자가테스트가 echo 모드에서도 multi-agent fan-out 의 구조적 정합성을
+    // 검증 가능 (실제 의사결정은 안 함).
+    let m = message.to_ascii_lowercase();
+    let app_kind = if m.contains("todo") || m.contains("할 일") {
+        "todo"
+    } else if m.contains("pomodoro") || m.contains("뽀모도로") {
+        "pomodoro"
+    } else if m.contains("markdown") {
+        "markdown"
+    } else {
+        "quiz"
+    };
+    let mut features = Vec::new();
+    if m.contains("dark") || m.contains("다크") {
+        features.push("dark-mode");
+    }
+    if m.contains("i18n") || m.contains("다국어") || m.contains("한국어") || m.contains("영어") {
+        features.push("i18n");
+    }
+    if m.contains("검색") || m.contains("search") {
+        features.push("search");
+    }
+    if m.contains("우선순위") || m.contains("priority") {
+        features.push("priority");
+    }
+    format!(
+        r#"📥 요구사항 정리: {preview}
+
+[APP: {app_kind}]
+[FEATURES: {features}]
+
+## 작업 분배
+- @designer: 디자인 시스템 및 토큰 검토 ({features_note})
+- @frontend: 데모 앱 UI 구현 (app_kind={app_kind})
+- @qa: 회귀 시나리오 작성 및 검증
+
+## 새 카드
+- "디자인 시스템 검토" [@designer] [state=todo]
+- "데모 앱 UI 구현" [@frontend] [state=todo]
+- "회귀 테스트 작성" [@qa] [state=todo]
+
+> @human 작업 분배 완료 (echo-only). 각 agent 의 응답을 같은 스레드에서 확인하세요."#,
+        preview = message.chars().take(80).collect::<String>(),
+        app_kind = app_kind,
+        features = if features.is_empty() { "".to_string() } else { features.join(", ") },
+        features_note = if features.is_empty() { "기본".to_string() } else { features.join(", ") },
+    )
+}
+
+fn build_echo_agent_response(
+    assignment: &routing::AgentAssignment,
+    cfg: &LoopConfig,
+) -> String {
+    let _ = cfg;
+    format!(
+        r#"✋ @human {role} 착수 — {task}
+
+[CARD: {task_title} → inprogress]
+
+✅ @human {role} 완료 — 시뮬레이션 모드에서 작업 마침
+
+[CARD: {task_title} → done]"#,
+        role = assignment.role,
+        task = assignment.task,
+        task_title = first_three_words(&assignment.task),
+    )
+}
+
+fn first_three_words(s: &str) -> String {
+    s.split_whitespace().take(4).collect::<Vec<_>>().join(" ")
 }
 
 #[derive(Debug, Clone)]

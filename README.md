@@ -270,7 +270,24 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.14)
+## Known limitations (v0.5.15)
+
+- **Multi-agent fan-out routing** (genesis §9 + §26 의 trial flavor 이식). 사람이 채팅에 요구를 게시하면 `genasis listen` daemon 이 PM `claude --print` 호출 → 응답에서 `[APP: <kind>]`, `[FEATURES: …]`, `## 작업 분배` (`@role: task`), `## 새 카드` (`"<title>" [@assignee] [state=todo]`), `[CARD: <title> → <state>]` 마커 파싱 → 각 멘션된 role 에 follow-up `claude --print` → 모든 응답이 사람 메시지의 **스레드 안 (`root_id = 사람 post id`)** 에 reply. 동시에 sim_teams.app_kind / app_features 와 sim_issues 의 신규 카드/transition 이 멱등 갱신.
+
+  ```bash
+  # PRD 작성 후
+  genasis publish
+
+  # 별도 터미널
+  genasis listen start --trial            # claude --print 실제 호출
+  genasis listen start --trial --echo-only  # CI 모드, deterministic stub
+  ```
+
+- **Showcase 동적 교체** (ADR-018). PM 이 `[APP: todo]` 라고 결정하면 sim_teams.app_kind 가 갱신되고 ShowcasePanel 이 TodoApp 을 렌더. agent 들이 `[FEATURES: dark-mode, i18n]` 같은 마커로 feature flag 를 점진적으로 활성화하면 TodoApp UI 가 같이 변함 (dark-mode 토글, i18n EN/KO, search, priority 등). 본 사이클은 TodoApp 1 종 — Pomodoro/Markdown/Counter/Habit 은 v0.6.0 로드맵.
+
+- **Real Mattermost flavor** 의 `apply_pm_routing` 은 routing 요약 로그만 emit (Plane integration stub). real Mattermost+Plane 환경에서 카드 INSERT/PATCH 까지 자동 fan-out 하려면 `PLANE_API_KEY` 기반 REST 통합 — v0.6.0 작업.
+
+- **Binary 크기 누적**: v0.5.13 11.10 MB → v0.5.14 11.47 MB → v0.5.15 11.50 MB. routing.rs 가 기존 regex crate 재사용으로 +38 KB.
 
 - **Push-based reactive bridge.** `genasis listen` 이 polling (3 초)
   에서 진짜 push 기반 (SSE / WebSocket) 으로 전환됐습니다. 두 갈래:

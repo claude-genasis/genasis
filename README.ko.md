@@ -259,7 +259,21 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.14)
+## 알려진 한계 (v0.5.15)
+
+- **Multi-agent fan-out routing** (genesis §9 + §26 trial flavor 이식). 사람이 채팅에 요구 게시하면 `genasis listen` daemon 이 PM `claude --print` 호출 → 응답의 `[APP: <kind>]` / `[FEATURES: …]` / `## 작업 분배` (`@role: task`) / `## 새 카드` / `[CARD: → state]` 마커 파싱 → 각 멘션된 role 에 follow-up `claude --print` → 모든 응답이 **사람 메시지 스레드 (`root_id = 사람 post id`)** 안에 reply. 동시에 sim_teams 와 sim_issues 멱등 갱신.
+
+  ```bash
+  genasis publish
+  genasis listen start --trial            # claude --print 실제 호출
+  genasis listen start --trial --echo-only  # CI 모드 (deterministic stub)
+  ```
+
+- **Showcase 동적 교체** (ADR-018). PM 이 `[APP: todo]` 결정하면 ShowcasePanel 이 TodoApp 으로 렌더. agent 들의 `[FEATURES: dark-mode, i18n]` 마커로 feature flag 점진 활성 — TodoApp UI 가 같이 변함. 본 사이클 TodoApp 1 종, 나머지 (Pomodoro/Markdown/Counter/Habit) 는 v0.6.0.
+
+- **Real Mattermost flavor** 의 `apply_pm_routing` 은 routing 요약 로그만 (Plane integration stub). 카드 자동 fan-out 은 v0.6.0.
+
+- **Binary 크기 누적**: v0.5.13 11.10 MB → v0.5.14 11.47 MB → v0.5.15 11.50 MB. routing.rs 가 regex crate 재사용 → +38 KB.
 
 - **Push 기반 reactive bridge.** `genasis listen` 이 polling (3 초)
   에서 진짜 push 기반 (SSE / WebSocket) 으로 전환됐습니다. 두 갈래:

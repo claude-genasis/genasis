@@ -886,6 +886,37 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 - 2026-05-10: **Human roster provisioning — humans as first-class team members (ADR-014)**. Until now `genasis init` / `bootstrap` only auto-provisioned the ten agent bot accounts; humans had to sign up separately, breaking both the "turnkey bootstrap" and "human/agent symmetry" missions. Added `genasis-core::config::HumanEntry` + a `[[humans]]` array in `genasis.toml`, with provisioning side-effects (Mattermost user_id, Plane user_id, temporary password) carved out into `.genasis/humans.lock.toml`. New trait method `MattermostProvider::ensure_human_user(spec, team_id)` with an upstream admin-create implementation (24-char high-entropy temp password covering Mattermost's strictest policy, force-change on first login, idempotent on email). Extended `provision-plane-users.mjs` `ProvisionInput` with `humans: HumanRequest[]` (Playwright UI is still a stub but echoes the humans payload). New CLI `genasis humans add | edit | remove | list | sync`; `cmd_init` now auto-runs `humans sync` when `[[humans]]` is non-empty (failures warn but do not fail init). TUI wizard grew from 6 to 7 steps (Env→Lang→Team→Connect→**Humans**→Overlay→Done) with `a / e / d / s / Enter` for add/edit/delete/sync/advance and a 5-field form modal; re-running the wizard reloads `[[humans]]` for in-place editing ("rerun is the editor"). `agents/GENASIS.md.tera` gains `## Human Roster` table and `### Requirement intake protocol` (registered = binding stakeholder, unregistered = `QUESTION` label + PM verification, bots = existing agent-to-agent flow); `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) and `commands/check-inbox.md.tera` mirror the protocol. ADR-014 written in EN/KO. New unit tests: `HumansLock` round-trip, upsert case-insensitive match, `derive_mm_username` normalisation, cmd_humans `truncate` / `now_iso`. `cargo test --workspace --lib` green. Out of scope (deferred to v2): invite-email mode for SMTP-enabled environments, Plane Playwright UI port to land real user_ids, OAuth/SSO integration.
 
 - 2026-05-10: **Trial bridge config SSOT cleanup (ADR-013)**. The previous code defined the `[trial]` section but never read it; routing actually used `[plane].url` / `[mattermost].url` plus `MM_ADMIN_TOKEN` / `PLANE_API_KEY` env vars, so `[trial].enabled = false` could not actually disable the bridge and `[trial].url` edits were silently ignored. Added `Option<&TrialConfig>` to `mattermost::factory::build()` / `plane::factory::build()`; trial flavor now sources URL + secret from `[trial]` and rejects `enabled = false`. Added `Config::validate_trial()` for cross-section enforcement at load time. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` skip the admin env-var requirement under trial flavor. New unit tests ×10 (factory `build_trial_*`, `validate_trial_*`) + integration `tests/trial_factory_e2e.rs` ×3 (2 `#[ignore]`-marked E2E + 1 negative-path). ADR-013 written in EN/KO. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.15 release — agentic team protocol port (genesis §9 + §26): multi-agent fan-out + thread root_id + sim_issues dynamic + showcase app update (D-018/019/020 + ADR-018)**. User pushed back hard on v0.5.14: 자가테스트가 echo-only PASS 결론 냈지만 실제로는 ① 쇼케이스가 처음 만든 퀴즈앱 그대로 (TODO 앱 만들어 달라고 했는데 안 바뀜) ② pm 응답이 단일 actor 로 답할 뿐 멘션·작업 분배 흐름 부재. 직접 답: 의도였지만 v0.5.14 구현은 transport 파이프라인만 검증하고 control plane (multi-agent routing) 누락. genesis §9 (Mattermost 소통 프로토콜) + §26 (Ownership-based atomic transaction) 의 trial flavor 등가물을 본 사이클에서 이식.
+
+  **agents-pool@8872e92 (trial-app foundation)**:
+  - sim_teams V4→V5 마이그레이션: `app_kind` + `app_features` 두 컬럼 추가. idempotent.
+  - new `setTeamApp(token, kind, features)` — features 는 set union 누적.
+  - `/api/trial/team-app/status` POST 와 `/api/trial/bootstrap` POST 둘 다 optional `app_kind` + `app_features` 받음.
+  - 새 `app/components/demos/PhoneFrame.tsx` (모바일 차체 추출) + `TodoApp.tsx` — features 별 UI 분기 (dark-mode 토글, i18n EN/KO 전환, search 입력, priority/due-date 배지).
+  - `ShowcasePanel` 이 `kind === 'todo'` 면 TodoApp 렌더, 아니면 legacy QuizApp.
+
+  **genasis v0.5.15 (listen daemon multi-agent fan-out)**:
+  - 새 `listen/routing.rs` (~330 LOC): `build_pm_prompt` + `build_agent_prompt` + `parse_pm_routing` (5 종 마커 regex 추출).
+  - `handle_human_post`: PM `claude --print` → 사람 메시지 스레드 reply → routing 추출 → `sink.apply_pm_routing` (sim_teams + sim_issues 갱신) → 각 멘션 role 에 follow-up `claude --print` → 같은 thread reply → agent 응답의 추가 `[CARD: …]` 마커 한 번 더 적용.
+  - `TrialAppSink::reply` 가 `thread_root_id` null 이면 source post_id 를 root_id 로 (strategy.md 의 `root_id = post.root_id || post.id` 패턴 이식).
+  - echo-only stub 도 deterministic — LLM 없는 CI 에서도 multi-agent 구조 검증 가능.
+
+  **검증 (local release 빌드 vs 호스팅 URL)**:
+  - 사람 메시지 "TODO 앱 만들어줘 — 다크모드 + i18n 지원" → sim_posts: human (id=37, root) → pm/designer/frontend/qa 4 응답 모두 root_id=37 (사람 메시지 스레드).
+  - sim_issues 신규 3 카드 + assignee 분배 + 일부 transition done.
+  - sim_teams: `app_kind=todo, app_features=["dark-mode","i18n"]`.
+  - 쇼케이스: Claude Code 퀴즈 → TodoApp 으로 동적 교체, dark-mode 토글 + i18n EN/KO + ✓ feature badge.
+  - Playwright 11 체크 `__ALL_PASS__: true`.
+
+  **binary 크기**: 12,025,256 → 12,063,864 (+38 KB).
+
+  **남은 한계 (v0.6.0 로드맵)**:
+  - 데모 앱 1 종 (TodoApp) — Pomodoro/Markdown/Counter/Habit 미구현.
+  - real Mattermost sink 의 `apply_pm_routing` 이 Plane integration 미구현 (stub).
+  - PM/agent 가 진짜 코드 작성 → trial-app 빌드 트리거 흐름은 feature flag 시뮬레이션 단계.
+
+  **v0.5.15 태그 푸시** 가 `release.yml` 트리거. operator instance 는 agents-pool@8872e92 동기화 + production rebuild 완료.
+
 - 2026-05-12: **v0.5.14 release — push-based reactive bridge (SSE/WebSocket) + daemon lifecycle (`bridgectl` equivalent) + multi-round self-test**. User raised three follow-ups on the v0.5.13 listen daemon: (1) after the example app is "built", a continued reactive loop must accept follow-up human messages requesting modifications without restart; (2) `polling` is acceptable but a true `listen` should be event-driven (SSE / WebSocket) — favoured a Mattermost client lib if available, else direct WebSocket; (3) flavor=trial must still route exclusively through the trial-app, never reaching real Mattermost/Plane endpoints.
 
   **Library survey** — `crates.io` returns ~8 mattermost-related crates. `mattermost_api` (DL 11.6k) and `mattermost-rust-client` (DL 11.7k) cover REST but only patchy WebSocket support; the v0.1 `mattermost-rs` is too immature (33 DL); `mattermost-bot` (DL 1.7k) drags a full bot framework. Decision: **direct compose of `reqwest-eventsource` v0.6 (DL 7.5M) + `tokio-tungstenite` v0.29 (DL 177M)**. Mattermost WS protocol is a simple `authentication_challenge` → JSON event stream; one library buys neither protocol robustness nor smaller diff against the existing reqwest stack.

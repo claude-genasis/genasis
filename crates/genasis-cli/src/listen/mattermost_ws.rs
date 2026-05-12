@@ -22,6 +22,7 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{info, warn};
 
+use super::routing::PmRouting;
 use super::{EventSink, EventStream, InboundEvent};
 
 type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
@@ -290,6 +291,21 @@ impl EventSink for MattermostSink {
                 resp.text().await.unwrap_or_default()
             );
         }
+        Ok(())
+    }
+
+    async fn apply_pm_routing(&self, routing: &PmRouting) -> Result<()> {
+        // Real Mattermost / Plane 모드의 apply_pm_routing 은 향후 확장
+        // 포인트 — Plane issue create + assignee PATCH + state 변경을
+        // PLANE_API_KEY 로 수행. 본 사이클은 trial 모드 검증에 집중하므로
+        // 일단 routing 요약만 로그.
+        info!(
+            target: "listen",
+            assignments = routing.assignments.len(),
+            new_cards = routing.new_cards.len(),
+            transitions = routing.transitions.len(),
+            "MattermostSink: PM routing observed (Plane integration deferred to v0.6.0)"
+        );
         Ok(())
     }
 
