@@ -482,6 +482,24 @@ async fn try_bootstrap_trial_app(
         let body = res.text().await.unwrap_or_default();
         anyhow::bail!("trial-app bootstrap returned {status}: {body}");
     }
+    // v0.5.12 D-011 트랙 3b: 호스팅 trial-app 이 stale 인지 응답으로 즉시 감지.
+    // ec7f149 이상이라면 응답 body 에 `demo_issues` 와 `welcome_message` 키가
+    // echo 됨 (빈 배열이라도 키 자체는 존재). 둘 다 없으면 호스팅이 D-009
+    // 이전 빌드라는 뜻 — 카드/메시지가 sim DB 에 안 들어갈 것이므로
+    // 사용자에게 즉시 경고하여 README §Known limitations 의 우회 경로로
+    // 안내한다.
+    let bootstrap_resp: serde_json::Value = res.json().await.unwrap_or_default();
+    let host_supports_demo = bootstrap_resp.get("demo_issues").is_some();
+    let host_supports_welcome = bootstrap_resp.get("welcome_message").is_some();
+    if !(host_supports_demo && host_supports_welcome) {
+        eprintln!(
+            "  ⚠ trial-app at {base_url} appears to be running a pre-D-009 build \
+             (no `demo_issues`/`welcome_message` keys in bootstrap response). \
+             The live trial kanban + chat will stay empty until the operator \
+             redeploys. README §\"Known limitations\" documents the workaround \
+             (export GENASIS_TRIAL_URL=<your-instance>)."
+        );
+    }
 
     // v0.5.3 issue 나: bootstrap POST returning 200 doesn't prove
     // the team row actually landed (the deployed trial-app may be

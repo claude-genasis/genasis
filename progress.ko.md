@@ -1053,6 +1053,30 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.12 릴리스 — D-011 (운영자 dev-mode 빌드) + D-012 (sim DB FK 가 drop 된 legacy 테이블 가리킴) + trial provider 트레이싱 + stale-host 자동 감지**. 사용자가 v0.5.11 사이클의 호스팅 URL 이 여전히 비어있다고 지적 — 로컬 우회 권고 대신 직접 진단 요구. 사용자 추가 지시: 모든 디버깅은 호스팅 도메인 통해 진행, Caddyfile 이 `mmplane-trial.realstory.blog → localhost:2001` 포워딩이므로 동일 머신. 3개 레이어 문제 모두 end-to-end 해결.
+
+  **D-011 — 운영자가 `agents-pool@677bd5d` 위에서 `npm run dev` 직접 돌리는 중**:
+  - `ps` 로 프로세스 트리 추적: zsh → `npm run dev` → `next dev --port 2001`. dev-mode Next.js, D-011 trigger 18시간 전 시작, D-009 (`ec7f149`) 보다 2 커밋 이전. zod 의 `safeParse` 가 미정의 키 silently strip 하므로 v0.5.10 의 bootstrap call 이 보낸 `demo_issues` + `welcome_message` 가 DB 레이어까지 도달 못함.
+  - 해결: dev 프로세스 트리 종료, `/work/mmplane-trial.realstory.blog/trial-app/` 에서 `git pull` (677bd5d → ec7f149 → 673764b), `npm run build`, `nohup PORT=2001 npm start &`. Caddyfile reverse-proxy 그대로. Bootstrap 응답에 신규 키 echo 확인.
+
+  **D-012 — sim_issues / sim_posts FK 가 drop 된 `sim_projects_legacy` / `sim_channels_legacy` 가리킴**:
+  - 재배포 후 `demo_issues:[…]` 포함 첫 bootstrap 이 `SqliteError: no such table: main.sim_projects_legacy` 로 실패. V0→V2 rebuild (`ALTER TABLE sim_projects RENAME TO sim_projects_legacy` 후 `CREATE TABLE sim_projects (… 새 스키마 …)`) 가 SQLite ≥3.25 의 RENAME 자동 FK 재작성 동작 때문에 sim_issues 의 FK 를 `→sim_projects(slug)` 에서 `→"sim_projects_legacy"(slug)` 로 바꿈. 그 다음 rebuild 가 sim_projects_legacy drop 했지만 sim_issues 의 FK 는 그대로. sim_posts → sim_channels 도 동일. pre-v0.5.10 bootstrap 은 sim_issues 에 write 안 했으므로 dormant, D-009 seeding 이 처음 트리거.
+  - Fix in `agents-pool@673764b`: `db/index.ts` 에 V3→V4 migration 추가, sqlite 공식 FK-fix recipe (PRAGMA foreign_keys=OFF 아래 테이블 rebuild). Idempotent — `PRAGMA foreign_key_list` 가 깨진 ref 보고할 때만 실행. 운영자 104-project DB (104 projects / 104 channels / 1 issue / 0 posts) 에서 깨끗하게 적용됨.
+
+  **Trial provider 트레이싱 (트랙 3a)**:
+  - `tracing::info!(target="trial", provider=…, op=…, …)` 가 trial flavor 의 모든 Plane/Mattermost 호출에 추가: `ensure_project`, `create_issue`, `transition`, `post_root`, `post_thread`. 각 호출이 outbound `→ POST/PATCH …` 라인 + 응답의 sim row id 담은 `← sim row created/updated` 라인 출력. `RUST_LOG=trial=info genasis <cmd>` 로 에이전트 의도 → trial-app DB write 의 end-to-end correlation 확인 가능.
+
+  **Stale-host 자동 감지 (트랙 3b)**:
+  - `try_bootstrap_trial_app` 가 bootstrap 응답 JSON 파싱 → `demo_issues` + `welcome_message` 키 부재 시 경고 출력 (배포된 schema 가 ec7f149 이전). README §Known limitations + `GENASIS_TRIAL_URL` 우회 안내. 이게 없으면 사용자는 green CLI output + 빈 칸반을 보고 서버가 seed 데이터 drop 했다는 신호를 못 받음.
+
+  **라이브 검증 (v0.5.12 vs `https://mmplane-trial.realstory.blog`)**:
+  - Fresh `genasis init --trial --name "D-012 Hosted Verify"` → bootstrap ok, stale 경고 없음. 새 팀 `35247bd0…` 발급.
+  - `RUST_LOG=trial=info genasis init` (bare) → 트레이싱 라인 `→ resolving trial sim project provider="plane" op="ensure_project" team_token_short=35247bd0 project_name="D-012 Hosted Verify"` stderr 에 visible, 이어서 `plane project_id = d-012-hosted-verify`.
+  - `genasis publish` → `+ seeded build-complete card + chat message` + landing URL `https://mmplane-trial.realstory.blog/?tab=live&team=35247bd0…`.
+  - Playwright 가 호스팅 URL 직접 검증: **`__ALL_PASS__: true`** — 4/4 demo 카드 + 2/2 welcome 메시지 + 쇼케이스 핸들 활성.
+
+  **v0.5.12 태그 푸시**가 `release.yml` 트리거. agents-pool@673764b 는 운영자측 의존성, 포트 2001 의 production 서버는 이미 그 상태.
+
 - 2026-05-12: **v0.5.11 릴리스 — Quick Path inline 점검 단계 + stale-hosting 점프 아웃 (D-010)**. 사용자 재진입 트리거로 자가테스트 사이클 한 번 더. CLI 1-5 단계는 fresh v0.5.10 설치본에서 전부 green 인데, Playwright 진단 결과 **새 사용자가 README 그대로 따라가서 default 운영자 호스팅 URL 을 열면 칸반·채팅 비어있음** — "뭔가 일어났다" 라는 visible 신호가 §"Known limitations" 까지 스크롤해야 발견됨. 동일 흐름을 `GENASIS_TRIAL_URL=http://localhost:2099` 로 돌리면 카드 4 + 환영 메시지 2 + 쇼케이스 핸들 활성. v0.5.10 의 escape hatch 자체는 동작, 단지 5분 경로 안에서 발견 안 됨.
 
   **Fix (D-010)** — README + README.ko §"Quick Path":

@@ -270,7 +270,23 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.11)
+## Known limitations (v0.5.12)
+
+- **Trial provider call tracing.** All Plane/Mattermost calls a Claude
+  Code agent makes through the trial flavor (`ensure_project`,
+  `create_issue`, `transition`, `post_root`, `post_thread`) now emit
+  `tracing::info!` records with `target="trial"`. Enable visibility with
+  `RUST_LOG=trial=info` to see every HTTP call → trial-app sim row
+  correlation. Useful when verifying that an agent's intent is actually
+  landing on the live trial UI.
+
+- **Stale-host detection.** When `genasis init --trial` POSTs to the
+  bootstrap endpoint, the response is now inspected for `demo_issues`
+  and `welcome_message` echo keys (added in `agents-pool@ec7f149`).
+  Missing keys = the operator-hosted trial-app is older than this
+  binary's contract → an inline warning surfaces immediately so the
+  user knows to expect an empty kanban + chat and can either ask the
+  operator to redeploy or self-host via `GENASIS_TRIAL_URL`.
 
 - **Hosted trial-app deployment lag.** When the operator-hosted
   `https://mmplane-trial.realstory.blog` is older than the genasis

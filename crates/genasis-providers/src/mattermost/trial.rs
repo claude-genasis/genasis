@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde_json::{json, Value};
+use tracing::info;
 
 use genasis_core::config::slugify;
 use genasis_core::error::{Error, Result};
@@ -276,6 +277,18 @@ impl MattermostProvider for TrialMattermost {
                 "trial mm post_root: bad channel_id `{channel_id}`: {e}"
             ))
         })?;
+        let team_short: String = self.team_token.chars().take(8).collect();
+        // v0.5.12 D-011 트랙 3a: agent 가 channel 에 메시지 보내는 흐름 트레이스.
+        info!(
+            target: "trial",
+            provider = "mattermost",
+            op = "post_root",
+            team_token_short = %team_short,
+            channel_id = cid,
+            actor = %Self::actor(),
+            message_preview = %message.chars().take(80).collect::<String>(),
+            "→ POST /api/mattermost/posts"
+        );
         let body = json!({
             "channel_id": cid,
             "actor": Self::actor(),
@@ -300,13 +313,21 @@ impl MattermostProvider for TrialMattermost {
             .json()
             .await
             .map_err(|e| Error::Provider(format!("trial mm post_root json: {e}")))?;
-        Ok(PostRef {
+        let post_ref = PostRef {
             id: v
                 .get("id")
                 .and_then(|x| x.as_i64())
                 .map(|i| i.to_string())
                 .unwrap_or_default(),
-        })
+        };
+        info!(
+            target: "trial",
+            provider = "mattermost",
+            op = "post_root",
+            sim_row_id = %post_ref.id,
+            "← sim post created"
+        );
+        Ok(post_ref)
     }
 
     async fn post_thread(&self, channel_id: &str, root_id: &str, message: &str) -> Result<PostRef> {
@@ -320,6 +341,18 @@ impl MattermostProvider for TrialMattermost {
                 "trial mm post_thread: bad root_id `{root_id}`: {e}"
             ))
         })?;
+        let team_short: String = self.team_token.chars().take(8).collect();
+        info!(
+            target: "trial",
+            provider = "mattermost",
+            op = "post_thread",
+            team_token_short = %team_short,
+            channel_id = cid,
+            root_id = rid,
+            actor = %Self::actor(),
+            message_preview = %message.chars().take(80).collect::<String>(),
+            "→ POST /api/mattermost/posts (threaded)"
+        );
         let body = json!({
             "channel_id": cid,
             "root_id": rid,

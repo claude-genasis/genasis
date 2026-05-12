@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde_json::{json, Value};
+use tracing::info;
 
 use genasis_core::config::slugify;
 use genasis_core::error::{Error, Result};
@@ -141,6 +142,16 @@ impl PlaneProvider for TrialPlane {
     }
 
     async fn ensure_project(&self, name: &str, identifier: &str) -> Result<String> {
+        let team_short: String = self.team_token.chars().take(8).collect();
+        info!(
+            target: "trial",
+            provider = "plane",
+            op = "ensure_project",
+            team_token_short = %team_short,
+            project_name = name,
+            identifier = identifier,
+            "→ resolving trial sim project"
+        );
         // v0.5.5 D-001: when `--trial` already ran `try_bootstrap_trial_app`
         // earlier in the same `genasis init` flow, the project row already
         // exists in the trial-app sim DB. The auth-free
@@ -157,6 +168,14 @@ impl PlaneProvider for TrialPlane {
         // pointing at the same row the trial-app UI shows.
         if !self.team_token.is_empty() {
             if let Ok(Some(canonical_slug)) = self.team_bootstrap_slug(name).await {
+                info!(
+                    target: "trial",
+                    provider = "plane",
+                    op = "ensure_project",
+                    slug = %canonical_slug,
+                    via = "team-app/status (bootstrap-canonical)",
+                    "← sim project resolved"
+                );
                 return Ok(canonical_slug);
             }
         }
@@ -232,6 +251,19 @@ impl PlaneProvider for TrialPlane {
         title: &str,
         _description: &str,
     ) -> Result<IssueRef> {
+        // v0.5.12 D-011 트랙 3a: agent 가 호출하는 모든 trial 우회 호출은
+        // tracing 으로 로그 — 사용자가 "Plane/MM 호출 흐름이 정말 trial-app
+        // sim row 로 갔는가" 추적 가능하게.
+        let team_short: String = self.team_token.chars().take(8).collect();
+        info!(
+            target: "trial",
+            provider = "plane",
+            op = "create_issue",
+            team_token_short = %team_short,
+            project_slug = project_id,
+            title = title,
+            "→ POST /api/plane/issues"
+        );
         let body = json!({"project_slug": project_id, "title": title});
         let resp = self
             .client
@@ -252,7 +284,7 @@ impl PlaneProvider for TrialPlane {
             .json()
             .await
             .map_err(|e| Error::Provider(format!("trial plane create_issue json: {e}")))?;
-        Ok(IssueRef {
+        let issue_ref = IssueRef {
             id: v
                 .get("id")
                 .and_then(|x| x.as_i64())
@@ -264,7 +296,17 @@ impl PlaneProvider for TrialPlane {
                 .and_then(|x| x.as_str())
                 .unwrap_or_default()
                 .into(),
-        })
+        };
+        info!(
+            target: "trial",
+            provider = "plane",
+            op = "create_issue",
+            sim_row_id = %issue_ref.id,
+            sequence_id = issue_ref.sequence_id,
+            state = %issue_ref.state,
+            "← sim row created"
+        );
+        Ok(issue_ref)
     }
 
     async fn transition(
@@ -274,6 +316,17 @@ impl PlaneProvider for TrialPlane {
         state_id: &str,
         assignees: &[String],
     ) -> Result<()> {
+        let team_short: String = self.team_token.chars().take(8).collect();
+        info!(
+            target: "trial",
+            provider = "plane",
+            op = "transition",
+            team_token_short = %team_short,
+            issue_id = issue_id,
+            to_state = state_id,
+            assignee = assignees.first().map(String::as_str).unwrap_or(""),
+            "→ PATCH /api/plane/issues/<id>"
+        );
         let mut body = json!({"state": state_id});
         if let Some(assignee) = assignees.first() {
             body["assignee"] = json!(assignee);
@@ -293,6 +346,13 @@ impl PlaneProvider for TrialPlane {
                 "trial plane transition {status}: {text}"
             )));
         }
+        info!(
+            target: "trial",
+            provider = "plane",
+            op = "transition",
+            issue_id = issue_id,
+            "← sim row updated"
+        );
         Ok(())
     }
 }

@@ -259,7 +259,21 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.11)
+## 알려진 한계 (v0.5.12)
+
+- **Trial provider 호출 트레이싱.** Claude Code 에이전트가 trial flavor 로
+  거치는 모든 Plane/Mattermost 호출 (`ensure_project`, `create_issue`,
+  `transition`, `post_root`, `post_thread`) 이 `tracing::info!` 로
+  `target="trial"` 레코드 출력. `RUST_LOG=trial=info` 로 모든 HTTP
+  호출 → trial-app sim row id 매핑을 볼 수 있음. 에이전트 의도가 라이브
+  트라이얼 UI 에 실제로 반영되는지 검증할 때 유용.
+
+- **Stale-host 자동 감지.** `genasis init --trial` 이 bootstrap POST 시
+  응답 body 의 `demo_issues` / `welcome_message` 키 echo 여부 검사
+  (`agents-pool@ec7f149` 이후 contract). 둘 다 없으면 = 호스팅 trial-app
+  이 옛 버전 = 인라인 경고 즉시 출력. 사용자가 빈 칸반·채팅을 보고
+  당황하기 전에 운영자 재배포 요청 또는 `GENASIS_TRIAL_URL` 자체호스트
+  우회 안내 받음.
 
 - **호스팅 trial-app 배포 지연.** 운영자 호스팅 `https://mmplane-trial.realstory.blog` 가
   genasis 바이너리의 bootstrap contract 보다 옛 버전일 경우, `genasis publish` 는
