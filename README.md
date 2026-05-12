@@ -155,6 +155,16 @@ export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
 # Optional — only when auto-resolution can't reach MM:
 # export MM_TEAM_ID="your-mattermost-team-id"
+
+# For `genasis humans sync` to provision new humans into Plane
+# (issue 바, v0.5.3): Plane's API-key auth can't create users —
+# only admin sign-in can. Set these BEFORE `humans sync` runs,
+# otherwise the Plane half of provisioning is silently skipped
+# and only the Mattermost half lands. The same credentials you
+# used to bootstrap Plane via god-mode (Step-by-Step §"Provision
+# admin tokens") apply.
+# export PLANE_ADMIN_EMAIL="admin@your-domain"
+# export PLANE_ADMIN_PASSWORD="strong-password"
 ```
 
 ### 3. Connect & Launch

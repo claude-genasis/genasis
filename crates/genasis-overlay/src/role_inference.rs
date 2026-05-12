@@ -92,23 +92,44 @@ pub enum Classified {
 }
 
 /// Best-effort role inference from the `name:` frontmatter field.
+///
+/// v0.5.3 issue 라: the v1.0.0 catalog ships base agent files whose
+/// frontmatter `name:` reads `frontend-developer` /
+/// `backend-developer` / `product-manager` / `qa-expert` etc. —
+/// NOT the canonical short slug `Role::slug` returns. When
+/// `cmd_bootstrap` copies those files into `.claude/agents/<slug>.md`
+/// and `cmd_attach` infers their role from the frontmatter, the
+/// long-form name landed in `Classified::Custom` and the overlay
+/// fence was silently skipped. The alias list below mirrors
+/// `Role::aliases()` so resolution is symmetric in both directions
+/// — filename → role (bootstrap) AND name → role (attach).
 pub fn infer_from_name(name: &str) -> Classified {
     let n = name.trim().to_ascii_lowercase();
     match n.as_str() {
-        "pm" | "scrum-master" | "product-manager" | "scrum_master" | "scrummaster" => {
-            Classified::Known(Role::Pm)
-        }
+        "pm" | "scrum-master" | "product-manager" | "scrum_master" | "scrummaster"
+        | "chief-of-staff" => Classified::Known(Role::Pm),
         "planner" | "plan" => Classified::Known(Role::Planner),
-        "architect" | "system-architect" => Classified::Known(Role::Architect),
-        "frontend" | "fe" | "web" | "ui" => Classified::Known(Role::Frontend),
-        "backend" | "be" | "api" => Classified::Known(Role::Backend),
-        "qa" | "tester" | "e2e-runner" | "e2e_runner" => Classified::Known(Role::Qa),
-        "designer" | "ux" | "ui-designer" => Classified::Known(Role::Designer),
-        "security" | "sec" | "security-reviewer" | "security_reviewer" => {
-            Classified::Known(Role::Security)
+        "architect" | "system-architect" | "backend-architect" | "cloud-architect" => {
+            Classified::Known(Role::Architect)
         }
-        "devops" | "infra" | "platform" => Classified::Known(Role::Devops),
-        "code-reviewer" | "reviewer" | "code_reviewer" => Classified::Known(Role::CodeReviewer),
+        "frontend" | "fe" | "web" | "ui" | "frontend-developer" => {
+            Classified::Known(Role::Frontend)
+        }
+        "backend" | "be" | "api" | "backend-developer" => Classified::Known(Role::Backend),
+        "qa" | "tester" | "e2e-runner" | "e2e_runner" | "qa-expert" | "qa-coordinator" => {
+            Classified::Known(Role::Qa)
+        }
+        "designer" | "ux" | "ui-designer" | "design-system-architect" => {
+            Classified::Known(Role::Designer)
+        }
+        "security" | "sec" | "security-reviewer" | "security_reviewer" | "security-engineer"
+        | "security-auditor" => Classified::Known(Role::Security),
+        "devops" | "infra" | "platform" | "devops-engineer" | "platform-engineer" => {
+            Classified::Known(Role::Devops)
+        }
+        "code-reviewer" | "reviewer" | "code_reviewer" | "architect-reviewer" => {
+            Classified::Known(Role::CodeReviewer)
+        }
         _ => Classified::Custom(name.trim().to_string()),
     }
 }

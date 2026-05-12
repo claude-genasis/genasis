@@ -424,8 +424,45 @@ async fn try_bootstrap_trial_app(
         .send()
         .await?;
     if !res.status().is_success() {
-        anyhow::bail!("trial-app bootstrap returned {}", res.status());
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        anyhow::bail!("trial-app bootstrap returned {status}: {body}");
     }
+
+    // v0.5.3 issue 나: bootstrap POST returning 200 doesn't prove
+    // the team row actually landed (the deployed trial-app may be
+    // running an older version that accepts the request but
+    // doesn't persist it, or the schema may have drifted). Verify
+    // by GET'ing `/api/trial/team-app/status?team=<token>` and
+    // checking `team_exists`. A real mismatch surfaces here so the
+    // user knows their browser tab will fall into the "unknown
+    // token" path, instead of finding out empirically after
+    // pasting the token into the TokenBar.
+    let verify_url = format!("{base_url}/api/trial/team-app/status?team={team_token}");
+    let v = client
+        .get(&verify_url)
+        .header("X-Genasis-Team-Token", team_token)
+        .send()
+        .await?;
+    if !v.status().is_success() {
+        anyhow::bail!(
+            "trial-app post-bootstrap verify returned {} (bootstrap may not have persisted)",
+            v.status()
+        );
+    }
+    let body: serde_json::Value = v.json().await.unwrap_or_default();
+    let team_exists = body
+        .get("team_exists")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+    if !team_exists {
+        anyhow::bail!(
+            "trial-app accepted the bootstrap POST but the team row was not persisted \
+             (deployed trial-app may be older than the bootstrap-route contract this \
+             binary expects). Try again later or ask the operator to redeploy."
+        );
+    }
+
     Ok(())
 }
 

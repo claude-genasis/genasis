@@ -152,6 +152,15 @@ export PLANE_API_KEY="your-plane-api-key"
 export MM_ADMIN_TOKEN="your-mattermost-token"
 # 선택 — 자동 해석이 MM 에 도달 못할 때만:
 # export MM_TEAM_ID="your-mattermost-team-id"
+
+# `genasis humans sync` 가 신규 사용자를 Plane 에 프로비저닝할 때
+# 필요 (이슈 바, v0.5.3): Plane 의 API-key 인증은 사용자 생성을
+# 못 함 — admin sign-in 만 가능. `humans sync` 실행 전에 아래를
+# 설정하지 않으면 Plane 쪽 프로비저닝이 silently 스킵되고
+# Mattermost 쪽만 동작. Step-by-Step §"admin token 발급" 에서 쓴
+# god-mode 자격증명을 그대로 쓰면 됨.
+# export PLANE_ADMIN_EMAIL="admin@your-domain"
+# export PLANE_ADMIN_PASSWORD="strong-password"
 ```
 
 ### 3. 연결 및 시작

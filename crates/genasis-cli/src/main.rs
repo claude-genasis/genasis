@@ -43,33 +43,53 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Bootstrap a blank project: ECC team + overlay + Plane/MM provisioning
+    /// **Primary entry point.** Bootstrap a blank project: base agents +
+    /// overlay (commands/hooks/skills) + Plane/MM provisioning. Modes:
+    /// `--trial` (zero-setup), `--bootstrap` (scaffold only), bare
+    /// (real Plane/MM provisioning against pre-filled `genasis.toml`).
     Init(cmd_init::Args),
-    /// Scaffold canonical 10-role base agent files into `.claude/agents/`
-    /// (green-field projects). Auto-chains to `attach` unless
-    /// `--no-attach-after`. ADR-010 §3.
+    /// **[Advanced]** Scaffold canonical 10-role base agent files into
+    /// `.claude/agents/` (green-field projects). `genasis init` already
+    /// runs this in `--trial` / `--bootstrap` mode; call it directly
+    /// only when you want to scaffold without the rest of init.
+    /// Auto-chains to `attach` unless `--no-attach-after`. ADR-010 §3.
     Bootstrap(cmd_bootstrap::Args),
-    /// Attach overlay onto an existing agentic team
+    /// **[Advanced]** Attach overlay onto an existing agentic team.
+    /// `genasis init` already runs this for `--trial` / `--bootstrap`;
+    /// call directly when you've hand-authored `.claude/agents/` and
+    /// want overlay fences + commands/hooks/skills + GENASIS.md added
+    /// without re-scaffolding the bases. Also supports `--lang` to
+    /// switch the active agent-context language (deprecates
+    /// `genasis lang switch`).
     Attach(cmd_attach::Args),
     /// Remove the overlay (marker fences only)
     Detach(cmd_detach::Args),
     /// Verify environment, tools, and configuration
     Doctor(cmd_doctor::Args),
-    /// Upgrade overlay to a newer template version
+    /// **[Deprecated v0.5.3]** Upgrade overlay to a newer template
+    /// version. Prefer `genasis attach --upgrade` — same effect, one
+    /// less command to remember. This subcommand will be removed in
+    /// v0.7.0.
     Upgrade(cmd_upgrade::Args),
     /// Design-system hot-swap orchestration
     Design(cmd_design::Args),
     /// Database operations (read-only query, migrate, diff, status, doctor)
     Db(cmd_db::Args),
-    /// Plane API thin wrapper (debug)
+    /// **[Deprecated v0.5.3]** Plane API thin wrapper. Prefer
+    /// `genasis doctor --probe-plane` for connectivity checks. Will
+    /// be removed in v0.7.0.
     Plane(cmd_plane::Args),
-    /// Mattermost API thin wrapper (debug)
+    /// **[Deprecated v0.5.3]** Mattermost API thin wrapper. Prefer
+    /// `genasis doctor --probe-mm` for connectivity checks. Will be
+    /// removed in v0.7.0.
     Mm(cmd_mm::Args),
     /// Ratatui TUI for sprint/tokens/agents/deploy/network/logs
     Monitor(cmd_monitor::Args),
     /// Print version metadata
     Version(cmd_version::Args),
-    /// Inspect or change the active agent-context language
+    /// **[Deprecated v0.5.3]** Inspect or change the active agent-context
+    /// language. Prefer `genasis attach --lang=<en|ko>` — same effect,
+    /// one less command. Will be removed in v0.7.0.
     Lang(cmd_lang::Args),
     /// Drop a sample document (PRD/design-system/PRD2) into the project
     /// root so the agentic team has something immediately actionable.
@@ -81,9 +101,14 @@ enum Cmd {
     /// Manage human team-member roster: list, add, edit, remove,
     /// and provision into Mattermost + Plane (ADR-014).
     Humans(cmd_humans::Args),
-    /// Operate on the trial-app companion (ADR-017). Currently
-    /// supports `publish` — flip the team's `app_status` to
-    /// `'complete'` so the ShowcasePanel unlocks for the user.
+    /// Flip the trial-app team's `app_status` to `'complete'` so the
+    /// ShowcasePanel unlocks for the user. Alias for the legacy
+    /// `genasis trial publish` (which still works, see `trial`).
+    Publish(cmd_trial::PublishArgs),
+    /// **[Deprecated v0.5.3]** Operate on the trial-app companion
+    /// (ADR-017). The only sub today (`publish`) is now available
+    /// at the top level as `genasis publish`. This namespace will be
+    /// removed in v0.7.0.
     Trial(cmd_trial::Args),
 }
 
@@ -114,19 +139,53 @@ async fn main() -> Result<()> {
         }
         Cmd::Detach(a) => cmd_detach::run(a).await,
         Cmd::Doctor(a) => cmd_doctor::run(a).await,
-        Cmd::Upgrade(a) => cmd_upgrade::run(a).await,
+        Cmd::Upgrade(a) => {
+            eprintln!(
+                "  note: `genasis upgrade` is deprecated in v0.5.3 — same effect via \
+                 `genasis attach --upgrade`. This subcommand will be removed in v0.7.0."
+            );
+            cmd_upgrade::run(a).await
+        }
         Cmd::Design(a) => cmd_design::run(a).await,
         Cmd::Db(a) => cmd_db::run(a).await,
-        Cmd::Plane(a) => cmd_plane::run(a).await,
-        Cmd::Mm(a) => cmd_mm::run(a).await,
+        Cmd::Plane(a) => {
+            eprintln!(
+                "  note: `genasis plane` is deprecated in v0.5.3 — for connectivity \
+                 checks use `genasis doctor --probe-plane`. This subcommand will be \
+                 removed in v0.7.0."
+            );
+            cmd_plane::run(a).await
+        }
+        Cmd::Mm(a) => {
+            eprintln!(
+                "  note: `genasis mm` is deprecated in v0.5.3 — for connectivity \
+                 checks use `genasis doctor --probe-mm`. This subcommand will be \
+                 removed in v0.7.0."
+            );
+            cmd_mm::run(a).await
+        }
         Cmd::Monitor(a) => cmd_monitor::run(a).await,
         Cmd::Version(a) => cmd_version::run(a).await,
-        Cmd::Lang(a) => cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await,
+        Cmd::Lang(a) => {
+            eprintln!(
+                "  note: `genasis lang` is deprecated in v0.5.3 — switch language via \
+                 `genasis attach --lang=<en|ko>`. This subcommand will be removed in v0.7.0."
+            );
+            cmd_lang::run(a, cli.non_interactive, cli.assume_yes).await
+        }
         Cmd::Example(a) => cmd_example::run(a),
         Cmd::Agents(a) => cmd_agents::run(a),
         Cmd::Debug(a) => cmd_debug::run(a),
         Cmd::Humans(a) => cmd_humans::run(a).await,
-        Cmd::Trial(a) => cmd_trial::run(a).await,
+        Cmd::Publish(a) => cmd_trial::run_publish_with_project(a).await,
+        Cmd::Trial(a) => {
+            eprintln!(
+                "  note: `genasis trial publish` is deprecated in v0.5.3 — use \
+                 `genasis publish` (top-level). The `trial` namespace will be removed \
+                 in v0.7.0."
+            );
+            cmd_trial::run(a).await
+        }
     }
 }
 

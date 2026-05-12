@@ -163,18 +163,29 @@ pub async fn pub_run(
 
 /// Install the GENASIS.md protocol contract + slash commands + hooks
 /// + skills that the catalog ships under `<lang>/GENASIS.md.tera`,
-/// `commands/*.tera`, `hooks/*.tera`, and `skills/*.tera` (Issue #11
-/// from the v0.5.0 field test log). Returns the count of files
-/// written so the CLI can report it.
+/// `commands/*.tera`, `hooks/*.tera`, and `skills/*.tera`.
 ///
-/// The v1.0.0 catalog's templates do not contain Tera variables —
-/// they're pre-rendered protocol text — so we pass them through
-/// `Tera::one_off` with the standard project-name / project-domain
-/// context anyway. Future catalogs that DO want variables get them
-/// automatically via the same context.
+/// Bodies that contain real Tera tags (`{{` or `{%`) go through
+/// `Tera::one_off`. Everything else is passed through verbatim —
+/// shell scripts in particular use `${#var}` (length expansion) and
+/// `${var:0:N}` (substring) syntax that collides with Tera's `{#`
+/// comment marker. The v1.0.0 catalog's templates are all the
+/// passthrough kind, but the next catalog refresh can introduce real
+/// variables for any role without changing this code.
+///
+/// Per-file errors are surfaced as warnings and the loop continues —
+/// one bad template never blocks the rest of the install (the v0.5.2
+/// implementation's `?` propagation was the root cause of issue 가
+/// from the v0.5.2 field test log, where 1 of 6 hooks tripped the
+/// `{#body}` lex error and the other 5 never landed).
 ///
 /// Hooks ending in `.sh` are chmod'd 0755 on Unix so Claude Code's
 /// PostToolUse / SessionStart hook runner can execute them directly.
+///
+/// Additionally writes a minimal `CLAUDE.md` stub with an `@import
+/// GENASIS.md` line if none exists at the project root (issue 마) —
+/// without that line Claude Code never loads the protocol contract,
+/// so every slash command and hook is effectively orphaned.
 fn install_genasis_overlay_artifacts(
     project_root: &std::path::Path,
     store: &genasis_templates::AgentStore,
@@ -191,15 +202,21 @@ fn install_genasis_overlay_artifacts(
     // CLAUDE.md @imports. The catalog only ships `en/GENASIS.md.tera`
     // and `ko/GENASIS.md.tera`, so fall back to English if the
     // active lang isn't present.
-    let genasis_md_template = store
+    if let Some(body) = store
         .get_file(&format!("{lang_code}/GENASIS.md.tera"))
-        .or_else(|| store.get_file("en/GENASIS.md.tera"));
-    if let Some(body) = genasis_md_template {
-        let rendered = tera::Tera::one_off(&body, &ctx, true)
-            .map_err(|e| anyhow::anyhow!("render GENASIS.md: {e}"))?;
-        let target = project_root.join("GENASIS.md");
-        fs::write(&target, rendered).with_context(|| format!("write {}", target.display()))?;
-        written += 1;
+        .or_else(|| store.get_file("en/GENASIS.md.tera"))
+    {
+        match render_template_body(&body, &ctx) {
+            Ok(rendered) => {
+                let target = project_root.join("GENASIS.md");
+                fs::write(&target, rendered)
+                    .with_context(|| format!("write {}", target.display()))?;
+                written += 1;
+            }
+            Err(e) => {
+                eprintln!("  ⚠ render GENASIS.md skipped: {e}");
+            }
+        }
     }
 
     for (subdir, out_subdir) in [
@@ -214,11 +231,19 @@ fn install_genasis_overlay_artifacts(
             Err(_) => continue, // empty / missing subdir is fine
         };
         for (name, body) in files {
-            let rendered = tera::Tera::one_off(&body, &ctx, true)
-                .map_err(|e| anyhow::anyhow!("render {name}: {e}"))?;
+            let rendered = match render_template_body(&body, &ctx) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("  ⚠ {subdir}/{name} skipped: {e}");
+                    continue;
+                }
+            };
             let out_name = name.strip_suffix(".tera").unwrap_or(&name);
             let target = out_dir.join(out_name);
-            fs::write(&target, rendered).with_context(|| format!("write {}", target.display()))?;
+            if let Err(e) = fs::write(&target, rendered) {
+                eprintln!("  ⚠ write {} failed: {e}", target.display());
+                continue;
+            }
             #[cfg(unix)]
             if out_name.ends_with(".sh") {
                 use std::os::unix::fs::PermissionsExt;
@@ -228,7 +253,32 @@ fn install_genasis_overlay_artifacts(
         }
     }
 
+    // CLAUDE.md stub (issue 마): without `@import GENASIS.md`, Claude
+    // Code never reads the protocol contract and the slash commands +
+    // hooks installed above become orphans. We only ever CREATE — if
+    // the user already has a CLAUDE.md we leave it alone (they may
+    // have other imports / project rules in it).
+    let claude_md = project_root.join("CLAUDE.md");
+    if !claude_md.exists() {
+        let body = include_str!("../templates/claude_md_stub.md");
+        fs::write(&claude_md, body).with_context(|| format!("write {}", claude_md.display()))?;
+        written += 1;
+    }
+
     Ok(written)
+}
+
+/// Per ADR-011 the catalog ships `.tera` files but most of them are
+/// pre-rendered (no `{{ var }}` or `{% tag %}` syntax). Skipping the
+/// Tera parser for those is the only way to avoid false positives on
+/// bash `${#var}` length expansion (which the Tera lexer treats as
+/// the start of a `{# comment #}` and then fails to find the close).
+fn render_template_body(body: &str, ctx: &tera::Context) -> Result<String> {
+    let has_tera_tags = body.contains("{{") || body.contains("{%");
+    if !has_tera_tags {
+        return Ok(body.to_string());
+    }
+    tera::Tera::one_off(body, ctx, true).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 fn update_manifest_after_apply(

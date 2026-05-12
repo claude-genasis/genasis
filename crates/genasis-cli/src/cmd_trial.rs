@@ -43,6 +43,13 @@ pub struct PublishArgs {
     /// Print the resolved request body and exit without sending.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Project root. Defaults to the current working directory.
+    /// Mirrors the top-level `--project` on the legacy `genasis trial`
+    /// subcommand so `genasis publish --project /path/to/team` works
+    /// the same way without the `trial` namespace.
+    #[arg(long, value_name = "DIR")]
+    pub project: Option<PathBuf>,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -56,6 +63,20 @@ pub async fn run(args: Args) -> Result<()> {
     match args.kind {
         Kind::Publish(p) => run_publish(&root, p).await,
     }
+}
+
+/// Top-level `genasis publish` entry point (v0.5.3 simplification B).
+/// Resolves project root from the `--project` flag on PublishArgs or
+/// the current working directory, then runs the same `run_publish`
+/// that the legacy `genasis trial publish` invokes.
+pub async fn run_publish_with_project(args: PublishArgs) -> Result<()> {
+    let root = if let Some(p) = args.project.as_deref() {
+        p.canonicalize()
+            .with_context(|| format!("--project path does not exist: {}", p.display()))?
+    } else {
+        std::env::current_dir()?
+    };
+    run_publish(&root, args).await
 }
 
 async fn run_publish(project_root: &std::path::Path, args: PublishArgs) -> Result<()> {
@@ -190,7 +211,7 @@ team_token = "abc123def456abc123def456abc123de"
 "#,
         );
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true }),
+            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
             project: Some(tmp.path().to_path_buf()),
         };
         run(args).await.expect("dry-run succeeds");
@@ -222,7 +243,7 @@ shared_secret = ""
 "#,
         );
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true }),
+            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
             project: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.unwrap_err();
@@ -237,7 +258,7 @@ shared_secret = ""
     async fn publish_errors_when_no_config() {
         let tmp = TempDir::new().unwrap();
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true }),
+            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
             project: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.unwrap_err();
