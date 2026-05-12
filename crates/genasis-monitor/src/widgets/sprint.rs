@@ -15,9 +15,29 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .d_day
         .map(|d| format!("D-{d}"))
         .unwrap_or_else(|| "—".into());
+
+    // D-025: When the monitor is wired to a trial-app, surface the
+    // current showcase (`app_kind` + `app_features`) in the header so
+    // the operator can confirm at a glance that PM routing landed.
+    let header = if state.trial_mode {
+        let app = if state.trial_app_kind.is_empty() {
+            "(no showcase yet)".to_string()
+        } else if state.trial_app_features.is_empty() {
+            format!("[{}]", state.trial_app_kind)
+        } else {
+            format!(
+                "[{} · {}]",
+                state.trial_app_kind,
+                state.trial_app_features.join(",")
+            )
+        };
+        format!("Cycle: {} {app}", state.sprint.name)
+    } else {
+        format!("Cycle: {}", state.sprint.name)
+    };
+
     let body = format!(
-        "Cycle: {}\nD-day: {}\nTodo:{}  In:{}  Review:{}  Done:{}",
-        state.sprint.name,
+        "{header}\nD-day: {}\nTodo:{}  In:{}  Review:{}  Done:{}",
         dday,
         state.sprint.todo,
         state.sprint.in_progress,

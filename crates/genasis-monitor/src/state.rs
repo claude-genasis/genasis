@@ -69,6 +69,20 @@ pub struct AppState {
     pub last_plane_poll: u64,
     pub last_jsonl_scan: u64,
     pub last_session_scan: u64,
+
+    // Trial-flavor wiring (D-025) — populated at startup from
+    // `genasis.toml`. When `trial_mode` is true the run-loop polls the
+    // trial-app's sim endpoints instead of a real Plane API.
+    pub trial_mode: bool,
+    pub trial_url: String,
+    pub team_token: String,
+    pub project_slug: String,
+    pub scrum_channel: String,
+    /// Per-team demo-app metadata reported by `/api/trial/team-app/status`.
+    /// Surfaced in the Sprint widget header so the operator can see
+    /// which showcase the agents have published.
+    pub trial_app_kind: String,
+    pub trial_app_features: Vec<String>,
 }
 
 /// Snapshot of the active design system.

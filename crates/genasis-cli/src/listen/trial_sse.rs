@@ -21,29 +21,60 @@ pub struct TrialAppSseStream {
     sse: EventSource,
     base_url: String,
     team_token: String,
+    client: Client,
+    /// D-024: 연속 reconnect 시도 횟수. exponential backoff 의 기준.
+    consecutive_reconnects: u32,
 }
 
 impl TrialAppSseStream {
     pub fn new(base_url: &str, team_token: &str) -> Result<Self> {
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(15))
+            .build()?;
+        let sse = Self::open(&client, base_url, team_token)?;
+        Ok(Self {
+            sse,
+            base_url: base_url.trim_end_matches('/').to_string(),
+            team_token: team_token.to_string(),
+            client,
+            consecutive_reconnects: 0,
+        })
+    }
+
+    fn open(client: &Client, base_url: &str, team_token: &str) -> Result<EventSource> {
         let url = format!(
             "{}/api/events/stream?team={}",
             base_url.trim_end_matches('/'),
             team_token
         );
-        let client = Client::builder()
-            .connect_timeout(Duration::from_secs(15))
-            .build()?;
         let request = client
             .get(&url)
             .header("X-Genasis-Team-Token", team_token)
             .header("Accept", "text/event-stream");
-        let sse = EventSource::new(request)
-            .map_err(|e| anyhow!("EventSource init failed: {e}"))?;
-        Ok(Self {
-            sse,
-            base_url: base_url.trim_end_matches('/').to_string(),
-            team_token: team_token.to_string(),
-        })
+        EventSource::new(request).map_err(|e| anyhow!("EventSource init failed: {e}"))
+    }
+
+    /// D-024: 죽은 EventSource 를 새 인스턴스로 swap. exponential backoff
+    /// 1s → 2s → 4s → 8s → max 30s 로 부하 분산.
+    async fn rebuild(&mut self) -> Result<()> {
+        self.consecutive_reconnects = self.consecutive_reconnects.saturating_add(1);
+        let backoff_secs = match self.consecutive_reconnects {
+            1 => 1,
+            2 => 2,
+            3 => 4,
+            4 => 8,
+            5 => 16,
+            _ => 30,
+        };
+        info!(
+            target: "listen",
+            attempt = self.consecutive_reconnects,
+            backoff_secs = backoff_secs,
+            "trial SSE rebuild — sleeping then opening new EventSource"
+        );
+        tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+        self.sse = Self::open(&self.client, &self.base_url, &self.team_token)?;
+        Ok(())
     }
 
     pub fn base_url(&self) -> &str {
@@ -59,14 +90,25 @@ impl TrialAppSseStream {
 impl EventStream for TrialAppSseStream {
     async fn next_event(&mut self) -> Result<InboundEvent> {
         loop {
-            let msg = self
-                .sse
-                .next()
-                .await
-                .ok_or_else(|| anyhow!("SSE stream closed unexpectedly"))?;
+            // D-024: stream 이 None 을 반환하면 reqwest-eventsource 가
+            // 영구 종료 상태 — `next()` 를 다시 호출해도 영원히 None.
+            // 그 경우 새 EventSource 를 만들어 swap 후 다시 시도.
+            let msg = match self.sse.next().await {
+                Some(m) => m,
+                None => {
+                    warn!(
+                        target: "listen",
+                        "trial SSE returned None (stream permanently closed) — rebuilding"
+                    );
+                    self.rebuild().await?;
+                    continue;
+                }
+            };
             match msg {
                 Ok(SseEvent::Open) => {
                     info!(target: "listen", "trial SSE opened");
+                    // 새 연결 성공시 backoff counter 리셋
+                    self.consecutive_reconnects = 0;
                     continue;
                 }
                 Ok(SseEvent::Message(m)) => {
@@ -117,10 +159,12 @@ impl EventStream for TrialAppSseStream {
                     });
                 }
                 Err(e) => {
-                    warn!("trial SSE transport error: {e} — eventsource will reconnect");
-                    // reqwest-eventsource 의 default retry 정책이 자동 재시도. 명시
-                    // sleep 은 불필요하나 loop 보호를 위해 5ms 정도.
-                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    // D-024: reqwest-eventsource 의 자동 retry 가 일부
+                    // transport 에러를 처리하지만 영구 실패 시 다음 next()
+                    // 가 None. 빠른 loop 보호용 sleep + 다음 turn 에서
+                    // rebuild 결정.
+                    warn!("trial SSE transport error: {e}");
+                    tokio::time::sleep(Duration::from_millis(200)).await;
                     continue;
                 }
             }
@@ -153,12 +197,7 @@ impl TrialAppSink {
 
 #[async_trait]
 impl EventSink for TrialAppSink {
-    async fn reply(
-        &self,
-        triggered_by: &InboundEvent,
-        actor: &str,
-        text: &str,
-    ) -> Result<()> {
+    async fn reply(&self, triggered_by: &InboundEvent, actor: &str, text: &str) -> Result<()> {
         let (channel_id, root_id, source_post_id) = match triggered_by {
             InboundEvent::PostCreated {
                 channel_id,

@@ -24,8 +24,8 @@ use tracing::info;
 use genasis_core::config::{slugify, Config, CONFIG_FILE_NAME};
 
 use crate::listen::lifecycle::{
-    log_path, pid_path, read_pid, remove_pid_file, start_precheck, status, stop_daemon,
-    write_pid, StartPrecheck,
+    log_path, pid_path, read_pid, remove_pid_file, start_precheck, status, stop_daemon, write_pid,
+    StartPrecheck,
 };
 use crate::listen::mattermost_ws::{MattermostSink, MattermostWsStream};
 use crate::listen::trial_sse::{TrialAppSink, TrialAppSseStream};
@@ -145,10 +145,10 @@ fn cmd_start(project_root: &Path, args: &Args) -> Result<()> {
         .append(true)
         .open(&log)
         .with_context(|| format!("open log {}", log.display()))?;
-    let stderr_file = log_file
-        .try_clone()
-        .context("clone log fd for stderr")?;
-    cmd.stdout(log_file).stderr(stderr_file).stdin(std::process::Stdio::null());
+    let stderr_file = log_file.try_clone().context("clone log fd for stderr")?;
+    cmd.stdout(log_file)
+        .stderr(stderr_file)
+        .stdin(std::process::Stdio::null());
 
     // detach: setsid (POSIX) 로 새 세션 → SIGHUP 부모 종료 영향 안 받음.
     #[cfg(unix)]
@@ -188,7 +188,10 @@ unsafe fn libc_setsid() {}
 fn cmd_logs(project_root: &Path, follow: bool) -> Result<()> {
     let log = log_path(project_root);
     if !log.is_file() {
-        println!("listen: 로그 파일 없음 ({}). 아직 한 번도 안 띄움?", log.display());
+        println!(
+            "listen: 로그 파일 없음 ({}). 아직 한 번도 안 띄움?",
+            log.display()
+        );
         return Ok(());
     }
     if !follow {
@@ -245,9 +248,10 @@ async fn build_loop_components(
             .trial
             .as_ref()
             .ok_or_else(|| anyhow!("[trial] section 누락"))?;
-        let team_token = trial.team_token.clone().ok_or_else(|| {
-            anyhow!("[trial].team_token 없음 — `genasis init --trial` 다시")
-        })?;
+        let team_token = trial
+            .team_token
+            .clone()
+            .ok_or_else(|| anyhow!("[trial].team_token 없음 — `genasis init --trial` 다시"))?;
         info!(
             target: "listen",
             flavor = "trial",

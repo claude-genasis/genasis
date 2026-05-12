@@ -19,6 +19,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::Terminal;
 
+use genasis_core::config::{Config, DEFAULT_TEAM_TOKEN};
 use genasis_core::error::Result;
 
 use crate::collector;
@@ -29,6 +30,7 @@ const RENDER_TICK: Duration = Duration::from_millis(250);
 const SESSION_TICK: Duration = Duration::from_secs(1);
 const JSONL_TICK: Duration = Duration::from_secs(60);
 const PORT_TICK: Duration = Duration::from_secs(5);
+const TRIAL_TICK: Duration = Duration::from_secs(5);
 
 pub async fn run() -> Result<()> {
     let mut state = AppState::default();
@@ -47,10 +49,18 @@ pub async fn run() -> Result<()> {
     // Load design state
     state.design = load_design_state();
 
+    // D-025: Load `genasis.toml` and detect trial flavor so the
+    // run-loop can populate the sprint / agents / log-tail widgets
+    // from the trial-app's sim endpoints.
+    load_trial_config(&mut state);
+
     // Initial data collection
     collect_sessions(&mut state);
     collect_jsonl(&mut state);
     collect_ports(&mut state);
+    if state.trial_mode {
+        collect_trial(&mut state).await;
+    }
 
     // Terminal setup. Mouse capture is intentionally NOT enabled so the
     // host terminal retains native text selection (drag, double-click,
@@ -79,6 +89,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
     let mut last_session = Instant::now();
     let mut last_jsonl = Instant::now();
     let mut last_port = Instant::now();
+    let mut last_trial = Instant::now();
 
     loop {
         // Collect data on schedule
@@ -93,6 +104,10 @@ async fn run_loop<B: ratatui::backend::Backend>(
         if last_port.elapsed() >= PORT_TICK {
             collect_ports(state);
             last_port = Instant::now();
+        }
+        if state.trial_mode && last_trial.elapsed() >= TRIAL_TICK {
+            collect_trial(state).await;
+            last_trial = Instant::now();
         }
 
         // Render
@@ -155,6 +170,10 @@ async fn run_loop<B: ratatui::backend::Backend>(
                         collect_sessions(state);
                         collect_jsonl(state);
                         collect_ports(state);
+                        if state.trial_mode {
+                            collect_trial(state).await;
+                            last_trial = Instant::now();
+                        }
                     }
                     KeyCode::Char('1') => state.focus = WidgetFocus::Sprint,
                     KeyCode::Char('2') => state.focus = WidgetFocus::Tokens,
@@ -216,6 +235,104 @@ fn collect_jsonl(state: &mut AppState) {
 fn collect_ports(state: &mut AppState) {
     if !state.role_ports.is_empty() {
         state.port_status = collector::ports::probe_ports(&state.role_ports);
+    }
+}
+
+/// D-025: Read `genasis.toml` and populate trial-mode fields on
+/// `AppState`. Best-effort — when no config exists or trial is not
+/// configured, leaves `trial_mode = false` so the run-loop skips the
+/// trial collector entirely.
+fn load_trial_config(state: &mut AppState) {
+    let cwd = match std::env::current_dir() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let cfg_path = match Config::discover(&cwd) {
+        Some(p) => p,
+        None => return,
+    };
+    let mut cfg = match Config::load(&cfg_path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    cfg.derive_naming_defaults();
+
+    let plane_trial = cfg
+        .plane
+        .as_ref()
+        .map(|p| p.flavor == "trial")
+        .unwrap_or(false);
+    let mm_trial = cfg
+        .mattermost
+        .as_ref()
+        .map(|m| m.flavor == "trial")
+        .unwrap_or(false);
+    let trial_enabled = cfg.trial.as_ref().map(|t| t.enabled).unwrap_or(false);
+    if !(trial_enabled && (plane_trial || mm_trial)) {
+        return;
+    }
+
+    let trial_url = cfg
+        .trial
+        .as_ref()
+        .map(|t| t.url.clone())
+        .unwrap_or_default();
+    let team_token = cfg.effective_team_token().to_string();
+    let project_slug = cfg
+        .plane
+        .as_ref()
+        .and_then(|p| p.project_id.clone())
+        .or_else(|| cfg.plane.as_ref().and_then(|p| p.project_name.clone()))
+        .unwrap_or_else(|| cfg.project.name.clone());
+    let scrum_channel = cfg
+        .mattermost_channel("scrum")
+        .map(|c| c.name.clone())
+        .unwrap_or_default();
+
+    if trial_url.is_empty() || project_slug.is_empty() || team_token == DEFAULT_TEAM_TOKEN {
+        // Refuse to poll without a per-team token — would otherwise
+        // surface another team's data on this monitor.
+        return;
+    }
+
+    state.trial_mode = true;
+    state.trial_url = trial_url;
+    state.team_token = team_token;
+    state.project_slug = project_slug;
+    state.scrum_channel = scrum_channel;
+}
+
+/// D-025: Hit the trial-app sim endpoints once and update state.
+/// Best-effort — on transport error, leaves stale data in place and
+/// pushes the error onto `log_tail` so the operator can see it.
+async fn collect_trial(state: &mut AppState) {
+    let snap = collector::trial::poll_trial(
+        &state.trial_url,
+        &state.team_token,
+        &state.project_slug,
+        &state.scrum_channel,
+    )
+    .await;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    match snap {
+        Ok(s) => {
+            state.sprint = s.sprint;
+            state.agent_issues = s.agent_issues;
+            state.log_tail = s.log_tail;
+            state.trial_app_kind = s.app_kind;
+            state.trial_app_features = s.app_features;
+            state.last_plane_poll = now;
+        }
+        Err(e) => {
+            state.log_tail.push(format!("(trial poll error: {e})"));
+            if state.log_tail.len() > 200 {
+                let overflow = state.log_tail.len() - 200;
+                state.log_tail.drain(..overflow);
+            }
+        }
     }
 }
 

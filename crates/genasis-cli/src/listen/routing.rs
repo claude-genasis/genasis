@@ -137,7 +137,9 @@ pub fn build_agent_prompt(
     project_slug: &str,
     card_title: Option<&str>,
 ) -> String {
-    let card_ref = card_title.map(|t| format!("(카드: \"{}\")", t)).unwrap_or_default();
+    let card_ref = card_title
+        .map(|t| format!("(카드: \"{}\")", t))
+        .unwrap_or_default();
     format!(
         r#"당신은 Genasis 팀의 {role} 역할 agent 입니다. 프로젝트 "{project_name}".
 PM 이 다음 작업을 위임했습니다 {card_ref}:
@@ -247,8 +249,10 @@ pub fn parse_pm_routing(pm_response: &str) -> PmRouting {
     }
 
     // [CARD: <title> → <state>]  (또는 -> ASCII)
-    for cap in regex_all_captures(pm_response, r"\[CARD:\s*([^→\->\]]+?)\s*(?:→|->)\s*([a-z]+)\s*\]")
-    {
+    for cap in regex_all_captures(
+        pm_response,
+        r"\[CARD:\s*([^→\->\]]+?)\s*(?:→|->)\s*([a-z]+)\s*\]",
+    ) {
         let title = cap.0.trim_matches('"').trim().to_string();
         let to_state = cap.1.trim().to_string();
         if !title.is_empty() {

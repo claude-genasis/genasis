@@ -79,10 +79,7 @@ impl MattermostWsStream {
                     return Ok(());
                 }
                 Err(e) => {
-                    warn!(
-                        "Mattermost WS connect failed: {e} — retry in {:?}",
-                        backoff
-                    );
+                    warn!("Mattermost WS connect failed: {e} — retry in {:?}", backoff);
                     sleep(backoff).await;
                     backoff = (backoff * 2).min(max_backoff);
                 }
@@ -137,10 +134,7 @@ impl EventStream for MattermostWsStream {
                     continue;
                 }
             };
-            let event = payload
-                .get("event")
-                .and_then(|x| x.as_str())
-                .unwrap_or("");
+            let event = payload.get("event").and_then(|x| x.as_str()).unwrap_or("");
             if event != "posted" {
                 continue;
             }
@@ -246,12 +240,7 @@ impl MattermostSink {
 
 #[async_trait]
 impl EventSink for MattermostSink {
-    async fn reply(
-        &self,
-        triggered_by: &InboundEvent,
-        actor: &str,
-        text: &str,
-    ) -> Result<()> {
+    async fn reply(&self, triggered_by: &InboundEvent, actor: &str, text: &str) -> Result<()> {
         let (channel_id, root_id) = match triggered_by {
             InboundEvent::PostCreated {
                 channel_id,

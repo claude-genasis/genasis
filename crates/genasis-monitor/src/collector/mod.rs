@@ -7,3 +7,4 @@ pub mod jsonl;
 pub mod plane;
 pub mod ports;
 pub mod sessions;
+pub mod trial;

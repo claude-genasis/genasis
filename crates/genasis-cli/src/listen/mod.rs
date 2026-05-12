@@ -60,12 +60,7 @@ pub trait EventStream: Send {
 #[async_trait]
 pub trait EventSink: Send + Sync {
     /// 같은 채널 (또는 thread) 에 `actor` 명의로 `text` 글을 올린다.
-    async fn reply(
-        &self,
-        triggered_by: &InboundEvent,
-        actor: &str,
-        text: &str,
-    ) -> Result<()>;
+    async fn reply(&self, triggered_by: &InboundEvent, actor: &str, text: &str) -> Result<()>;
 
     /// 직전 사람 메시지가 "X 완료" 류 의도를 담고 있을 때 호출 — flavor
     /// 별로 카드 transition (trial: bootstrap 재요청 / mm+plane: Plane
@@ -150,12 +145,7 @@ async fn handle_human_post(
     let pm_response = if cfg.echo_only {
         build_echo_pm_response(message, cfg)
     } else {
-        let prompt = routing::build_pm_prompt(
-            &cfg.project_name,
-            &cfg.project_slug,
-            message,
-            None,
-        );
+        let prompt = routing::build_pm_prompt(&cfg.project_name, &cfg.project_slug, message, None);
         match run_claude_print(&prompt, cfg).await {
             Ok(s) => s,
             Err(e) => {
@@ -255,7 +245,8 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     if m.contains("큰 글자") || m.contains("larger") || m.contains("text larger") {
         features.push("larger-text");
     }
-    if m.contains("한국어") || m.contains("영어") || m.contains("i18n") || m.contains("다국어") {
+    if m.contains("한국어") || m.contains("영어") || m.contains("i18n") || m.contains("다국어")
+    {
         features.push("i18n");
     }
 
@@ -296,10 +287,7 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     )
 }
 
-fn build_echo_agent_response(
-    assignment: &routing::AgentAssignment,
-    cfg: &LoopConfig,
-) -> String {
+fn build_echo_agent_response(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
     let _ = cfg;
     format!(
         r#"✋ @human {role} 착수 — {task}
@@ -373,9 +361,9 @@ async fn run_claude_print(message: &str, cfg: &LoopConfig) -> Result<String> {
         .arg("bypassPermissions")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    let child = cmd.spawn().map_err(|e| {
-        anyhow::anyhow!("spawn `claude` (is it on $PATH?): {e}")
-    })?;
+    let child = cmd
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("spawn `claude` (is it on $PATH?): {e}"))?;
     let out = timeout(
         Duration::from_secs(cfg.claude_timeout_secs as u64),
         child.wait_with_output(),
