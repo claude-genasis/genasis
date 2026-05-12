@@ -19,7 +19,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::Terminal;
 
-use genasis_core::config::{Config, DEFAULT_TEAM_TOKEN};
+use genasis_core::config::{slugify, Config, DEFAULT_TEAM_TOKEN};
 use genasis_core::error::Result;
 
 use crate::collector;
@@ -278,12 +278,20 @@ fn load_trial_config(state: &mut AppState) {
         .map(|t| t.url.clone())
         .unwrap_or_default();
     let team_token = cfg.effective_team_token().to_string();
+    // sim_issues 는 slugified project_slug 로 인덱싱. project_id 가 비어
+    // 있는 trial 경로는 `project_name` 또는 `project.name` 을 slugify.
+    let project_name_raw = cfg
+        .plane
+        .as_ref()
+        .and_then(|p| p.project_name.clone())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| cfg.project.name.clone());
     let project_slug = cfg
         .plane
         .as_ref()
         .and_then(|p| p.project_id.clone())
-        .or_else(|| cfg.plane.as_ref().and_then(|p| p.project_name.clone()))
-        .unwrap_or_else(|| cfg.project.name.clone());
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| slugify(&project_name_raw));
     let scrum_channel = cfg
         .mattermost_channel("scrum")
         .map(|c| c.name.clone())
