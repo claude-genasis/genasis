@@ -181,6 +181,15 @@ async fn run_publish(project_root: &std::path::Path, args: PublishArgs) -> Resul
             }
         ],
         "demo_issues": [
+            // D-013: publish narrative = "PRD → 빌드 → 게시 끝". init 단계의
+            // todo/inprogress 카드 둘 다 명시적으로 done 으로 transition.
+            // ensureIssue 는 (team_token, project_slug, title) 기준 dedup +
+            // state 인자가 다르면 transition 까지 적용하므로 idempotent.
+            {
+                "title": "Write PRD and split into tickets",
+                "state": "done",
+                "assignee": "pm",
+            },
             {
                 "title": "Build the example app from PRD",
                 "state": "done",

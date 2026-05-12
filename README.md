@@ -270,7 +270,32 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.12)
+## Known limitations (v0.5.13)
+
+- **`genasis listen` reactive bridge.** v0.5.13 ships a daemon that
+  subscribes to the trial-app SSE stream and spawns `claude --print`
+  whenever a human posts in the chat panel — implements genesis §28
+  Mattermost Bridge for the trial flavor. Run it in a second terminal
+  after `genasis init --trial` so chat messages get auto-responses
+  + kanban cards transition on directive ("X 완료"). Without the
+  daemon, the live trial UI captures human messages but no agent
+  answers them.
+
+  ```bash
+  # one-time, in a separate terminal
+  genasis listen --trial
+  ```
+
+  CI / smoke environments without `claude` on $PATH can use
+  `genasis listen --trial --echo-only` to verify the SSE pipeline
+  end-to-end without the LLM hop.
+
+- **Ticket state coherence on publish.** Previously `genasis publish`
+  seeded a "Build the example app published" Done card while the
+  prerequisite Build card stayed in Todo (kanban contradicted its own
+  narrative). v0.5.13 + agents-pool@8b03654 routes publish's
+  `demo_issues` through the now state-aware `ensureIssue` helper, so
+  publishing flips Write-PRD + Build cards to Done in one round-trip.
 
 - **Trial provider call tracing.** All Plane/Mattermost calls a Claude
   Code agent makes through the trial flavor (`ensure_project`,

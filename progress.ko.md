@@ -1053,6 +1053,33 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.13 릴리스 — `genasis listen` reactive bridge + 티켓 상태 정합성 (D-013 + D-014 + TR-3)**. 사용자가 호스팅 Live Trial URL 화면이 자가모순 (Todo + InProgress 에 init 단계 카드가 남은 채 Done 에 "🎉 Example app published" 가 이미 있음) + 11:35 의 사람 채팅 질문에 아무 에이전트도 무응답 이라고 지적. `/work/secusy/genesis/strategy.md` §0/§26/§28 점검 — 원천 genesis 설계는 사람↔에이전트 모든 소통이 Mattermost+Plane 으로만 흐르되, **reactive bridge daemon** (legacy stack 의 `scripts/mattermost-bridge.mjs`) 가 채널을 폴링 → 멘션 감지 → `claude --print` headless 호출. genasis trial flavor 는 그 설계의 정적 자산은 모두 이식 (10 agent overlay, 14 `/sprint-*` `/check-inbox` 명령, `GENASIS.md` 헌장) 했지만 **bridge daemon 자체가 빠짐** — 자율 loop 가 전적으로 수동.
+
+  **D-013 (티켓 상태 정합성)**:
+  - `agents-pool/trial-app/db/sim.ts::ensureIssue` 가 `if (existing) return existing` 으로 short-circuit 해서 `input.state` / `input.assignee` 를 silently drop. 호출자가 state/assignee 를 명시했고 기존 row 와 다르면 `transitionIssue` 호출하도록 패치. 새 row 경로 그대로.
+  - `genasis publish` `demo_issues` 가 2 카드 (Build done + Example app published done) 에서 3 카드 (Write-PRD done + Build done + Example app done) 로 확장 — publish 후 칸반 종단 상태가 `Done=4, InProgress=0, Todo=0` 으로 narrative 와 정합.
+  - agents-pool@8b03654 가 trial-app 측 ship.
+
+  **D-014 (reactive bridge — `genasis listen`)**:
+  - 새 `cmd_listen.rs` (361 줄) — async daemon:
+    1. `genasis.toml` 의 `[trial]` 섹션 + per-team token 로드.
+    2. `GET /api/events/stream?team=<token>` SSE 스트림.
+    3. `post.created` 이벤트 중 `actor` 가 사람 패턴 (`KNOWN_ROLE_BOTS` 미매칭) 필터.
+    4. 한국어 role-aware 프롬프트로 `claude --print` 호출, 120 초 timeout.
+    5. 에이전트 응답을 `--default-actor` (기본 `pm`) 명의로 `/api/mattermost/posts` POST.
+    6. Best-effort `maybe_transition_card` 휴리스틱 — 사람이 "X 완료" / "done" 말하면 idempotent path 로 init 4 카드를 Done 으로 재bootstrap → 칸반이 채팅 narrative 따라감.
+  - 플래그: `--trial`, `--echo-only` (`claude` 없는 CI 모드), `--default-actor`, `--claude-timeout-secs`, `--max-events`.
+  - reqwest `stream` feature + 신규 `futures-util` workspace dep (SSE byte-stream 소비).
+
+  **GENASIS.md 헌장** 에 "Reactive bridge (자동 응답 데몬)" 하위 섹션 추가 — 모든 에이전트 페르소나에게 사람 채팅이 `genasis listen` 으로 와이어드 됐음을 안내. 데몬 없으면 자율 loop 안 돔.
+
+  **TR-3 자가테스트 정책 확장**:
+  - `/work/genasis/CLAUDE.md §자가개발 및 테스트` step 4 에 3 가지 검증 항목 명시 (카드 정합성 / reactive loop / 사람 지시 transition).
+  - Step 10 종료 조건 강화 — 1·2·3 항목 모두 Playwright 로 PASS 해야 사이클 종료.
+  - `/work/agenteams/team-ex/CLAUDE.md` (사용자 SSOT) 에 §14 + §15 미러 — 자가테스트가 PASS 선언 전 `genasis listen --trial` 을 백그라운드 spawn 의무.
+
+  **v0.5.13 태그 푸시**가 `release.yml` 트리거. agents-pool@8b03654 는 `mmplane-trial.realstory.blog` 에 이미 live.
+
 - 2026-05-12: **v0.5.12 릴리스 — D-011 (운영자 dev-mode 빌드) + D-012 (sim DB FK 가 drop 된 legacy 테이블 가리킴) + trial provider 트레이싱 + stale-host 자동 감지**. 사용자가 v0.5.11 사이클의 호스팅 URL 이 여전히 비어있다고 지적 — 로컬 우회 권고 대신 직접 진단 요구. 사용자 추가 지시: 모든 디버깅은 호스팅 도메인 통해 진행, Caddyfile 이 `mmplane-trial.realstory.blog → localhost:2001` 포워딩이므로 동일 머신. 3개 레이어 문제 모두 end-to-end 해결.
 
   **D-011 — 운영자가 `agents-pool@677bd5d` 위에서 `npm run dev` 직접 돌리는 중**:

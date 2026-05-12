@@ -245,6 +245,20 @@ Genasis 는 사용자가 자신의 프로젝트에 agentic team 을 붙이는 �
    - 브라우저 자동화 결과는 단순 PASS/FAIL 이 아니라 카드 / 메시지 /
      UI 요소 별 보이는지 여부를 JSON 으로 dump 해서 PLAN.md 에 인용
      가능하게 한다.
+   - **검증 항목 1 — 카드 상태 정합성** (TR-1 정책): `genasis publish`
+     호출 후 칸반 4 컬럼별 카드 수가 narrative 와 일치하는지 — Done
+     ≥ 4 (init seeded 3 + publish seeded 1), InProgress = 0, Todo = 0.
+     불일치하면 `ensureIssue` state-sync 또는 publish seed 가 깨진 것
+     으로 간주.
+   - **검증 항목 2 — Reactive loop** (TR-2 정책): 자가테스트가 sim
+     채널에 `[human]` 메시지를 INSERT 한 뒤 60 초 안에 에이전트 응답
+     (`actor != [human|user|...]`) 이 같은 채널에 도착해야 한다.
+     도착 안 하면 `genasis listen` daemon 이 띄워져 있지 않거나
+     `claude --print` 호출이 실패한 것 → 즉시 결함 등록.
+   - **검증 항목 3 — 카드 transition 의도 정합성**: 사람이 "X 완료"
+     라고 채팅하면 listen daemon 의 `maybe_transition_card` 가 관련
+     카드를 Done 으로 옮겨야 한다. Playwright 가 transition 전후
+     스냅샷을 캡처해서 비교.
 
 5. **결함 기록 — PLAN.md** (사용자 §3, §5) — "README 대로 했는데
    의도한 결과가 안 나오는" 모든 케이스를 PLAN.md 에 항목으로 추가한다.
@@ -286,9 +300,12 @@ Genasis 는 사용자가 자신의 프로젝트에 agentic team 을 붙이는 �
      `genasis publish` 재호출", "운영자 재배포가 필요한 경우 명령" 등
      구체적 행동을 한글로 제시.
 
-10. **종료 조건** (사용자 §7) — PLAN.md 의 결함 목록이 비어 있고 README
-    Quick Path / Step-by-Step 이 처음부터 끝까지 통과하면 사이클을
-    종료한다. 그 외에는 무한 반복.
+10. **종료 조건** (사용자 §7) — 다음 조건을 모두 만족할 때만 사이클 종료:
+    - PLAN.md 의 open 결함 목록 비어있음.
+    - README Quick Path / Step-by-Step 이 처음부터 끝까지 통과.
+    - 위 §4 의 검증 항목 1·2·3 (카드 정합성 / reactive loop / transition
+      의도) 모두 Playwright 결과로 PASS.
+    - 그 외에는 무한 반복.
 
 ### 행동 원칙
 

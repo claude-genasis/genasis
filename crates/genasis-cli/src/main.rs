@@ -13,6 +13,7 @@ mod cmd_example;
 mod cmd_humans;
 mod cmd_init;
 mod cmd_lang;
+mod cmd_listen;
 mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
@@ -110,6 +111,13 @@ enum Cmd {
     /// at the top level as `genasis publish`. This namespace will be
     /// removed in v0.7.0.
     Trial(cmd_trial::Args),
+    /// Reactive bridge daemon — subscribe to the trial-app SSE stream
+    /// (or the Mattermost-bridge equivalent — TODO) and spawn
+    /// `claude --print` for every human-authored chat message so an
+    /// agent persona auto-responds and transitions the related kanban
+    /// card. Implements genesis §0 (Mattermost+Plane only) + §28
+    /// Mattermost Bridge in the trial flavor.
+    Listen(cmd_listen::Args),
 }
 
 #[tokio::main]
@@ -186,6 +194,7 @@ async fn main() -> Result<()> {
             );
             cmd_trial::run(a).await
         }
+        Cmd::Listen(a) => cmd_listen::run(a).await,
     }
 }
 

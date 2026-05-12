@@ -259,7 +259,30 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.12)
+## 알려진 한계 (v0.5.13)
+
+- **`genasis listen` reactive bridge.** v0.5.13 이 trial-app SSE 를
+  구독하고 사람이 채팅 패널에 글을 쓸 때마다 `claude --print` 를 띄우는
+  daemon 을 ship — genesis §28 Mattermost Bridge 의 trial flavor
+  등가물. `genasis init --trial` 직후 별도 터미널에서 띄워야 채팅
+  메시지가 자동 응답으로 이어지고, "X 완료" 같은 지시에 칸반 카드가
+  transition 된다. 데몬이 없으면 라이브 트라이얼이 사람 메시지를
+  저장만 하고 아무 에이전트도 응답 안 함.
+
+  ```bash
+  # 별도 터미널에서 한 번
+  genasis listen --trial
+  ```
+
+  CI / smoke 환경에서 `claude` 가 $PATH 에 없으면
+  `genasis listen --trial --echo-only` 로 SSE 파이프라인만 검증 가능.
+
+- **publish 시점 티켓 상태 정합성.** 이전엔 `genasis publish` 가
+  "Example app published" Done 카드만 추가하고 그 선행 빌드 카드는
+  Todo 그대로 둬서 칸반이 자기모순 — `🎉 게시 완료` 인데 빌드는
+  아직 안 된 모양새. v0.5.13 + agents-pool@8b03654 에서 publish 의
+  `demo_issues` 가 state-aware `ensureIssue` 로 흐르므로 Write-PRD +
+  Build 카드가 같은 round-trip 에 Done 으로 transition.
 
 - **Trial provider 호출 트레이싱.** Claude Code 에이전트가 trial flavor 로
   거치는 모든 Plane/Mattermost 호출 (`ensure_project`, `create_issue`,

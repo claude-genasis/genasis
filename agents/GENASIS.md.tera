@@ -22,6 +22,12 @@
 - 모든 사람 ↔ 팀 소통은 Mattermost `#scrum-{{ project_name }}` (이슈별 스레드) 와 Plane (상태, 댓글) 두 채널만 사용.
 - 사람이 CLI 를 직접 타이핑하는 것은 bridge 장애 시 예외.
 
+### Reactive bridge (자동 응답 데몬)
+- **반드시** `genasis listen` (또는 trial 모드에서 `genasis listen --trial`) 데몬이 떠 있어야 사람 메시지가 에이전트 응답으로 이어진다.
+- 데몬이 채팅 채널을 구독 → 새 사람 메시지 감지 → `claude --print` 로 적절한 에이전트 페르소나에게 라우팅 → 응답을 같은 스레드에 reply + 관련 Plane 이슈 상태 transition.
+- 데몬이 없으면 사람 메시지는 sim DB 에 저장만 되고 어떤 에이전트도 반응하지 않는다. 사용자가 빈 화면을 보고 "에이전트가 안 움직인다" 라고 느끼는 1순위 원인.
+- 운영 절차: `genasis init --trial` 직후 별도 터미널에서 `genasis listen --trial` 을 띄우거나, `genasis monitor` 의 reactive 모드를 사용.
+
 ## 사람 로스터 (Human Roster)
 {% if humans and humans | length > 0 %}이 프로젝트의 등록된 사람 멤버 — 이들의 발언은 **확인된 stakeholder 요구사항**으로 처리합니다.
 
