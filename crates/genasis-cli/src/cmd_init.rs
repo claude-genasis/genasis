@@ -346,7 +346,7 @@ shared_secret = ""
 # and write your sandbox.
 team_token = "{team_token}"
 "#,
-        trial_url = TRIAL_APP_URL,
+        trial_url = trial_app_url(),
         project_name = project_name,
         project_slug = project_slug,
         team_token = team_token,
@@ -355,9 +355,30 @@ team_token = "{team_token}"
 
 /// URL of the operator-hosted public trial-app. Hardcoded because the
 /// trial flow is meant to be zero-setup — users run `genasis init
-/// --trial` and the binary points them at this site directly. Override
-/// only by editing `genasis.toml` after `init`.
-const TRIAL_APP_URL: &str = "https://mmplane-trial.realstory.blog";
+/// --trial` and the binary points them at this site directly.
+///
+/// v0.5.10 (D-009 follow-up): The operator-hosted instance can lag
+/// behind `agents-pool` main (during this cycle we shipped
+/// `demo_issues` / `welcome_message` support to the bootstrap route,
+/// but the hosted Caddy + docker container hasn't been redeployed —
+/// `/api/plane/issues` + `/api/mattermost/posts` still 401 with the
+/// pre-D-001 secret-required contract, and the new bootstrap fields
+/// are silently dropped by the old `z` schema). Users who hit this
+/// can self-host the trial-app in a single
+/// `docker run mmplane-trial-app` and point the binary at it by
+/// exporting `GENASIS_TRIAL_URL=http://localhost:<port>` BEFORE
+/// running `genasis init --trial`. The value flows through to the
+/// landing URL, the bootstrap POST, the per-team open URL printed in
+/// the summary box, and into `genasis.toml [trial].url`.
+const DEFAULT_TRIAL_APP_URL: &str = "https://mmplane-trial.realstory.blog";
+
+fn trial_app_url() -> String {
+    std::env::var("GENASIS_TRIAL_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| DEFAULT_TRIAL_APP_URL.to_string())
+}
 
 /// Best-effort name suggestion when `--name` is omitted: humanise the
 /// project directory's basename ("marketing-squad" → "Marketing
@@ -619,7 +640,8 @@ async fn run_trial(
         if let Ok(written) = Config::load(&cfg_path) {
             let name = written.project.name.clone();
             let slug = slugify(&name);
-            match try_bootstrap_trial_app(TRIAL_APP_URL, tok, &slug, &name).await {
+            let trial_url = trial_app_url();
+            match try_bootstrap_trial_app(&trial_url, tok, &slug, &name).await {
                 Ok(()) => println!("  trial-app bootstrap ok ({slug})"),
                 Err(e) => {
                     eprintln!("  ⚠ trial-app bootstrap failed: {e} — will lazily seed on first use")
@@ -628,18 +650,19 @@ async fn run_trial(
         }
     }
 
+    let trial_url = trial_app_url();
     if args.probe_only {
         println!("\n--probe-only set — skipping browser open");
-        println!("  Trial app: {TRIAL_APP_URL}");
+        println!("  Trial app: {trial_url}");
         if let Some(tok) = team_token.as_deref() {
-            println!("  Per-team URL: {TRIAL_APP_URL}/?tab=live&team={tok}");
+            println!("  Per-team URL: {trial_url}/?tab=live&team={tok}");
         }
         return Ok(());
     }
 
     let landing = match team_token.as_deref() {
-        Some(tok) => format!("{TRIAL_APP_URL}/?tab=live&team={tok}"),
-        None => TRIAL_APP_URL.to_string(),
+        Some(tok) => format!("{trial_url}/?tab=live&team={tok}"),
+        None => trial_url.clone(),
     };
 
     let open_browser = if assume_yes {

@@ -266,7 +266,37 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.9)
+## Known limitations (v0.5.10)
+
+- **Hosted trial-app deployment lag.** When the operator-hosted
+  `https://mmplane-trial.realstory.blog` is older than the genasis
+  binary's bootstrap contract, `genasis publish` succeeds but the
+  Live Trial kanban + chat stay empty (the new `demo_issues` /
+  `welcome_message` fields are silently dropped by the older schema).
+  Workaround: self-host the trial-app and point the binary at it
+  before running `genasis init --trial`:
+
+  ```bash
+  # 1. Clone the trial-app (sparse-checkout, ~10 MB)
+  git clone --depth 1 --filter=blob:none --sparse \
+    https://github.com/claude-genasis/agents-pool && \
+    cd agents-pool && git sparse-checkout set trial-app
+
+  # 2. Build + run the container
+  cd trial-app
+  docker build -t mmplane-trial-app:local .
+  docker run -d --name trial-app -p 2099:2001 \
+    -v trial-app-data:/data \
+    -e DATABASE_PATH=/data/trial.db \
+    mmplane-trial-app:local
+
+  # 3. Point genasis at the local instance
+  export GENASIS_TRIAL_URL=http://localhost:2099
+  genasis init --trial --name "My Team"
+  ```
+
+  The summary box, the bootstrap POST, `genasis.toml [trial].url`,
+  and the per-team open URL all flow from the same env override.
 
 - **Hosted trial-app deployment lag is now self-healing for the Quick Path.** v0.5.5 routes `ensure_project` and `ensure_channel` through the auth-free `/api/trial/bootstrap` (which all deployed trial-app versions accept) when the binary detects the team was already seeded by `genasis init --trial`. The Quick Path therefore no longer hard-errors at step 4 against a stale operator deployment. Downstream **agent-driven** calls (`create_issue`, `transition`, `post_root`) still target the legacy `/api/plane/*` and `/api/mattermost/*` endpoints — these may still 401 when the deployed trial-app precedes `agents-pool@289876c`. If your agents fail at runtime with a 401 to `/api/plane/issues` or `/api/mattermost/posts`, ask the operator to redeploy. Self-hosted trial-app always matches the contract.
 

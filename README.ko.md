@@ -255,7 +255,35 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.9)
+## 알려진 한계 (v0.5.10)
+
+- **호스팅 trial-app 배포 지연.** 운영자 호스팅 `https://mmplane-trial.realstory.blog` 가
+  genasis 바이너리의 bootstrap contract 보다 옛 버전일 경우, `genasis publish` 는
+  성공하지만 Live Trial 칸반 + 채팅이 비어있는 상태로 유지됨 (신규
+  `demo_issues` / `welcome_message` 필드를 옛 schema 가 silently drop).
+  우회: trial-app 을 자체 호스팅하고 그 endpoint 를 가리키기:
+
+  ```bash
+  # 1. trial-app clone (sparse-checkout, ~10 MB)
+  git clone --depth 1 --filter=blob:none --sparse \
+    https://github.com/claude-genasis/agents-pool && \
+    cd agents-pool && git sparse-checkout set trial-app
+
+  # 2. 컨테이너 빌드 + 기동
+  cd trial-app
+  docker build -t mmplane-trial-app:local .
+  docker run -d --name trial-app -p 2099:2001 \
+    -v trial-app-data:/data \
+    -e DATABASE_PATH=/data/trial.db \
+    mmplane-trial-app:local
+
+  # 3. genasis 가 로컬 instance 가리키도록
+  export GENASIS_TRIAL_URL=http://localhost:2099
+  genasis init --trial --name "My Team"
+  ```
+
+  요약 박스, bootstrap POST, `genasis.toml [trial].url`, per-team open
+  URL 모두 같은 env override 로부터 일관되게 흘러갑니다.
 
 - **호스팅 trial-app 배포 lag — Quick Path 는 이제 self-healing.** v0.5.5 부터 `ensure_project` / `ensure_channel` 은 `genasis init --trial` 단계에서 팀이 이미 seed 된 것을 탐지하면 auth-free `/api/trial/bootstrap` 로 라우팅 (모든 배포 버전이 받음). 그래서 운영자 배포가 stale 해도 Quick Path 단계 4 가 더는 hard-fail 하지 않음. 다만 agent 런타임이 부르는 downstream call (`create_issue`, `transition`, `post_root`) 은 여전히 legacy `/api/plane/*` / `/api/mattermost/*` 로 가므로 `agents-pool@289876c` 이전 배포에서는 401 가능. 에이전트 동작 중 `/api/plane/issues` / `/api/mattermost/posts` 에 401 발생하면 운영자에게 재배포 요청. 자체 host trial-app 은 항상 contract 맞음.
 
