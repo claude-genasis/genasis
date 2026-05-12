@@ -1,0 +1,62 @@
+
+
+# GENASIS.md — 에이전트 팀 프로토콜 계약
+
+> `genasis` v0.0.1 가 생성.
+> marker fence 안의 편집은 해시로 추적되고, fence 밖의 편집은 그대로 유지됩니다.
+> 계약을 갱신하려면 `genasis upgrade` 를 다시 실행하세요.
+
+## 프로젝트
+- **이름**: ``
+- **도메인**: ``
+- **Plane**: `` (flavor: `auto`)
+- **Mattermost**: `` (flavor: `auto`)
+
+## 라이프사이클
+- 1 Plane 이슈 = 1 Mattermost 스레드 = 1 git 브랜치.
+- 소유자 = `assignees` 에 UUID 가 들어 있는 에이전트.
+- 상태 전환은 담당자 본인의 책임 (PM 이 대신 전환하지 않음).
+- 전체 상태 기계는 [`docs/agent-ownership.md`](docs/agent-ownership.md) 참조.
+
+## 소통
+- 모든 사람 ↔ 팀 소통은 Mattermost `#scrum-` (이슈별 스레드) 와 Plane (상태, 댓글) 두 채널만 사용.
+- 사람이 CLI 를 직접 타이핑하는 것은 bridge 장애 시 예외.
+
+### Reactive bridge (자동 응답 데몬)
+- **반드시** `genasis listen` (또는 trial 모드에서 `genasis listen --trial`) 데몬이 떠 있어야 사람 메시지가 에이전트 응답으로 이어진다.
+- 데몬이 채팅 채널을 구독 → 새 사람 메시지 감지 → `claude --print` 로 적절한 에이전트 페르소나에게 라우팅 → 응답을 같은 스레드에 reply + 관련 Plane 이슈 상태 transition.
+- 데몬이 없으면 사람 메시지는 sim DB 에 저장만 되고 어떤 에이전트도 반응하지 않는다. 사용자가 빈 화면을 보고 "에이전트가 안 움직인다" 라고 느끼는 1순위 원인.
+- 운영 절차: `genasis init --trial` 직후 별도 터미널에서 `genasis listen --trial` 을 띄우거나, `genasis monitor` 의 reactive 모드를 사용.
+
+## 사람 로스터 (Human Roster)
+_등록된 사람 멤버가 없습니다. `genasis humans add` 또는 TUI wizard 의 Humans 단계에서 추가하세요._
+
+### 요구사항 수신 프로토콜 (Requirement Intake — ADR-014)
+1. `#scrum-` 의 새 메시지 발신자가 **위 로스터에 있는 사람**이면 (Mattermost `user_id` 또는 `username` 매칭):
+   - 메시지 본문은 **바인딩 요구사항**으로 간주.
+   - PM 은 5분 이내 스레드에 `🟢 접수: <한 줄 요약>` 형태로 회신하고, Plane 이슈를 새로 만들거나 기존 이슈에 연결.
+   - PM 은 적절한 역할(architect / planner / qa 등) 을 `assignees` 에 추가하거나 스레드 멘션으로 라우팅.
+   - 우선순위는 `role` 라벨 순서: `stakeholder` > `pm-human` > `reviewer` > 기타.
+2. 발신자가 **로스터에 없는 사람**(또는 외부 게스트) 이면:
+   - PM 만 응답하고, 본문을 "미인증 요청"으로 분류해 Plane 라벨 `QUESTION` 을 적용.
+   - 다른 에이전트는 즉시 작업하지 않고 PM 의 라우팅 지시를 기다림.
+3. 발신자가 **봇 (`from_bot=true` 또는 username 이 `*-bot` 패턴)** 이면 기존 에이전트-에이전트 프로토콜을 따름.
+
+## 디자인 시스템
+- 단일 진실: `docs/design-system.md`.
+- `genasis design swap <reference-url>` 로 hot-swap 가능.
+- 프론트엔드 에이전트는 토큰·색상·레이아웃 도입 전 반드시 `design-system.md` 참조.
+
+## 데이터베이스
+- 읽기: `genasis db query "SELECT ..."` (DDL/DML 은 lex guard 가 거부).
+- 쓰기: `genasis db migrate` (Atlas / Drizzle Kit / DuckDB raw runner — 자동 감지).
+
+## 토큰 경제
+- RTK 가 설치되어 있으면 자동 등록.
+- 이 파일의 안정 prefix 순서는 의도적입니다 — `genasis upgrade` 없이 섹션 순서를 바꾸지 마세요.
+
+## Debug history (ADR-012)
+- `.claude/genasis/.manifest.json` 이 관리 파일의 sha256 을 기록 — 매 CLI 호출에서 drift 비교.
+- fence 밖은 자유롭게 편집 가능. `genasis debug status` 로 변경 사항을 본 뒤 `genasis debug collect` 로 익명화된 patch.json 생성, `genasis debug submit` 으로 genasis 본 리포에 PR 형태로 기여.
+- ADR-012 §8: 기여자는 `debug-history/patches/*.patch.json` 만 추가하는 PR 만 허용 — 템플릿 수정은 메인테이너가 `/debug-review` 스킬로 처리.
+- 비활성화: `GENASIS_DEBUG_DRIFT=0`.

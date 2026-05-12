@@ -60,6 +60,17 @@ pub struct Args {
     #[arg(long, default_value_t = 0u32, global = true)]
     pub max_events: u32,
 
+    /// D-028: 각 agent 의 "착수 → 완료" 사이 의도적 작업 시간 (초). echo-only
+    /// 모드에서도 사람이 칸반의 In Progress 카드 이동을 인지할 수 있게 한다.
+    /// 0 으로 두면 즉시 done — 시뮬레이션 티 나는 옛 동작.
+    #[arg(long, default_value_t = 6u32, global = true)]
+    pub agent_work_secs: u32,
+
+    /// D-028: 한 agent 완료 후 다음 agent 착수까지 대기 (초). 동시 처리가
+    /// 아니라 순차 협업으로 보이게 한다.
+    #[arg(long, default_value_t = 3u32, global = true)]
+    pub agent_gap_secs: u32,
+
     #[command(subcommand)]
     pub sub: Option<ListenCmd>,
 }
@@ -137,6 +148,10 @@ fn cmd_start(project_root: &Path, args: &Args) -> Result<()> {
     cmd.arg("--claude-timeout-secs")
         .arg(args.claude_timeout_secs.to_string());
     cmd.arg("--max-events").arg(args.max_events.to_string());
+    cmd.arg("--agent-work-secs")
+        .arg(args.agent_work_secs.to_string());
+    cmd.arg("--agent-gap-secs")
+        .arg(args.agent_gap_secs.to_string());
 
     let log = log_path(project_root);
     crate::listen::lifecycle::ensure_genasis_dir(project_root)?;
@@ -242,6 +257,8 @@ async fn build_loop_components(
         max_events: args.max_events,
         project_name: project_name.clone(),
         project_slug: project_slug.clone(),
+        agent_work_secs: args.agent_work_secs,
+        agent_gap_secs: args.agent_gap_secs,
     };
     if trial_enabled {
         let trial = cfg

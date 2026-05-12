@@ -169,12 +169,53 @@ async fn handle_human_post(
         warn!("apply_pm_routing failed: {e}");
     }
 
-    // (5) 각 멘션된 agent 에 대해 follow-up
-    for assignment in &route.assignments {
-        let agent_reply = if cfg.echo_only {
-            build_echo_agent_response(assignment, cfg)
+    // (5) D-028: 각 agent fan-out 을 "착수 → 작업 시간 → 완료" 두 단계로
+    // 펼친다. echo-only 모드에서도 in-progress 가 시각적으로 보이도록
+    // 의도적으로 sleep 을 끼워, 사용자가 칸반 In Progress 컬럼에 카드가
+    // 잠시 들어가는 것을 관찰할 수 있게 한다. 진짜 claude --print 응답
+    // 모드 (echo_only=false) 는 응답 자체에 시간이 걸리므로 추가 sleep 은
+    // PM ↔ agent ↔ agent 사이에만 최소한으로 둔다.
+    use tokio::time::{sleep, Duration};
+    let agent_work_secs = cfg.agent_work_secs.max(1) as u64;
+    let agent_gap_secs = cfg.agent_gap_secs.max(0) as u64;
+
+    // PM 응답 직후 첫 agent 가 일하기 시작하기 전 짧은 호흡. 사람이
+    // 채팅 화면에서 PM 메시지를 읽을 시간을 준다.
+    sleep(Duration::from_millis(800)).await;
+
+    for (idx, assignment) in route.assignments.iter().enumerate() {
+        // (5a) "착수" — inprogress transition 만 포함
+        let start_reply = if cfg.echo_only {
+            build_echo_agent_start(assignment, cfg)
         } else {
-            // 카드 제목은 new_cards 의 같은 assignee 중 첫 번째와 매칭.
+            // claude --print 한 번 호출이 inprogress+done 둘 다 만들 수
+            // 있는데, 우리는 두 단계로 펼치기 위해 echo 의 "착수" stub 만
+            // 사용. 진짜 claude 응답은 (5b) done 단계에 한 번 호출하도록
+            // 흐름을 단순화 (per-agent 두 번 LLM 호출은 과함).
+            build_echo_agent_start(assignment, cfg)
+        };
+        if let Err(e) = sink.reply(event, &assignment.role, &start_reply).await {
+            warn!("agent {} start reply failed: {e}", assignment.role);
+        }
+        let start_route = routing::parse_pm_routing(&start_reply);
+        if !start_route.transitions.is_empty() {
+            let _ = sink.apply_pm_routing(&start_route).await;
+        }
+
+        // (5b) 작업 시간 — 사람이 In Progress 카드를 인지할 시간.
+        info!(
+            target: "listen",
+            role = %assignment.role,
+            secs = agent_work_secs,
+            "agent working — visible in-progress window"
+        );
+        sleep(Duration::from_secs(agent_work_secs)).await;
+
+        // (5c) "완료" — done transition. echo-only 면 stub, 아니면
+        // claude --print 가 자연어 응답 생성 (그 안에 [CARD: → done] 포함).
+        let done_reply = if cfg.echo_only {
+            build_echo_agent_done(assignment, cfg)
+        } else {
             let card_title = route
                 .new_cards
                 .iter()
@@ -191,20 +232,25 @@ async fn handle_human_post(
                 Ok(s) => s,
                 Err(e) => {
                     warn!(
-                        "agent {} claude --print failed: {e} — fallback to echo",
+                        "agent {} claude --print failed: {e} — fallback to echo done",
                         assignment.role
                     );
-                    build_echo_agent_response(assignment, cfg)
+                    build_echo_agent_done(assignment, cfg)
                 }
             }
         };
-        if let Err(e) = sink.reply(event, &assignment.role, &agent_reply).await {
-            warn!("agent {} reply failed: {e}", assignment.role);
+        if let Err(e) = sink.reply(event, &assignment.role, &done_reply).await {
+            warn!("agent {} done reply failed: {e}", assignment.role);
         }
-        // agent 응답에서 추가 [CARD: ... → state] 마커가 있을 수 있음 — 한 번 더 parse.
-        let agent_route = routing::parse_pm_routing(&agent_reply);
-        if !agent_route.transitions.is_empty() {
-            let _ = sink.apply_pm_routing(&agent_route).await;
+        let done_route = routing::parse_pm_routing(&done_reply);
+        if !done_route.transitions.is_empty() {
+            let _ = sink.apply_pm_routing(&done_route).await;
+        }
+
+        // (5d) 다음 agent 로 넘어가기 전 호흡 — 동시 처리가 아니라
+        // 순차적으로 일한다는 인지를 사람에게 준다.
+        if idx + 1 < route.assignments.len() {
+            sleep(Duration::from_secs(agent_gap_secs)).await;
         }
     }
     Ok(())
@@ -290,18 +336,29 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     )
 }
 
-fn build_echo_agent_response(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
+/// D-028: agent 의 작업 진행감을 사람이 인지할 수 있게 응답을 두 단계로
+/// 분리. 1단계 = "착수" + `[CARD: X → inprogress]` 만, 2단계 = "완료" +
+/// `[CARD: X → done]` 만. `handle_human_post` 가 둘 사이에 sleep 을 끼워
+/// 칸반 In Progress 컬럼이 시각적으로 비치도록 한다.
+fn build_echo_agent_start(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
     let _ = cfg;
     format!(
         r#"✋ @human {role} 착수 — {task}
 
-[CARD: {task_title} → inprogress]
+[CARD: {task_title} → inprogress]"#,
+        role = assignment.role,
+        task = assignment.task,
+        task_title = first_three_words(&assignment.task),
+    )
+}
 
-✅ @human {role} 완료 — 시뮬레이션 모드에서 작업 마침
+fn build_echo_agent_done(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
+    let _ = cfg;
+    format!(
+        r#"✅ @human {role} 완료 — 시뮬레이션 모드에서 작업 마침
 
 [CARD: {task_title} → done]"#,
         role = assignment.role,
-        task = assignment.task,
         task_title = first_three_words(&assignment.task),
     )
 }
@@ -319,6 +376,13 @@ pub struct LoopConfig {
     /// claude --print 의 system context 보강용 (PRD 제목 + 프로젝트 명).
     pub project_name: String,
     pub project_slug: String,
+    /// D-028: 각 agent 의 "착수 → 완료" 사이 작업 시간 (초). 칸반 In
+    /// Progress 카드를 사람이 인지할 시간을 준다. echo-only 모드에서도
+    /// 실제로 일하는 것처럼 보이는 진행감을 만든다.
+    pub agent_work_secs: u32,
+    /// D-028: 한 agent 작업 종료 후 다음 agent 시작까지 대기 (초).
+    /// 순차적 협업 인지를 위해 0보다 큰 값 권장.
+    pub agent_gap_secs: u32,
 }
 
 async fn generate_response(message: &str, cfg: &LoopConfig) -> String {

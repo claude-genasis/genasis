@@ -1,0 +1,19 @@
+humans = []
+
+[project]
+name = ""
+domain = ""
+
+[i18n]
+active = "en"
+fence_lang = "en"
+cli_lang = "en"
+reference_langs = []
+selected_via = "flag"
+
+[design]
+gallery_index_url = "https://getdesign.md/"
+gallery_url_template = "https://getdesign.md/{slug}/design-md"
+add_command = "npx getdesign@latest add {slug} --force --out {out}"
+disable_telemetry = true
+external_dir = "docs/design-system"
