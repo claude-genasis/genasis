@@ -192,61 +192,137 @@ Genasis 는 사용자가 자신의 프로젝트에 agentic team 을 붙이는 �
 실사용 테스트** 가 가장 강력한 회귀 검증 수단이다. Claude Code 세션은
 다음 루프를 **스스로** 수행해서 발견된 결함을 이 저장소에 즉시 반영한다.
 
+**모든 설명은 한글로 한다** (사용자 요구사항 §13).
+
 ### 테스트 환경 (test bed)
 
-- 테스트 베드 경로: `/work/agenteams/team-ex/`
-  - `CLAUDE.local.md` — 7단계 테스트 프로토콜 (SSOT)
-  - `genasis-test-log.md` — 누적 테스트 로그
-  - `PLAN.md` — 현재 사이클에서 수정해야 할 항목 (없으면 새로 생성)
-  - `quickpath-test/` , `selfhost-test/` — 실제 attach 결과물이 누적되는
-    프로젝트 폴더 (각 사이클 시작 시 정리 가능)
-- 작업 저장소(=수정 대상): `/work/genasis/` (clone 한 게 아니라 그 자체)
-- 빌드 산출물: GitHub Release `claude-genasis/genasis` 의 musl-static
-  바이너리 (`install.sh` 가 이걸 받는다)
+- **테스트 베드 경로**: `/work/agenteams/team-ex/`
+  - `CLAUDE.md` — 본 섹션의 SSOT 가 되는 사용자 지침 (= 외부 신규
+    사용자 시점 프로토콜 13 개 조항). 본 문서는 그 내용과 일치해야 한다.
+  - `PLAN.md` — 현재 사이클에서 처리할 항목 + 종료 후 사용자 액션 가이드
+    (없으면 새로 생성).
+  - `genasis-test-log.md` — 누적 테스트 로그.
+  - `install.sh` — `curl` 로 받은 install.sh 본체 (테스트 산출물).
+  - 그 외 사이클 산출물 (프로젝트 폴더, 스크린샷, Playwright 스크립트 등) 은
+    각 사이클 시작 시 정리.
 
-### 루프 단계
+- **수정 대상 저장소**: `/work/genasis/` 자체. 별도 clone 하지 않고
+  이 저장소 안에서 직접 수정 → commit → push.
+
+- **테스트에 사용하는 바이너리**: GitHub Release `claude-genasis/genasis`
+  의 musl-static 바이너리 (`install.sh` 가 받아오는 것).
+  **Cargo 로 직접 빌드한 산출물을 테스트에 사용하지 않는다** — 사용자
+  요구사항 §12 (clone 금지, 배포된 바이너리만 사용). 단, fix 검증 시
+  로컬 release 빌드를 "프리뷰" 로 쓰는 것은 허용되지만, 사이클 종료
+  시점의 시각화 / 사용자 확인 자료는 반드시 install.sh 가 받은 GitHub
+  Release 바이너리로 재현되어야 한다.
+
+### 루프 단계 (사용자 13 개 조항과 매핑)
 
 1. **PLAN.md 확인** — `/work/agenteams/team-ex/PLAN.md` 가 존재하면
    그 안의 항목부터 처리한다. 없으면 단계 2 로 가서 새로 발견한다.
-2. **새 사용자 시뮬레이션** — `/work/agenteams/team-ex/` 에서 README 의
-   Quick Path 와 Step-by-Step Guide 를 **위에서 아래로** 그대로 실행한다.
-   외부 사용자가 README 만 보고 따라하는 상황을 재현해야 하므로, 본
-   저장소의 내부 지식으로 분기를 건너뛰지 않는다.
-3. **결함 기록** — Mattermost / Plane 웹 UI 까지 확인해서 "README 대로
-   했는데 의도한 결과가 안 나오는" 모든 케이스를 PLAN.md 에 항목으로
-   추가한다 (재현 절차 + 기대 / 실제 + 영향도).
-4. **수정 — `/work/genasis/`** 에서 코드 / 프롬프트 / 템플릿을 고친다.
-   - Bilingual mirror 정책 준수.
+
+2. **테스트 베드 정리** (사용자 §12) — 사이클 시작 시점에
+   `/work/agenteams/team-ex/` 하위 디렉터리는 **모두 삭제**하여
+   외부 신규 사용자 환경을 재현한다. 루트의 `CLAUDE.md`, `PLAN.md`,
+   `genasis-test-log.md` 만 남긴다.
+
+3. **새 사용자 시뮬레이션** (사용자 §1–§3) — `/work/agenteams/team-ex/`
+   에서 다음을 위에서 아래로 그대로 실행한다:
+   - `https://github.com/claude-genasis/genasis` 의 README 를 받는 입장.
+   - README §Quick Path 1–5 단계 전부 (install.sh → init --trial →
+     example prd → init → monitor).
+   - README §Step-by-Step Guide 의 모든 옵션 (Option A 트라이얼,
+     Option B 자체 호스트).
+   - 분기에서 본 저장소 내부 지식으로 잘라먹지 않는다. README 그대로.
+
+4. **브라우저 검증 — Playwright 사용** (사용자 §8) — Mattermost,
+   Plane, trial-app 웹 UI 의 의도 동작을 **반드시 Playwright** 로
+   자동화하여 점검한다. 사용자가 눈으로 확인할 수 있도록 스크린샷을
+   `/work/agenteams/team-ex/screenshots/` 에 저장한다.
+   - 권장 환경: `/home/bravo/miniconda3/envs/llms/bin/python` (이미
+     `playwright` 가용) + `/usr/bin/google-chrome` (시스템 크롬).
+   - 브라우저 자동화 결과는 단순 PASS/FAIL 이 아니라 카드 / 메시지 /
+     UI 요소 별 보이는지 여부를 JSON 으로 dump 해서 PLAN.md 에 인용
+     가능하게 한다.
+
+5. **결함 기록 — PLAN.md** (사용자 §3, §5) — "README 대로 했는데
+   의도한 결과가 안 나오는" 모든 케이스를 PLAN.md 에 항목으로 추가한다.
+   각 결함은 다음을 포함:
+   - ID (D-001, D-002, … 누적)
+   - 심각도 (Critical / High / Medium / Low)
+   - 재현 절차 (명령 그대로)
+   - 기대 vs 실제 (실제는 응답 body / 스크린샷 / Playwright JSON 인용)
+   - 추정 root cause
+   - 해결 계획
+
+6. **수정 — `/work/genasis/` 안에서** (사용자 §4–§6) — 코드 / 프롬프트 /
+   템플릿을 고친다. 외부 clone 없이 본 저장소가 곧 수정 대상이다.
+   - Bilingual mirror 정책 준수 (위 §Bilingual Mirror Policy).
    - `cargo fmt` + `cargo clippy` + 관련 단위 테스트 통과.
-   - `progress.md` / `progress.ko.md` 에 사이클 로그 추가.
+   - `progress.md` / `progress.ko.md` 양쪽에 사이클 로그 추가.
    - 패치 버전 bump (`Cargo.toml`) — 사용자가 명시한 버전을 우선,
      명시 없으면 0.0.1 단위 patch bump.
-5. **Push & CI 모니터링** — 변경을 메인 브랜치에 push 한 뒤
-   `gh run list --limit 5` / `gh run watch` 로 release workflow 가 `ok`
-   가 될 때까지 기다린다. **무한 polling 금지** — `ScheduleWakeup` 으로
-   적절한 간격을 두고 재진입한다.
-6. **배포본 회수 & 재테스트** — release 가 publish 되면 테스트 베드의
-   `install.sh` 가 받아오는 바이너리가 새 버전인지 `genasis --version`
-   으로 확인한 뒤 단계 2 부터 다시.
-7. **종료 조건** — PLAN.md 가 비어 있고 README Quick Path / Step-by-Step
-   가 처음부터 끝까지 통과하면 사이클을 종료한다. 그 외에는 무한 반복.
+
+7. **Push & CI 모니터링** — 변경을 메인 브랜치에 push 한 뒤
+   `gh run list --workflow=release.yml --limit 3` 으로 release workflow
+   가 `ok` 가 될 때까지 기다린다. **무한 polling 금지** —
+   `ScheduleWakeup` 으로 270–1800 초 간격을 두고 재진입한다.
+
+8. **배포본 회수 & 재테스트** — release 가 publish 되면 단계 2 로 가서
+   테스트 베드를 다시 정리한 뒤, `install.sh` 가 받아오는 바이너리가
+   새 버전인지 `genasis --version` 으로 확인하고 단계 3 부터 반복.
+
+9. **사용자 확인 자료 정리 — PLAN.md** (사용자 §10, §11) — 사이클 종료
+   직전 PLAN.md 에 사용자가 결과를 직접 확인할 수 있는 자료를 모두
+   적는다. 누락 금지 항목:
+   - **링크** — trial-app Live URL, Plane 워크스페이스 URL,
+     Mattermost team / 채널 URL, 스크린샷 경로, Playwright 스크립트
+     경로.
+   - **자격증명** — 위 링크들로 로그인 / 접속이 필요하다면 id / pw /
+     token 을 함께 적는다. token-as-capability 인 경우 (예: trial-app)
+     URL 자체가 자격증명이라는 점도 명시.
+   - **사용자 다음 액션** — "이걸 열어서 X 를 확인하세요", "필요하면
+     `genasis publish` 재호출", "운영자 재배포가 필요한 경우 명령" 등
+     구체적 행동을 한글로 제시.
+
+10. **종료 조건** (사용자 §7) — PLAN.md 의 결함 목록이 비어 있고 README
+    Quick Path / Step-by-Step 이 처음부터 끝까지 통과하면 사이클을
+    종료한다. 그 외에는 무한 반복.
 
 ### 행동 원칙
 
 - **README 가 진실** — 사용자는 README 만 본다. "README 에는 X 라고
   적혀 있는데 실제로는 Y 가 맞다" 라는 상황이 발견되면 코드를 README 에
   맞추거나 README 를 코드에 맞춘다 (둘 중 사용자 가치가 큰 쪽 선택).
-- **데이터 보존** — `/work/agenteams/team-ex/quickpath-test` 와
-  `selfhost-test` 는 회귀 검증용 fixture 다. 함부로 `rm -rf` 하지 않고,
-  필요하다면 각 사이클 시작 시 git stash 같은 방식으로 보존한다.
+
+- **clone 금지 / 바이너리만** (사용자 §12) — 새 사용자 시점 재현이
+  무너지므로 테스트 행위 자체는 `git clone genasis` 로 시작하지 않는다.
+  `install.sh` 가 GitHub Release 에서 받는 바이너리로 충분히 재현
+  가능해야 하고, 그렇지 않다면 그것이 결함이다. (예: D-008 — Self-host
+  Option B 가 `cd servers/` 부터 시작이라 install.sh 만 받은 사용자는
+  진입 불가 → README 보강.)
+
+- **Playwright 의무** (사용자 §8, §9) — 사람이 들어가서 확인할 수 있는
+  근거 (스크린샷 + URL) 를 항상 남긴다. CLI 출력만으로 "동작했다" 라고
+  결론짓지 않는다. SSE / 라이브 업데이트가 있는 UI 일수록 필수.
+
 - **상위 시스템 (Plane / Mattermost) 변경 금지** — 자가테스트는 호스팅
   Plane / Mattermost 인스턴스에 데이터를 만든다. 그 외부 시스템의
   설정 변경 권한은 사용자에게 있고, 에이전트는 데이터 정리 (`genasis
   trial cleanup` 등) 만 한다.
+
 - **CI 우회 금지** — `--no-verify`, i18n drift 미러 skip, clippy
   allow-by-default 추가 등은 **사용자가 명시 허락한 경우** 에만.
+
 - **재현 불가능 결함은 보고만** — 한 번 보이고 사라진 결함은 PLAN.md 에
   "재현 불가 — 다음 사이클에서 재관찰" 로 기록만 하고 추측 수정 금지.
+
+- **외부 디펜던시 핑계 금지** — "호스팅 인스턴스가 stale 이라 못 한다"
+  류의 결론은 그 자체로 직접 진단 + 우회 경로 제공 의무로 이어진다.
+  binary 측에서 `GENASIS_TRIAL_URL` 같은 escape hatch 를 만들거나 로컬
+  docker 띄워서 end-to-end 증명하는 등 사용자가 외부 액션 없이도
+  검증할 수 있게 한다.
 
 ### 신규 사이클 진입 명령
 
@@ -255,4 +331,5 @@ Claude Code 는 이 섹션의 단계 1 부터 즉시 시작한다. 별도 확인
 
 > 이 섹션은 외부 PLAN.md / CLAUDE.md 파일 (예: 다른 사용자 환경의
 > `~/rnd/agenteams/team01/...`) 에 의존하지 않는다. 본 저장소 + 테스트
-> 베드만으로 자족적으로 돌아가야 한다.
+> 베드만으로 자족적으로 돌아가야 한다. `/work/agenteams/team-ex/CLAUDE.md`
+> 가 사용자 SSOT 이고, 본 섹션은 그 내용을 항상 반영한다.
