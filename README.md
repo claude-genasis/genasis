@@ -250,9 +250,9 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.4)
+## Known limitations (v0.5.5)
 
-- **Hosted trial-app deployment may lag this binary by 1-2 releases.** When `genasis init --trial` POSTs to `https://mmplane-trial.realstory.blog`, the binary uses the current contract (token-as-capability for all bridge routes, no shared_secret required) — but the deployed Next.js instance is rebuilt out-of-band. If your `genasis init --trial` succeeds but `genasis init` afterwards returns 401 on `/api/plane/projects`, the deployed trial-app is older than the binary; ask the operator to redeploy. Self-hosted trial-app (clone the agents-pool repo + `npm run build` + run) always matches the contract.
+- **Hosted trial-app deployment lag is now self-healing for the Quick Path.** v0.5.5 routes `ensure_project` and `ensure_channel` through the auth-free `/api/trial/bootstrap` (which all deployed trial-app versions accept) when the binary detects the team was already seeded by `genasis init --trial`. The Quick Path therefore no longer hard-errors at step 4 against a stale operator deployment. Downstream **agent-driven** calls (`create_issue`, `transition`, `post_root`) still target the legacy `/api/plane/*` and `/api/mattermost/*` endpoints — these may still 401 when the deployed trial-app precedes `agents-pool@289876c`. If your agents fail at runtime with a 401 to `/api/plane/issues` or `/api/mattermost/posts`, ask the operator to redeploy. Self-hosted trial-app always matches the contract.
 
 
 

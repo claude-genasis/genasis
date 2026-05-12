@@ -239,9 +239,9 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.4)
+## 알려진 한계 (v0.5.5)
 
-- **호스팅 trial-app 배포가 바이너리보다 1-2 릴리스 늦을 수 있음.** `genasis init --trial`이 `https://mmplane-trial.realstory.blog`에 POST할 때 바이너리는 현 contract (모든 bridge route token-as-capability, shared_secret 불필요)를 쓰지만, deploy된 Next.js 인스턴스는 별도로 재빌드됨. `genasis init --trial`은 성공하는데 그 뒤 `genasis init`이 `/api/plane/projects`에서 401을 받으면, 배포된 trial-app이 바이너리보다 옛버전 — 운영자에게 재배포 요청. 자체 host (agents-pool clone + `npm run build` + run)는 항상 contract 맞음.
+- **호스팅 trial-app 배포 lag — Quick Path 는 이제 self-healing.** v0.5.5 부터 `ensure_project` / `ensure_channel` 은 `genasis init --trial` 단계에서 팀이 이미 seed 된 것을 탐지하면 auth-free `/api/trial/bootstrap` 로 라우팅 (모든 배포 버전이 받음). 그래서 운영자 배포가 stale 해도 Quick Path 단계 4 가 더는 hard-fail 하지 않음. 다만 agent 런타임이 부르는 downstream call (`create_issue`, `transition`, `post_root`) 은 여전히 legacy `/api/plane/*` / `/api/mattermost/*` 로 가므로 `agents-pool@289876c` 이전 배포에서는 401 가능. 에이전트 동작 중 `/api/plane/issues` / `/api/mattermost/posts` 에 401 발생하면 운영자에게 재배포 요청. 자체 host trial-app 은 항상 contract 맞음.
 
 
 

@@ -1053,6 +1053,25 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.5 릴리스 — stale 운영자 배포에 대해 Quick Path 가 self-heal (D-001)**. v0.5.4 바이너리로 자가테스트 사이클을 돌리니, `mmplane-trial.realstory.blog` 호스팅이 `agents-pool@289876c` 보다 옛 버전이면 Quick Path 단계 4 (`--trial` 후 `genasis init`) 가 여전히 `/api/plane/projects` 의 401 로 hard-fail. v0.5.4 릴리스 노트는 이를 운영자 액션으로 문서화했지만, 신규 사용자는 남의 서버를 재배포할 방법이 없다. 이번 릴리스는 그 일을 바이너리로 옮겨 Quick Path 가 self-heal 하도록 만듦.
+
+  **Fix (D-001)**:
+  - `TrialPlane::ensure_project` 가 먼저 `GET /api/trial/team-app/status?team=<token>` 를 호출 (auth-free, 모든 배포 버전 수락). `--trial` 단계에서 `try_bootstrap_trial_app` 이 이미 팀을 seed 했으므로 status 가 team_exists=true 를 반환할 것 — bootstrap-canonical `slugify(project_name)` 을 즉시 반환하고 auth-locked `/api/plane/projects` POST 자체를 안 함. 부수 효과로 잠재 slug 일관성 bug 도 해결: 기존 bare `genasis init` 는 slug 를 `slug_to_identifier(name)` (예: "MARK") 로 derive 했는데, 이는 bootstrap 이 쓴 `slugify("Marketing Squad")="marketing-squad"` 와 충돌. 이제 downstream `create_issue` / `transition` 가 Live Trial UI 가 보여주는 동일 sim row 를 가리킴.
+  - `TrialMattermost::ensure_channel` 는 auth-free idempotent `/api/trial/bootstrap` 로 라우팅 (대상 채널을 single-element `channels[]` 로 전달). bootstrap 이 기존 채널 row id 를 그대로 돌려줘서 auth-locked `/api/mattermost/channels` POST 불필요.
+  - 두 메서드 모두 매우 옛 self-host 배포를 위한 legacy POST fallback 보유, 그 fallback 도 401 시 raw `{"error":"unauthorized"}` 가 아니라 한 줄 remediation 메시지 ("배포된 trial-app 이 이 바이너리보다 옛 버전 — 재배포 또는 self-host 권장") 출력.
+
+  **이번 릴리스 미포함**:
+  - 에이전트 런타임이 부르는 호출 (`create_issue`, `transition`, `post_root`, `post_thread`) 은 여전히 legacy `/api/plane/issues` / `/api/mattermost/posts` 대상이라 stale 배포에서는 여전히 401 가능. 이를 닫으려면 trial provider 가 자체 (issue_id → sim row) 매핑을 유지해야 하는 큰 리팩토링 필요, 신규 사용자에게 보이는 Quick Path 외관에는 영향 없음. README §"알려진 한계 (v0.5.5)" 에 정직하게 명시.
+
+  **자가개발 및 테스트**:
+  - `CLAUDE.md` 에 `## 자가개발 및 테스트` 섹션 추가, 반복 test→fix→push→monitor→retest 루프 정문화. 테스트 베드는 `/work/agenteams/team-ex/` 와 `PLAN.md` + `genasis-test-log.md`; 프로토콜은 self-contained — 외부 `~/rnd/agenteams/team01/...` 의존성 없음. Claude Code 세션이 이 루프를 자율로 재진입 가능.
+
+  **검증**:
+  - `cargo build -p genasis-providers` clean, `cargo test -p genasis-providers` 23 passed
+  - `mmplane-trial.realstory.blog` (v0.5.4 시대 배포본) 대상 라이브 통합 테스트: Quick Path 1→4 가 이제 end-to-end 성공. `--trial` 후 `genasis init` 이 `plane project_id = test-v055-live` 반환, 401 없음.
+
+  **v0.5.5 태그 푸시** 가 `release.yml` 트리거 (cross 로 musl-static x86_64 + aarch64, Verify-static-linking + compat-smoke gate, 두 tarball + sha256 첨부된 GitHub Release).
+
 - 2026-05-12: **v0.5.4 릴리스 — v0.5.3 현장 결함 8개 (C1-S1) + 다음 운영자 배포 시 Quick Path 깨끗**. 테스터가 v0.5.3 을 clean WSL2 박스에서 end-to-end 로 돌리고 결함 11개 보고 (C1-3 critical, S1-4 significant, M1-4 medium, D1 low). 그 중 4개 (S2, S4, M4, 부분적 S3) 는 이미 이전 패치에서 처리됨. 이 릴리스가 추가 8개 닫음. **호스팅 `mmplane-trial.realstory.blog` 배포가 agents-pool `289876c` 이후 commit 이라면** (C1 참조), 이제 Quick Path 가 바이너리만으로 end-to-end 동작.
 
   **Fix**:

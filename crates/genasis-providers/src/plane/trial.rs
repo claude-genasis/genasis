@@ -8,6 +8,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde_json::{json, Value};
 
+use genasis_core::config::slugify;
 use genasis_core::error::{Error, Result};
 
 use super::{CycleRef, IssueRef, LabelRef, PlaneProvider};
@@ -60,6 +61,50 @@ impl TrialPlane {
         );
         h
     }
+
+    /// v0.5.5 D-001: GET `/api/trial/team-app/status?team=<token>` to check
+    /// whether `try_bootstrap_trial_app` (called earlier in the same
+    /// `genasis init --trial` flow) has already seeded the team row +
+    /// project for this token. Auth-free — relies on token-as-capability,
+    /// matches what the deployed trial-app already accepts.
+    ///
+    /// Returns `Ok(Some(slug))` when the team exists AND its `project_name`
+    /// matches `expected_name`; the slug is the bootstrap-canonical
+    /// `slugify(project_name)` so downstream calls land on the same sim
+    /// row the Live Trial UI renders. `Ok(None)` on team missing / name
+    /// mismatch (caller falls through to POST). `Err` on transport
+    /// failure.
+    pub(crate) async fn team_bootstrap_slug(&self, expected_name: &str) -> Result<Option<String>> {
+        let url = format!(
+            "{}/api/trial/team-app/status?team={}",
+            self.base_url, self.team_token
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| Error::Provider(format!("trial plane status probe: {e}")))?;
+        if !resp.status().is_success() {
+            return Ok(None);
+        }
+        let v: Value = resp
+            .json()
+            .await
+            .map_err(|e| Error::Provider(format!("trial plane status json: {e}")))?;
+        let team_exists = v
+            .get("team_exists")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        if !team_exists {
+            return Ok(None);
+        }
+        let project_name = v.get("project_name").and_then(|x| x.as_str()).unwrap_or("");
+        if project_name != expected_name {
+            return Ok(None);
+        }
+        Ok(Some(slugify(project_name)))
+    }
 }
 
 fn slug_from_identifier(identifier: &str, fallback_name: &str) -> String {
@@ -96,6 +141,26 @@ impl PlaneProvider for TrialPlane {
     }
 
     async fn ensure_project(&self, name: &str, identifier: &str) -> Result<String> {
+        // v0.5.5 D-001: when `--trial` already ran `try_bootstrap_trial_app`
+        // earlier in the same `genasis init` flow, the project row already
+        // exists in the trial-app sim DB. The auth-free
+        // `/api/trial/team-app/status` endpoint confirms this without going
+        // through the `/api/plane/projects` POST — which the deployed
+        // operator-hosted trial-app may still gate behind
+        // TRIAL_SHARED_SECRET (deployment lag relative to
+        // agents-pool@289876c). Short-circuiting here ALSO fixes a slug
+        // consistency bug: `try_bootstrap_trial_app` writes slug =
+        // slugify("Marketing Squad") = "marketing-squad", but bare
+        // `genasis init` derived a different slug from the short
+        // identifier ("MARK" → "mark"). Returning the bootstrap-canonical
+        // slug keeps downstream `create_issue` / `transition` calls
+        // pointing at the same row the trial-app UI shows.
+        if !self.team_token.is_empty() {
+            if let Ok(Some(canonical_slug)) = self.team_bootstrap_slug(name).await {
+                return Ok(canonical_slug);
+            }
+        }
+
         let slug = slug_from_identifier(identifier, name);
         let body = json!({"slug": slug, "name": name});
         let resp = self
@@ -109,6 +174,20 @@ impl PlaneProvider for TrialPlane {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
+            // 401 from the deployed trial-app means the operator's hosted
+            // instance precedes the token-as-capability contract on
+            // /api/plane/*. Surface a one-line remediation pointer so the
+            // user knows what to do instead of just dumping the raw body.
+            if status.as_u16() == 401 {
+                return Err(Error::Provider(format!(
+                    "trial plane ensure_project: 401 from {}. \
+                     The deployed trial-app is older than this binary's \
+                     auth contract (see README §'Known limitations'). \
+                     Ask the operator to redeploy, or self-host the \
+                     trial-app from agents-pool.",
+                    self.base_url
+                )));
+            }
             return Err(Error::Provider(format!(
                 "trial plane ensure_project {status}: {text}"
             )));
