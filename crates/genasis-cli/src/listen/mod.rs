@@ -236,6 +236,9 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     if m.contains("초록") || m.contains("green") || m.contains("그린") {
         features.push("accent-green");
     }
+    if m.contains("보라") || m.contains("purple") || m.contains("퍼플") {
+        features.push("accent-purple");
+    }
     if m.contains("다크") || m.contains("dark") {
         features.push("dark-mode");
     }

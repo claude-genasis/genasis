@@ -270,7 +270,7 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.18)
+## Known limitations (v0.5.19)
 
 - **시나리오 = 기존 앱 수정** (사용자가 v0.5.15 의 "전체 앱 교체" 시나리오를 거부). 트라이얼의 쇼케이스는 `genasis example prd` 결과물 (Claude Code 전문가 진단 퀴즈) 로 배포돼 있고, 채팅 패널의 사람 요청은 **그 기존 앱에 대한 시각 변경 / 기능 추가** 로 해석됩니다. 예: "퀴즈 시작 버튼 색상을 빨간색으로 바꿔줘", "다크 테마 적용해줘", "결과 화면에 공유 버튼 추가해줘". PM 이 `[FEATURES: accent-red, dark-mode, share-button]` 같은 마커로 응답 → app_features 누적 → QuizApp 이 실 반영.
 

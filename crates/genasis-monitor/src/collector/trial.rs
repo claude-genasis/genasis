@@ -194,3 +194,42 @@ pub async fn poll_trial(
         app_features,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Live smoke test against the operator-hosted trial-app — proves
+    /// D-025 wiring end-to-end. Run with `cargo test -p genasis-monitor
+    /// d025_live --release -- --ignored --nocapture` to exercise the
+    /// real network path; default `cargo test` skips it.
+    #[tokio::test]
+    #[ignore]
+    async fn d025_live_smoke_against_hosted_trial() {
+        let snap = poll_trial(
+            "https://mmplane-trial.realstory.blog",
+            "37236daa2e2e407bd9cb2e3e1158d095",
+            "v516-final",
+            "scrum-v516-final",
+        )
+        .await
+        .expect("poll_trial should succeed against operator-hosted trial-app");
+        assert!(
+            snap.sprint.total > 0,
+            "sprint should have ≥1 issue, got {} (sprint={:?})",
+            snap.sprint.total,
+            snap.sprint
+        );
+        assert!(!snap.log_tail.is_empty(), "log_tail should not be empty");
+        eprintln!(
+            "[d025] sprint: total={} todo={} done={} | agents={} | logs={} | app={} features={:?}",
+            snap.sprint.total,
+            snap.sprint.todo,
+            snap.sprint.done,
+            snap.agent_issues.len(),
+            snap.log_tail.len(),
+            snap.app_kind,
+            snap.app_features
+        );
+    }
+}
