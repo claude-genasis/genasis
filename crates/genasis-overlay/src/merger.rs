@@ -244,8 +244,20 @@ pub struct AppliedReport {
 /// Build a Tera bundle from the AgentStore's `overlays/<lang>/` directory.
 ///
 /// ADR-011: loads overlay .tera files from the disk-cached agents catalog.
+///
+/// v0.5.4 (issue S1): registers a custom `slugify` filter so overlay
+/// templates can produce valid Mattermost channel names from project
+/// names. The v1.0.0 catalog templates use `{{ project_name }}`
+/// directly which produces `#scrum-Marketing Squad` (invalid MM
+/// channel) when the project name has spaces. The next catalog
+/// refresh can switch those templates to `{{ project_name | slugify }}`
+/// or use the new `project_slug` context var (which is pre-slugified
+/// by `cmd_attach::build_context`); both produce the canonical
+/// `#scrum-marketing-squad` form. Registering the filter here keeps
+/// future templates working without binary changes.
 pub fn build_tera_from_store(store: &genasis_templates::AgentStore, lang: &str) -> Result<Tera> {
     let mut tera = Tera::default();
+    tera.register_filter("slugify", slugify_filter);
     let subdir = format!("overlays/{lang}");
     let files = store
         .get_dir_files(&subdir, ".patch.md.tera")
@@ -260,6 +272,20 @@ pub fn build_tera_from_store(store: &genasis_templates::AgentStore, lang: &str) 
             .map_err(|e| Error::Overlay(format!("tera add {name}: {e}")))?;
     }
     Ok(tera)
+}
+
+/// Tera filter implementing the same lowercase-kebab transform as
+/// `genasis_core::config::slugify` — "Marketing Squad" → "marketing-
+/// squad". Available in every overlay template loaded by
+/// `build_tera_from_store` as `{{ project_name | slugify }}`.
+fn slugify_filter(
+    value: &tera::Value,
+    _args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
+    let s = value
+        .as_str()
+        .ok_or_else(|| tera::Error::msg("slugify: expected string input"))?;
+    Ok(tera::Value::String(genasis_core::config::slugify(s)))
 }
 
 /// Convenience wrapper that builds Tera for "en" locale from a store.

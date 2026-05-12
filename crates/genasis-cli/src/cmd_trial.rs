@@ -211,7 +211,10 @@ team_token = "abc123def456abc123def456abc123de"
 "#,
         );
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
+            kind: Kind::Publish(PublishArgs {
+                dry_run: true,
+                project: None,
+            }),
             project: Some(tmp.path().to_path_buf()),
         };
         run(args).await.expect("dry-run succeeds");
@@ -243,7 +246,10 @@ shared_secret = ""
 "#,
         );
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
+            kind: Kind::Publish(PublishArgs {
+                dry_run: true,
+                project: None,
+            }),
             project: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.unwrap_err();
@@ -258,7 +264,10 @@ shared_secret = ""
     async fn publish_errors_when_no_config() {
         let tmp = TempDir::new().unwrap();
         let args = Args {
-            kind: Kind::Publish(PublishArgs { dry_run: true, project: None }),
+            kind: Kind::Publish(PublishArgs {
+                dry_run: true,
+                project: None,
+            }),
             project: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.unwrap_err();

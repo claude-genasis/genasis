@@ -250,7 +250,11 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.2)
+## Known limitations (v0.5.4)
+
+- **Hosted trial-app deployment may lag this binary by 1-2 releases.** When `genasis init --trial` POSTs to `https://mmplane-trial.realstory.blog`, the binary uses the current contract (token-as-capability for all bridge routes, no shared_secret required) — but the deployed Next.js instance is rebuilt out-of-band. If your `genasis init --trial` succeeds but `genasis init` afterwards returns 401 on `/api/plane/projects`, the deployed trial-app is older than the binary; ask the operator to redeploy. Self-hosted trial-app (clone the agents-pool repo + `npm run build` + run) always matches the contract.
+
+
 
 These are documented gaps the next patch will close — none block
 the Quick Path on Linux today, but Step-by-Step / Option B users

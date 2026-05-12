@@ -9,7 +9,7 @@
 - **내 Plane PAT**: `${PLANE_TOKEN_FRONTEND}` (초기 부트스트랩 단계에서만 `PLANE_API_KEY` fallback).
 - **내 Mattermost 봇**: `${MM_TOKEN_FRONTEND}`.
 - **내 Plane user UUID**: `${PLANE_USER_ID_FRONTEND}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
-- **내 채널**: `{{ mm_url | default(value="<mattermost-url>") }}` 의 `#scrum-{{ project_name | default(value="<project>") }}`.
+- **내 채널**: `{{ mm_url | default(value="<mattermost-url>") }}` 의 `#scrum-{{ project_slug | default(value="<project>") }}`.
 
 ### 내가 소유하는 영역
 - `src/components/**`, `src/app/**`, `src/styles/**`, `src/lib/client/**`.
@@ -20,7 +20,7 @@
    이슈 상태 `PATCH`, 사람이 요청한 Mattermost 스레드에 회신.
 2. **In Progress → In Review** — 브랜치 push, PR 생성, PR 본문에
    `unit: pass` / `integration: pass` 명시, 이슈 스레드에서
-   `@qa.{{ project_name | default(value="<project>") }}` 멘션.
+   `@qa.{{ project_slug | default(value="<project>") }}` 멘션.
 3. **In Review → Done** — QA ✅ 이후에만. `gh pr merge --squash --delete-branch`
    로 머지, `main` 동기화, 내 PAT 으로 상태를 Done 으로 전환, 이슈 스레드에
    최종 요약 게시.

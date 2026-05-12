@@ -119,22 +119,21 @@ impl UpstreamPlane {
 #[async_trait]
 impl PlaneProvider for UpstreamPlane {
     async fn health(&self) -> Result<serde_json::Value> {
-        // v0.5.2 (Issue #8): Plane v1.2.3 has no `/api/v1/health/`
-        // endpoint — it returns `{"error":"Page not found."}` and
-        // looks alarming in `genasis init` output. The most stable
-        // workspace-scoped probe is `/api/v1/workspaces/<slug>/`:
-        // 200 = workspace reachable, 401 = auth wrong (we still
-        // surface as "server up" with the status code), 404 =
-        // workspace doesn't exist yet (also "server up"). Anything
-        // else is a real transport failure.
-        let url = format!(
-            "{}/api/v1/workspaces/{}/",
-            self.base_url, self.workspace_slug
-        );
+        // v0.5.4 (issue M2): `/api/v1/workspaces/<slug>/` is
+        // workspace-scoped and returns 401 even with a valid API
+        // key under some Plane permission configs — that 401 shows
+        // up as scary noise in `genasis init` output before any
+        // real provisioning has happened. Switched to
+        // `/api/instances/`, an unauthenticated endpoint that
+        // returns instance metadata (200 + JSON) when the Plane
+        // backend is reachable. We surface the workspace
+        // existence check separately in `ensure_project`'s
+        // paginated walk, which already returns a clean error if
+        // the workspace is missing.
+        let url = format!("{}/api/instances/", self.base_url);
         let resp = self
             .client
             .get(&url)
-            .headers(self.headers())
             .send()
             .await
             .map_err(|e| Error::Provider(format!("plane health: {e}")))?;

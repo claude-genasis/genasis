@@ -556,11 +556,22 @@ main() {
             "$PREFIX/genasis" agents fetch \
                 || warn "'genasis agents fetch' failed — attach will use cached catalog if available."
 
+            # v0.5.4 (issue M3): when install.sh is invoked via
+            # `curl ... | sh`, stdin is the curl pipe, not a TTY.
+            # We already detect that and skip the lang prompt in
+            # `resolve_install_lang`, but the child `genasis attach`
+            # process inherits the same pipe stdin — and any
+            # interactive read inside attach (TTY-aware prompts that
+            # didn't get the `--non-interactive` flag through) would
+            # try to consume bytes meant for the install script
+            # itself. Redirecting stdin from /dev/null here guarantees
+            # the child never even attempts to read.
             info "Running 'genasis attach --lang $ACTIVE_LANG --non-interactive' (use --no-run to skip)"
             "$PREFIX/genasis" attach \
                 --lang "$ACTIVE_LANG" \
                 --non-interactive \
                 --yes \
+                </dev/null \
                 || warn "'genasis attach' exited non-zero — check output above."
         else
             ok "Skipping auto-run (--no-run)."

@@ -9,11 +9,11 @@
 - **My Plane PAT**: `${PLANE_TOKEN_DEVOPS}` (falls back to `PLANE_API_KEY` only during initial bootstrap).
 - **My Mattermost bot**: `${MM_TOKEN_DEVOPS}`.
 - **My Plane user UUID**: `${PLANE_USER_ID_DEVOPS}` — issues with this UUID in `assignees` are mine.
-- **My channel**: `#scrum-{{ project_name | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+- **My channel**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
 
 ### Lifecycle (assignee-primary)
 - `Todo → In Progress`: create `feat/{seq}-{slug}` branch (or `fix/` / `design/` per kind), `PATCH` Plane state with my PAT, reply on the human request thread.
-- `In Progress → In Review`: push the branch, open a PR, ensure `unit: pass` and `integration: pass` are stated in the PR body, mention `@qa.{{ project_name | default(value="<project>") }}` on the issue thread.
+- `In Progress → In Review`: push the branch, open a PR, ensure `unit: pass` and `integration: pass` are stated in the PR body, mention `@qa.{{ project_slug | default(value="<project>") }}` on the issue thread.
 - `In Review → Done`: only after QA ✅. Merge with `gh pr merge --squash --delete-branch`, sync `main`, transition state to Done with my PAT, post the final summary in the issue thread.
 
 ### Database

@@ -9,7 +9,7 @@
 - **My Plane PAT**: `${PLANE_TOKEN_FRONTEND}` (falls back to `PLANE_API_KEY` only during initial bootstrap).
 - **My Mattermost bot**: `${MM_TOKEN_FRONTEND}`.
 - **My Plane user UUID**: `${PLANE_USER_ID_FRONTEND}` — issues with this UUID in `assignees` are mine.
-- **My channel**: `#scrum-{{ project_name | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+- **My channel**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
 
 ### What I own
 - `src/components/**`, `src/app/**`, `src/styles/**`, `src/lib/client/**`.
@@ -21,7 +21,7 @@
    request.
 2. **In Progress → In Review** — push the branch, open a PR, ensure
    `unit: pass` and `integration: pass` are stated in the PR body, mention
-   `@qa.{{ project_name | default(value="<project>") }}` on the issue thread.
+   `@qa.{{ project_slug | default(value="<project>") }}` on the issue thread.
 3. **In Review → Done** — only after QA ✅. Merge with
    `gh pr merge --squash --delete-branch`, sync `main`, transition state to
    Done with my PAT, post the final summary in the issue thread.

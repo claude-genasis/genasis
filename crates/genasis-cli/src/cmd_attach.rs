@@ -138,6 +138,13 @@ pub async fn pub_run(
     // already ships them. Fix is non-destructive (overwrites on
     // re-attach so user-edited bodies need backup; matches how
     // agent fences are handled today).
+    // v0.5.4 (issue C3): the count returned here is the TOTAL number
+    // of files actually written (GENASIS.md + commands/hooks/skills
+    // + CLAUDE.md stub if absent). Previous releases concatenated
+    // "+ GENASIS.md" to the log unconditionally; that lied when the
+    // catalog didn't carry the template. install_genasis_overlay_artifacts
+    // now surfaces its own warning when GENASIS.md isn't written, so
+    // the summary line below just states the count.
     let install_count =
         install_genasis_overlay_artifacts(&project_root, &store, decision.lang.code())
             .unwrap_or_else(|e| {
@@ -147,8 +154,7 @@ pub async fn pub_run(
             });
     if install_count > 0 {
         println!(
-            "  + {} overlay artifact(s) under .claude/genasis/ + GENASIS.md",
-            install_count
+            "  + {install_count} overlay file(s) under .claude/genasis/ (+ GENASIS.md / CLAUDE.md stub when applicable)"
         );
     }
 
@@ -199,24 +205,44 @@ fn install_genasis_overlay_artifacts(
     let mut written: usize = 0;
 
     // GENASIS.md at project root — the protocol contract that
-    // CLAUDE.md @imports. The catalog only ships `en/GENASIS.md.tera`
-    // and `ko/GENASIS.md.tera`, so fall back to English if the
-    // active lang isn't present.
-    if let Some(body) = store
+    // CLAUDE.md @imports. v0.5.4 (issue C3 from the v0.5.3 field
+    // report): the v1.0.0 catalog tarball ships overlays/<lang>/
+    // *.patch.md.tera but does NOT bundle a GENASIS.md.tera (the
+    // contract source lives in the genasis repo's `agents/` dir,
+    // not in the catalog). The previous code looked for it in the
+    // catalog, found nothing, silently skipped — but the CLI still
+    // printed "+ GENASIS.md" which was a flat-out lie.
+    //
+    // Fix: prefer catalog if a future release bundles it; otherwise
+    // fall back to a binary-embedded copy of the same source. Track
+    // the actual write so the log message reflects reality.
+    let mut wrote_genasis_md = false;
+    let genasis_md_body = store
         .get_file(&format!("{lang_code}/GENASIS.md.tera"))
         .or_else(|| store.get_file("en/GENASIS.md.tera"))
-    {
+        .or_else(|| Some(GENASIS_MD_FALLBACK.to_string()));
+    if let Some(body) = genasis_md_body {
         match render_template_body(&body, &ctx) {
             Ok(rendered) => {
                 let target = project_root.join("GENASIS.md");
                 fs::write(&target, rendered)
                     .with_context(|| format!("write {}", target.display()))?;
+                wrote_genasis_md = true;
                 written += 1;
             }
             Err(e) => {
                 eprintln!("  ⚠ render GENASIS.md skipped: {e}");
             }
         }
+    }
+    // Surface a clear signal for the caller's summary line so the
+    // "+ GENASIS.md" suffix isn't shown when the file wasn't
+    // actually written (issue C3).
+    if !wrote_genasis_md {
+        eprintln!(
+            "  ⚠ GENASIS.md not written (catalog missing template AND embedded fallback failed). \
+             CLAUDE.md's `@import GENASIS.md` will be a broken link until the next attach."
+        );
     }
 
     for (subdir, out_subdir) in [
@@ -267,6 +293,13 @@ fn install_genasis_overlay_artifacts(
 
     Ok(written)
 }
+
+/// Binary-embedded GENASIS.md template body. The agents-v1.0.0
+/// catalog tarball doesn't bundle this file, so v0.5.4 ships it
+/// inside the genasis binary as a fallback. Once a future catalog
+/// release (`agents-v1.1.0`) bundles `<lang>/GENASIS.md.tera`,
+/// `install_genasis_overlay_artifacts` prefers the catalog copy.
+const GENASIS_MD_FALLBACK: &str = include_str!("../../../agents/GENASIS.md.tera");
 
 /// Per ADR-011 the catalog ships `.tera` files but most of them are
 /// pre-rendered (no `{{ var }}` or `{% tag %}` syntax). Skipping the
@@ -455,8 +488,15 @@ fn build_context(project_root: &std::path::Path) -> Result<serde_json::Value> {
     } else {
         Config::default()
     };
+    // v0.5.4 (issue S1): expose `project_slug` already-slugified so
+    // overlay templates can use `{{ project_slug }}` directly when
+    // they need a Mattermost-channel-safe identifier. The `slugify`
+    // Tera filter is also registered (see merger.rs); templates can
+    // use either form depending on readability.
+    let project_slug = genasis_core::config::slugify(&cfg.project.name);
     Ok(serde_json::json!({
         "project_name": cfg.project.name,
+        "project_slug": project_slug,
         "project_domain": cfg.project.domain,
         "plane_url": cfg.plane.as_ref().map(|p| p.url.clone()).unwrap_or_default(),
         "mm_url": cfg.mattermost.as_ref().map(|m| m.url.clone()).unwrap_or_default(),

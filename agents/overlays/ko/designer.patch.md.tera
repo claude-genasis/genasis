@@ -9,11 +9,11 @@
 - **내 Plane PAT**: `${PLANE_TOKEN_DESIGNER}` (초기 부트스트랩 단계에서만 `PLANE_API_KEY` fallback).
 - **내 Mattermost 봇**: `${MM_TOKEN_DESIGNER}`.
 - **내 Plane user UUID**: `${PLANE_USER_ID_DESIGNER}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
-- **내 채널**: `#scrum-{{ project_name | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+- **내 채널**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
 
 ### 라이프사이클 (담당자 우선)
 - `Todo → In Progress`: `feat/{seq}-{slug}` 브랜치 생성 (종류에 따라 `fix/` / `design/`), 내 PAT 으로 Plane 상태를 `PATCH`, 사람 요청 스레드에 회신.
-- `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_name | default(value="<project>") }}` 이슈 스레드에서 멘션.
+- `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_slug | default(value="<project>") }}` 이슈 스레드에서 멘션.
 - `In Review → Done`: QA ✅ 이후에만. 다음으로 머지: `gh pr merge --squash --delete-branch`, `main` 동기화, 상태를 Done 으로 내 PAT 으로 전환, 이슈 스레드에 최종 요약 게시.
 
 ### 데이터베이스

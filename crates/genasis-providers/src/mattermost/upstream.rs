@@ -59,6 +59,35 @@ impl MattermostProvider for UpstreamMattermost {
         name: &str,
         display_name: &str,
     ) -> Result<ChannelRef> {
+        // v0.5.4 (issue M1): the previous implementation POST'd
+        // `/channels` unconditionally and surfaced Mattermost's
+        // `store.sql_channel.save_channel.exists.app_error` string
+        // as if it were a real id. Re-running `genasis init` thus
+        // printed scary-looking output for what is in fact a happy
+        // path. Fixed by GET'ing `/teams/{team_id}/channels/name/{name}`
+        // first (returns 200 with the existing channel JSON when the
+        // channel exists, 404 otherwise) and only POST'ing on 404.
+        let lookup_url = self.url(&format!("/teams/{team_id}/channels/name/{name}"));
+        let existing = self
+            .client
+            .get(&lookup_url)
+            .headers(self.headers())
+            .send()
+            .await
+            .map_err(|e| Error::Provider(format!("mm lookup_channel: {e}")))?;
+        if existing.status().is_success() {
+            let v: serde_json::Value = existing
+                .json()
+                .await
+                .map_err(|e| Error::Provider(format!("mm lookup_channel json: {e}")))?;
+            if let Some(id) = v.get("id").and_then(|x| x.as_str()) {
+                return Ok(ChannelRef {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                });
+            }
+        }
+
         let body = json!({
             "team_id": team_id,
             "name": name,
@@ -77,13 +106,35 @@ impl MattermostProvider for UpstreamMattermost {
             .json()
             .await
             .map_err(|e| Error::Provider(format!("mm channel json: {e}")))?;
+        // Defence in depth: even if our lookup above misses a race
+        // and Mattermost returns the dotted-error id string, treat
+        // it as "already exists" and fall through to a second lookup
+        // rather than propagating the gobbledygook id upward.
+        let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
+        if id.starts_with("store.sql_channel.save_channel.exists") || id.is_empty() {
+            let retry = self
+                .client
+                .get(&lookup_url)
+                .headers(self.headers())
+                .send()
+                .await
+                .map_err(|e| Error::Provider(format!("mm lookup_channel retry: {e}")))?;
+            if retry.status().is_success() {
+                let v: serde_json::Value = retry
+                    .json()
+                    .await
+                    .map_err(|e| Error::Provider(format!("mm lookup_channel retry json: {e}")))?;
+                if let Some(id) = v.get("id").and_then(|x| x.as_str()) {
+                    return Ok(ChannelRef {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                    });
+                }
+            }
+        }
         Ok(ChannelRef {
-            id: v
-                .get("id")
-                .and_then(|x| x.as_str())
-                .unwrap_or_default()
-                .into(),
-            name: name.into(),
+            id: id.to_string(),
+            name: name.to_string(),
         })
     }
 

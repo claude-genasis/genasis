@@ -227,7 +227,7 @@ fn section(title: &str) {
 }
 
 fn report_bootstrap(project_root: &std::path::Path) {
-    use genasis_overlay::Role;
+    use genasis_overlay::{infer_from_name, Classified, Role};
     let agents_dir = project_root.join(".claude").join("agents");
     if !agents_dir.is_dir() {
         println!("  {}", tr("doctor.bootstrap.dir_missing"));
@@ -277,8 +277,28 @@ fn report_bootstrap(project_root: &std::path::Path) {
                     .trim()
                     .trim_matches('"')
                     .trim_matches('\'');
+                // v0.5.4 (issue 라 follow-up): the v1.0.0 catalog
+                // ships base files whose frontmatter `name:` reads
+                // `frontend-developer`, `backend-developer`, etc. —
+                // these are deliberate aliases that `infer_from_name`
+                // already resolves to the canonical role. Doctor's
+                // strict `value != stem` check was producing 7 false-
+                // positive warnings on every clean install. Now we
+                // also accept any value that classifies to the same
+                // role as the filename stem.
                 if value != stem {
-                    non_canonical.push(format!("{stem} (name: {value})"));
+                    let stem_role = match infer_from_name(stem) {
+                        Classified::Known(r) => Some(r),
+                        Classified::Custom(_) => None,
+                    };
+                    let value_role = match infer_from_name(value) {
+                        Classified::Known(r) => Some(r),
+                        Classified::Custom(_) => None,
+                    };
+                    let aliased = matches!((stem_role, value_role), (Some(a), Some(b)) if a == b);
+                    if !aliased {
+                        non_canonical.push(format!("{stem} (name: {value})"));
+                    }
                 }
                 if !canonical.contains(value) {
                     // Custom roles are explicitly allowed (Custom variant);

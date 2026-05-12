@@ -239,7 +239,11 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.2)
+## 알려진 한계 (v0.5.4)
+
+- **호스팅 trial-app 배포가 바이너리보다 1-2 릴리스 늦을 수 있음.** `genasis init --trial`이 `https://mmplane-trial.realstory.blog`에 POST할 때 바이너리는 현 contract (모든 bridge route token-as-capability, shared_secret 불필요)를 쓰지만, deploy된 Next.js 인스턴스는 별도로 재빌드됨. `genasis init --trial`은 성공하는데 그 뒤 `genasis init`이 `/api/plane/projects`에서 401을 받으면, 배포된 trial-app이 바이너리보다 옛버전 — 운영자에게 재배포 요청. 자체 host (agents-pool clone + `npm run build` + run)는 항상 contract 맞음.
+
+
 
 다음 패치에서 닫을 예정인 documented gap — Linux 의 Quick Path 는
 지금도 문제없이 동작하지만, Step-by-Step / Option B 사용자가

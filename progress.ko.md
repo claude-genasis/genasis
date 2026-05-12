@@ -1053,6 +1053,31 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.4 릴리스 — v0.5.3 현장 결함 8개 (C1-S1) + 다음 운영자 배포 시 Quick Path 깨끗**. 테스터가 v0.5.3 을 clean WSL2 박스에서 end-to-end 로 돌리고 결함 11개 보고 (C1-3 critical, S1-4 significant, M1-4 medium, D1 low). 그 중 4개 (S2, S4, M4, 부분적 S3) 는 이미 이전 패치에서 처리됨. 이 릴리스가 추가 8개 닫음. **호스팅 `mmplane-trial.realstory.blog` 배포가 agents-pool `289876c` 이후 commit 이라면** (C1 참조), 이제 Quick Path 가 바이너리만으로 end-to-end 동작.
+
+  **Fix**:
+  - **C1 (호스팅 trial-app 401)** — 부분. genasis 바이너리 쪽은 v0.5.3 이후 옳음 (`289876c` 가 agents-pool 의 모든 bridge route 에서 shared_secret check 제거), 그러나 deploy 된 `mmplane-trial.realstory.blog` 가 아직 재빌드 안 됐을 수 있음. README §"알려진 한계" 가 운영자에게 재배포 단계를 안내하고, 사용자가 막혔을 때 trial-app 을 self-host 하는 방법을 설명.
+  - **C2 (catalog short-name 파일)** — v0.5.3 에서 추가한 `Role::aliases()` + `infer_from_name` 별칭이 이미 bootstrap/attach 를 long-name 파일에 대해 동작하게 함. v0.5.4 는 추가로 `cmd_doctor` 의 frontmatter check 에도 같은 별칭 표를 가르쳐 7 개의 false-positive "name: 가 filename stem 과 불일치" 경고 silence. 카탈로그 자체는 깨끗함을 위해 `agents-v1.0.1` 에서 short-name 파일을 ship 해야 함 — 별도 tracked.
+  - **C3 (GENASIS.md 미작성)** — v1.0.0 카탈로그 tarball 이 `<lang>/GENASIS.md.tera` 를 아예 묶지 않는데도 `cmd_attach` 가 요약에 `+ GENASIS.md` 출력. 2 단 fix: (a) genasis 저장소의 `agents/GENASIS.md.tera` 를 바이너리에 `include_str!` fallback 으로 임베드 — 템플릿 누락된 카탈로그여도 GENASIS.md 가 작성됨. (b) 요약 라인이 실제로 작성한 파일 수를 정직하게 보고, GENASIS.md 가 못 만들어졌을 때 별도 경고. `agents-v1.0.1` 이 템플릿 ship 하면 카탈로그 사본 우선.
+  - **S1 (채널 슬러그 공백)** — overlay 템플릿이 `project_name` raw 로 interpolate 해서 `#scrum-Marketing Squad` 렌더. 2 단 fix: (a) `build_tera_from_store` 에 `slugify` Tera 필터 등록 — 향후 템플릿 `{{ project_name | slugify }}` 사용 가능. (b) `build_context` 에 `project_slug` (pre-slugified, `genasis_core::config::slugify`) 추가 + `agents/overlays/{en,ko}/` 의 20 개 overlay source 템플릿이 채널 참조에 `project_slug` 사용하도록 업데이트. 다음 카탈로그 릴리스 ship.
+  - **M1 (MM 채널 idempotence 추함)** — `UpstreamMattermost::ensure_channel` 이 이제 lookup 먼저 (`GET /teams/{id}/channels/name/{name}`) 하고 404 일 때만 POST. `store.sql_channel.save_channel.exists.app_error` gobbledygook 문자열이 더 이상 사용자에게 도달 안 함. POST 가 id 대신 에러 문자열 반환하는 race 케이스도 follow-up lookup 으로 처리.
+  - **M2 (Plane health probe 401 noise)** — probe 를 `/api/v1/workspaces/<slug>/` (auth 게이트, 유효 API key 있어도 401) 에서 `/api/instances/` (unauth metadata 엔드포인트) 로 전환. healthy 서버에서 깨끗한 200/JSON, transport 에러는 여전히 surface. workspace 존재 검증은 `ensure_project` 의 paginated walk 가 처리.
+  - **M3 (install.sh `curl | sh` hang)** — lang 프롬프트는 이미 TTY-aware 였지만 install.sh 안의 `genasis attach` 자식 프로세스가 curl pipe stdin 상속. attach 호출에 `</dev/null` 추가해서 자식이 script-pipe 의 사용자-의도 바이트를 절대 못 읽음.
+  - **Doctor name_mismatch 경고** — `cmd_doctor` 가 매 clean install 마다 경고 (카탈로그 `name: frontend-developer` ≠ 파일명 `frontend.md`). 이제 `cmd_attach` 와 같은 `infer_from_name` 별칭 해석 사용; stem 과 value 가 같은 role 로 해석되면 경고 안 함 (별칭 케이스), 서로 다른 role 일 때만 경고 (진짜 버그).
+
+  **검증**:
+  - `cargo fmt --all` clean
+  - `cargo clippy -p genasis-cli -p genasis-overlay -p genasis-providers --tests -- -D warnings` clean
+  - `cargo test --workspace`: **269 passed, 4 ignored**
+  - trial-app `npm run typecheck` + `npm run build` clean (이 릴리스에 agents-pool 변경 없음)
+  - i18n drift gate: 148 keys OK
+
+  **v0.5.4 태그 푸시**가 `release.yml` 트리거 (cross 로 musl-static x86_64 + aarch64, Verify-static-linking + compat-smoke gate, 두 tarball + sha256 첨부된 GitHub Release).
+
+  **다음 minor (v0.6.0) 로 연기**:
+  - **S3 (토큰 프로비저닝 헬퍼)**: 신규 `genasis init bootstrap-tokens` 서브커맨드 — Plane + Mattermost admin API ~9 단계 자동 수행.
+  - **agents-v1.0.1 카탈로그 리프레시**: short-name base 파일 (`pm.md`, `frontend.md`, …) + slugify-사용 overlay 템플릿 + `<lang>/GENASIS.md.tera`. ship 되는 즉시 이 바이너리의 모든 C2/C3/S1 fallback 이 fast-path 됨.
+
 - 2026-05-12: **v0.5.3 릴리스 — CLI 단순화 (A-E) + v0.5.2 현장 결함 6개 (가-바)**. 테스터가 v0.5.2 를 end-to-end 로 돌려서 v0.5.0 라운드 위에 6 개 결함을 추가 보고했고, 이번 릴리스가 그 6개를 모두 fix 하고 계획된 CLI surface 단순화 (init/publish 를 primary 로, bootstrap/attach/lang/upgrade/plane/mm 를 v0.7.0 제거 마일스톤과 함께 deprecation 처리) 도 함께 ship.
 
   **디버깅 fix**:
