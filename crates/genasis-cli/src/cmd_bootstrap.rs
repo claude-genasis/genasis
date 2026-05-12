@@ -160,6 +160,7 @@ pub async fn run(
         force: false,
         fence_version: "1.0".to_string(),
         reference_docs: Vec::new(),
+        upgrade: false,
     };
     cmd_attach::pub_run(attach_args, lang_flag, non_interactive, assume_yes).await
 }

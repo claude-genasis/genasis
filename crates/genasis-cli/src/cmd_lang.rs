@@ -110,6 +110,7 @@ fn switch(project_root: &std::path::Path, raw: &str) -> Result<()> {
             .as_ref()
             .map(|i| i.reference_langs.clone())
             .unwrap_or_default(),
+        upgrade: false,
     };
     // We synchronously block on the attach future; the caller is already
     // in tokio::main scope, so we drive it through a fresh handle.

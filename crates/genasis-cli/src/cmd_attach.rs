@@ -37,6 +37,14 @@ pub struct Args {
     /// `@import`'d). Repeatable.
     #[arg(long = "reference-docs", value_name = "LANG")]
     pub reference_docs: Vec<String>,
+
+    /// Re-attach as an overlay upgrade (replaces the deprecated
+    /// `genasis upgrade` subcommand). Currently a passthrough — the
+    /// re-attach machinery is the upgrade — but the flag lets users
+    /// signal intent and primes future versions to adopt a more
+    /// conservative policy (e.g. preserve Tampered fences by default).
+    #[arg(long)]
+    pub upgrade: bool,
 }
 
 #[allow(dead_code)]
