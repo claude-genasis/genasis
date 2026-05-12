@@ -76,6 +76,8 @@ genasis init --trial --name "Marketing Squad"
 
 명령 종료 시 복사하기 좋은 요약 박스가 **팀 토큰** (32자 hex) + 토큰이 pre-fill된 **랜딩 URL** 을 출력합니다. Live Trial 화면은 이 토큰이 입력되기 전까지는 활성화되지 않습니다 — 브라우저가 열리면 라이브 트라이얼 탭 상단의 **"팀 토큰을 입력하세요"** 바를 찾으세요. 랜딩 URL을 그대로 붙여넣었다면 이미 채워져 있고, 도메인만 열었다면 토큰을 그 바에 붙여넣어 연결합니다 (ADR-017 §6). 모든 Live Trial 기능(칸반, 채팅, 쇼케이스 패널)은 유효한 토큰이 연결될 때까지 비활성 상태로 유지됩니다 — 이게 사용자 팀의 칸반 카드를 다른 모든 동시 데모와 분리하는 multi-tenant partition gate 입니다.
 
+> **🔍 점검 포인트** — 다음 단계로 가기 전 랜딩 URL 을 브라우저로 열어 **확인**하세요. 우측 상단에 사용자 팀명 배지("연결됨 · Marketing Squad …") + 칸반 4 컬럼에 데모 카드 3 개 (Done / In Progress / Todo 각 1) + `#scrum-<team-slug>` 채팅에 환영 메시지 1 개가 보여야 정상입니다. 배지만 보이고 칸반·채팅이 비어있다면 운영자 호스팅 trial-app 이 이 바이너리보다 옛 버전인 상황입니다 — [**알려진 한계 (v0.5.11)**](#알려진-한계-v0511) 의 로컬 docker 회피 절차로 점프 (`export GENASIS_TRIAL_URL=http://localhost:2099` 후 step 2 부터 재실행). 그 이후 단계는 로컬 인스턴스에서 동일하게 동작합니다.
+
 **3. 샘플 PRD 생성** — 에이전트가 바로 작업할 수 있는 요구사항 문서
 
 ```bash
@@ -93,6 +95,8 @@ genasis init
 ```bash
 genasis monitor
 ```
+
+> **🔍 최종 점검** — Live Trial URL 을 다시 새로고침. trial 모드의 `genasis init` 끝에서 `genasis publish` 가 자동 실행됐으므로 칸반에 **총 5 개 카드** (Done 2 개, `🎉 Example app published` 포함 / In Progress 1 / Todo 1) + 채팅에 **2 개 메시지** (init 환영 + 빌드 완료) 가 보여야 정상입니다. 휴대폰 아이콘 (📱 "에이전트가 만든 앱 보기") 이 클릭 가능 상태로 바뀌고 누르면 쇼케이스 패널이 펼쳐집니다. step 2 의 점검 단계에서 비어있는 상태였고 로컬 docker 회피를 건너뛴 경우, 여기서도 칸반·채팅은 비어있는 게 정상 — `app_status` 만 `complete` 로 flip 돼서 쇼케이스 핸들만 활성됩니다.
 
 끝입니다. 에이전트 팀이 PRD에서 코드까지 스프린트를 완주했습니다.
 디자인 교체, PRD 확장, 에이전트 추가 등 실습은
@@ -255,7 +259,7 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.10)
+## 알려진 한계 (v0.5.11)
 
 - **호스팅 trial-app 배포 지연.** 운영자 호스팅 `https://mmplane-trial.realstory.blog` 가
   genasis 바이너리의 bootstrap contract 보다 옛 버전일 경우, `genasis publish` 는

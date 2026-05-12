@@ -76,6 +76,8 @@ genasis init --trial --name "Marketing Squad"
 
 The command ends with a copy-friendly summary that prints the **team token** (32-char hex) and the **landing URL** with the token pre-filled. The Live Trial screen requires this token before it activates — when the browser opens, look for the **"Enter your team token"** bar at the top of the Live trial tab. If you pasted only the landing URL, the token is already filled in; if you arrived at the bare domain, paste the token into that bar to connect (ADR-017 §6). All Live Trial functionality (kanban, chat, showcase panel) stays disabled until a valid token is connected — that's the multi-tenant partition gate that keeps your team's kanban cards separate from every other concurrent demo.
 
+> **🔍 Sanity check** — open the landing URL now (before continuing). You should see your team name in the top-right "연결됨 / Connected" badge **and** three demo cards in the kanban (one each in Done / In Progress / Todo) **plus** a welcome message in the `#scrum-<team-slug>` chat panel. If the badge is there but the kanban + chat are empty, the operator-hosted trial-app is older than this binary — jump to [**Known limitations (v0.5.11)**](#known-limitations-v0511) for the one-command local-docker workaround (`export GENASIS_TRIAL_URL=http://localhost:2099` then re-run from step 2). Everything below still works the same way against your local instance.
+
 **3. Generate a sample PRD** for your agents to work on
 
 ```bash
@@ -93,6 +95,8 @@ genasis init
 ```bash
 genasis monitor
 ```
+
+> **🔍 Final sanity check** — refresh the Live Trial URL. After `genasis publish` (the last thing `genasis init` runs in trial mode) the kanban should show **5 cards total** (2 in Done including `🎉 Example app published`, 1 in In Progress, 1 in Todo) and the chat panel should show **2 messages** (init welcome + build-complete). The phone-frame icon (📱 "에이전트가 만든 앱 보기" / "View the app the agents built") becomes clickable and opens the showcase panel. If you saw the empty-state at step 2 and decided to skip the local-docker workaround, kanban + chat are expected to still be empty here — only the showcase handle activates because `app_status` flipped to `complete` regardless of seeding.
 
 That's it. Your agentic team just ran a sprint from PRD to code.
 For hands-on exercises (design swap, PRD expansion, adding agents),
@@ -266,7 +270,7 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
-## Known limitations (v0.5.10)
+## Known limitations (v0.5.11)
 
 - **Hosted trial-app deployment lag.** When the operator-hosted
   `https://mmplane-trial.realstory.blog` is older than the genasis

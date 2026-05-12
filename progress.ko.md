@@ -1053,6 +1053,24 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.11 릴리스 — Quick Path inline 점검 단계 + stale-hosting 점프 아웃 (D-010)**. 사용자 재진입 트리거로 자가테스트 사이클 한 번 더. CLI 1-5 단계는 fresh v0.5.10 설치본에서 전부 green 인데, Playwright 진단 결과 **새 사용자가 README 그대로 따라가서 default 운영자 호스팅 URL 을 열면 칸반·채팅 비어있음** — "뭔가 일어났다" 라는 visible 신호가 §"Known limitations" 까지 스크롤해야 발견됨. 동일 흐름을 `GENASIS_TRIAL_URL=http://localhost:2099` 로 돌리면 카드 4 + 환영 메시지 2 + 쇼케이스 핸들 활성. v0.5.10 의 escape hatch 자체는 동작, 단지 5분 경로 안에서 발견 안 됨.
+
+  **Fix (D-010)** — README + README.ko §"Quick Path":
+  - Step 2 끝에 **🔍 점검 포인트** 콜아웃 추가: 그 시점에 랜딩 URL 열어서 팀 배지 + 데모 카드 3 + 환영 메시지 확인. 비어있으면 stale hosting → 새로 만든 §"알려진 한계 (v0.5.11)" 앵커로 점프, 한 줄 명령 `export GENASIS_TRIAL_URL=http://localhost:2099` 우회.
+  - Step 5 (`genasis monitor` 다음) 에 **🔍 최종 점검** 콜아웃: URL 새로고침, 기대 상태는 카드 5 (Done 의 `🎉 Example app published` 포함) + 메시지 2 + 클릭 가능 쇼케이스 핸들. 사용자가 step 2 점검에서 비어있었고 docker 우회 건너뛴 경우의 "쇼케이스만 활성" 상태도 명시 — 불필요한 되돌이 안 함.
+  - `README.ko.md` 미러 동일 콜아웃 반영.
+
+  **라이브 검증 (v0.5.10 binary, 두 시나리오 — 같은 Playwright 실행)**:
+  - A. Default hosting (`https://mmplane-trial.realstory.blog`): 배지 ✅, 칸반 0/4, 채팅 0/2, 쇼케이스 핸들 ✅ (publish 가 `app_status` 만 flip 하므로). 새 "Step 2 이후 비어있음" 경고와 일치.
+  - B. Local override (`http://localhost:2099`): 배지 ✅, 칸반 4/4, 채팅 2/2, 쇼케이스 핸들 ✅. 새 "Step 5 후 카드 5 개 + 메시지 2 개" 기대치와 일치.
+  - 스크린샷: `/work/agenteams/team-ex/screenshots/cycle-{A_default_hosting,B_local_override}.png`.
+
+  **기타 관찰 (블로커 아님)**:
+  - D-006 (404 응답) — `page.on('response')` 전수 캡처 결과 11 응답 중 4xx 0건. console 의 "Failed to load resource" 라인은 SSE stream close 노이즈. 비결함 처리.
+  - D-007 (caret-color hydration warning) — 로컬 빌드 `ec7f149` 컨테이너에서 재현 안 됨. 호스팅의 dev-mode 빌드 잔재 추정, 재배포 시 사라질 것.
+
+  본 릴리스에 코드 변경 없음 — workspace 버전 bump 후 `Cargo.lock` sync 위한 `cargo build` 만. **v0.5.11 태그 푸시**가 `release.yml` 트리거, install.sh 가 간접 링크하는 README 가 binary 가 받쳐주는 Quick Path 와 함께 ship.
+
 - 2026-05-12: **v0.5.10 릴리스 — `GENASIS_TRIAL_URL` env override + D-009 end-to-end 증명**. 사용자가 v0.5.9 사이클의 "운영자 재배포 대기" 결론을 거부 — "네가 직접 D009 Test 결과를 보고 왜 정보가 사라졌는지 추적해서 문제 해결해". 가정 대신 직접 진단: `https://mmplane-trial.realstory.blog/api/trial/bootstrap` 에 `demo_issues` + `welcome_message` 포함 POST — 응답 JSON 에 신규 필드 **없음** 확인, 즉 호스팅 인스턴스가 `ec7f149` 이전 코드 실행 중. `/api/plane/issues` + `/api/mattermost/posts` probe — 둘 다 401 (pre-D-001 secret-required contract). 호스팅이 진짜 stale.
 
   **로컬 docker 로 end-to-end 검증** (binary + agents-pool 코드 둘 다 정확함 증명):
