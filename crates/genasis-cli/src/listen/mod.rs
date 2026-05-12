@@ -221,54 +221,78 @@ async fn handle_human_post(
 }
 
 fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
-    // echo-only 모드에서도 routing 마커 일부는 deterministic 하게 채워서
-    // sink.apply_pm_routing 이 의미 있는 동작을 하도록 한다. 이렇게 하면
-    // 자가테스트가 echo 모드에서도 multi-agent fan-out 의 구조적 정합성을
-    // 검증 가능 (실제 의사결정은 안 함).
+    // ADR-018 §"기존 앱 수정 시나리오": echo-only 모드 stub 도 본
+    // 시나리오에 맞춰 quiz 유지 기본. 사람 요구의 키워드를 features 로
+    // 매핑한 결과만 누적. PM prompt 가 LLM 모드와 동일한 의도를 유지.
+    let _ = cfg;
     let m = message.to_ascii_lowercase();
-    let app_kind = if m.contains("todo") || m.contains("할 일") {
+
+    // app_kind: 명시적 교체 요구가 있을 때만 변경 (예: "todo 앱으로 바꿔줘")
+    let app_kind = if m.contains("todo 앱으로 바꿔") || m.contains("change to todo") {
         "todo"
-    } else if m.contains("pomodoro") || m.contains("뽀모도로") {
-        "pomodoro"
-    } else if m.contains("markdown") {
-        "markdown"
     } else {
+        // 기본: 기존 quiz 유지 (사람 요청은 그 quiz 의 수정/커스터마이즈)
         "quiz"
     };
+
+    // features: 시각 변경 키워드 매핑
     let mut features = Vec::new();
-    if m.contains("dark") || m.contains("다크") {
+    if m.contains("빨간") || m.contains("red") || m.contains("레드") {
+        features.push("accent-red");
+    }
+    if m.contains("파란") || m.contains("blue") || m.contains("블루") {
+        features.push("accent-blue");
+    }
+    if m.contains("초록") || m.contains("green") || m.contains("그린") {
+        features.push("accent-green");
+    }
+    if m.contains("다크") || m.contains("dark") {
         features.push("dark-mode");
     }
-    if m.contains("i18n") || m.contains("다국어") || m.contains("한국어") || m.contains("영어") {
+    if m.contains("공유") || m.contains("share") {
+        features.push("share-button");
+    }
+    if m.contains("큰 글자") || m.contains("larger") || m.contains("text larger") {
+        features.push("larger-text");
+    }
+    if m.contains("한국어") || m.contains("영어") || m.contains("i18n") || m.contains("다국어") {
         features.push("i18n");
     }
-    if m.contains("검색") || m.contains("search") {
-        features.push("search");
-    }
-    if m.contains("우선순위") || m.contains("priority") {
-        features.push("priority");
-    }
+
+    let features_str = if features.is_empty() {
+        String::new()
+    } else {
+        features.join(", ")
+    };
+    let features_note = if features.is_empty() {
+        "스타일 변경 없음".to_string()
+    } else {
+        features.join(", ")
+    };
+
     format!(
         r#"📥 요구사항 정리: {preview}
 
+기존 쇼케이스 앱 (Claude Code 전문가 진단 퀴즈) 에 대한 수정 요구로 해석.
+
 [APP: {app_kind}]
-[FEATURES: {features}]
+[FEATURES: {features_str}]
 
 ## 작업 분배
-- @designer: 디자인 시스템 및 토큰 검토 ({features_note})
-- @frontend: 데모 앱 UI 구현 (app_kind={app_kind})
-- @qa: 회귀 시나리오 작성 및 검증
+- @designer: 시각 변경 검토 ({features_note})
+- @frontend: UI 수정 반영 (QuizApp 의 features prop)
+- @qa: 변경 후 회귀 (시작 → 질문 → 결과 흐름 정상)
 
 ## 새 카드
-- "디자인 시스템 검토" [@designer] [state=todo]
-- "데모 앱 UI 구현" [@frontend] [state=todo]
-- "회귀 테스트 작성" [@qa] [state=todo]
+- "시각 변경 디자인 검토" [@designer] [state=todo]
+- "QuizApp features 반영" [@frontend] [state=todo]
+- "회귀 시나리오 검증" [@qa] [state=todo]
 
 > @human 작업 분배 완료 (echo-only). 각 agent 의 응답을 같은 스레드에서 확인하세요."#,
         preview = message.chars().take(80).collect::<String>(),
         app_kind = app_kind,
-        features = if features.is_empty() { "".to_string() } else { features.join(", ") },
-        features_note = if features.is_empty() { "기본".to_string() } else { features.join(", ") },
+        features_str = features_str,
+        features_note = features_note,
     )
 }
 

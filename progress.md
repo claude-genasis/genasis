@@ -886,6 +886,38 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 - 2026-05-10: **Human roster provisioning — humans as first-class team members (ADR-014)**. Until now `genasis init` / `bootstrap` only auto-provisioned the ten agent bot accounts; humans had to sign up separately, breaking both the "turnkey bootstrap" and "human/agent symmetry" missions. Added `genasis-core::config::HumanEntry` + a `[[humans]]` array in `genasis.toml`, with provisioning side-effects (Mattermost user_id, Plane user_id, temporary password) carved out into `.genasis/humans.lock.toml`. New trait method `MattermostProvider::ensure_human_user(spec, team_id)` with an upstream admin-create implementation (24-char high-entropy temp password covering Mattermost's strictest policy, force-change on first login, idempotent on email). Extended `provision-plane-users.mjs` `ProvisionInput` with `humans: HumanRequest[]` (Playwright UI is still a stub but echoes the humans payload). New CLI `genasis humans add | edit | remove | list | sync`; `cmd_init` now auto-runs `humans sync` when `[[humans]]` is non-empty (failures warn but do not fail init). TUI wizard grew from 6 to 7 steps (Env→Lang→Team→Connect→**Humans**→Overlay→Done) with `a / e / d / s / Enter` for add/edit/delete/sync/advance and a 5-field form modal; re-running the wizard reloads `[[humans]]` for in-place editing ("rerun is the editor"). `agents/GENASIS.md.tera` gains `## Human Roster` table and `### Requirement intake protocol` (registered = binding stakeholder, unregistered = `QUESTION` label + PM verification, bots = existing agent-to-agent flow); `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) and `commands/check-inbox.md.tera` mirror the protocol. ADR-014 written in EN/KO. New unit tests: `HumansLock` round-trip, upsert case-insensitive match, `derive_mm_username` normalisation, cmd_humans `truncate` / `now_iso`. `cargo test --workspace --lib` green. Out of scope (deferred to v2): invite-email mode for SMTP-enabled environments, Plane Playwright UI port to land real user_ids, OAuth/SSO integration.
 
 - 2026-05-10: **Trial bridge config SSOT cleanup (ADR-013)**. The previous code defined the `[trial]` section but never read it; routing actually used `[plane].url` / `[mattermost].url` plus `MM_ADMIN_TOKEN` / `PLANE_API_KEY` env vars, so `[trial].enabled = false` could not actually disable the bridge and `[trial].url` edits were silently ignored. Added `Option<&TrialConfig>` to `mattermost::factory::build()` / `plane::factory::build()`; trial flavor now sources URL + secret from `[trial]` and rejects `enabled = false`. Added `Config::validate_trial()` for cross-section enforcement at load time. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` skip the admin env-var requirement under trial flavor. New unit tests ×10 (factory `build_trial_*`, `validate_trial_*`) + integration `tests/trial_factory_e2e.rs` ×3 (2 `#[ignore]`-marked E2E + 1 negative-path). ADR-013 written in EN/KO. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.16 release — 시나리오 재설계 + thread-grouped 채팅 UI + daemon-guide banner + QuizApp customization (D-021/022/023)**. 사용자가 v0.5.15 의 "TODO 앱 만들어줘" 시나리오를 "무의미" 라고 정확히 지적: example PRD 결과물 (Claude Code 퀴즈) 을 확인도 못 하고 엉뚱하게 TodoApp 으로 교체됨. 동시에 trial-app 이 sim_posts 의 root_id 있는데도 thread 시각화 안 되고 flat timeline 으로만 렌더. 자가테스트가 끝나고도 사용자가 직접 채팅으로 후속 요청 가능한 대기 상태 + 종료 가이드 trial-app UI 안에서 노출 필요. 본 사이클이 셋 다 해결.
+
+  **agents-pool@f9034ec**:
+  - `LiveChatThread.tsx` thread 렌더링 — sim_posts 를 root_id 그룹핑, root post 아래 reply 들을 좌측 indent + border line 으로 들여쓰기 표시. 각 reply 가 `data-root-id` 보유 (testability). multi-line PM 응답이 `whitespace-pre-wrap` 으로 legible.
+  - `QuizApp` 이 `features?: string[]` prop 받음 — `accent-red`/`accent-blue`/`accent-green` 으로 시작 버튼 색상 변경, `larger-text` 로 글자 크기 증가, 그 외 features 는 시각 badge 로 transparency. ShowcasePanel 이 appFeatures 그대로 전달.
+  - `LiveBoard` 상단에 daemon-guide banner (amber 색): "🤖 Agentic team 대기 중 — `genasis listen stop` 으로 종료". 사용자가 채팅으로 추가 요청 가능함 + 종료 절차 한 곳에 noted.
+
+  **genasis v0.5.16 (listen PM prompt 재설계)**:
+  - `routing.rs::build_pm_prompt` 가 "쇼케이스는 이미 `example prd` 결과물 (Claude Code 퀴즈) 로 배포돼 있고, 사람 요청은 그 기존 앱에 대한 **수정/커스터마이즈 요구**" 라고 명시. PM 이 `[APP: quiz]` 유지 + `[FEATURES: …]` 에 accent-red/share-button/dark-mode 등 시각 변경 누적.
+  - `mod.rs::build_echo_pm_response` (echo-only stub) 도 본 시나리오에 맞춰 재설계: "빨간/blue/dark/공유" 키워드 → accent-red/accent-blue/dark-mode/share-button feature 자동 매핑. app_kind 는 기본 quiz 유지.
+  - 작업 분배도 "designer + frontend + qa" 3 명 (시각 변경 워크플로우 기본) — Claude Code 모드와 echo 모드 동일 의미.
+
+  **검증 (v0.5.16 binary vs 호스팅 URL 새 시나리오)**:
+  - 사람 메시지 예시: "퀴즈 시작 버튼 색상을 빨간색으로 바꿔줘"
+  - 결과:
+    - PM 응답: `[APP: quiz]` (그대로) + `[FEATURES: accent-red]` + 3 명 fan-out
+    - sim_teams.app_features += `accent-red`
+    - QuizApp 시작 버튼이 검정 → 빨간색
+    - 채팅 패널: 사람 메시지 root + pm/designer/frontend/qa reply 들여쓰기 thread
+    - LiveBoard 상단에 daemon-guide banner visible
+  - 사용자가 화면에서 example PRD 결과물 (퀴즈) 그대로 보면서 색상 변경 요구 → agentic team 협업 → 시작 버튼 색 즉시 반영. "엉뚱하게 다른 앱으로 교체" 문제 해결.
+
+  **자가테스트 후 daemon 대기 안내** (사용자 §"agentic team 대기 + 종료 가이드"): 자가테스트 스크립트가 daemon stop 명시 안 하면 daemon 그대로 살아있음. trial-app banner 가 종료 방법 항상 표시.
+
+  **남은 한계 (v0.6.0)**:
+  - 드래그/드롭 칸반 + 카드 상세 모달 미구현.
+  - 멘션 자동완성 (`@pm` 입력 시 dropdown) 미구현.
+  - QuizApp 의 share-button 실 구현 (결과 화면에 공유 UI) 미구현 — feature flag 만 활성.
+  - real Mattermost flavor 의 Plane integration stub.
+
+  **v0.5.16 태그 푸시** 가 `release.yml` 트리거. operator instance agents-pool@f9034ec 동기화 + production rebuild 완료.
+
 - 2026-05-12: **v0.5.15 release — agentic team protocol port (genesis §9 + §26): multi-agent fan-out + thread root_id + sim_issues dynamic + showcase app update (D-018/019/020 + ADR-018)**. User pushed back hard on v0.5.14: 자가테스트가 echo-only PASS 결론 냈지만 실제로는 ① 쇼케이스가 처음 만든 퀴즈앱 그대로 (TODO 앱 만들어 달라고 했는데 안 바뀜) ② pm 응답이 단일 actor 로 답할 뿐 멘션·작업 분배 흐름 부재. 직접 답: 의도였지만 v0.5.14 구현은 transport 파이프라인만 검증하고 control plane (multi-agent routing) 누락. genesis §9 (Mattermost 소통 프로토콜) + §26 (Ownership-based atomic transaction) 의 trial flavor 등가물을 본 사이클에서 이식.
 
   **agents-pool@8872e92 (trial-app foundation)**:

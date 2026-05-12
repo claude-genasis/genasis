@@ -259,7 +259,15 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.15)
+## 알려진 한계 (v0.5.16)
+
+- **시나리오 = 기존 앱 수정** (사용자 §"엉뚱하게 다른 앱이 배포" 시나리오 거부). 트라이얼 쇼케이스는 `genasis example prd` 결과물 (Claude Code 전문가 진단 퀴즈) 로 배포되어 있고, 채팅 사람 요청은 그 기존 앱에 대한 **시각 변경 / 기능 추가** 로 해석. 예: "퀴즈 시작 버튼 색상을 빨간색으로 바꿔줘", "다크 테마 적용해줘", "공유 버튼 추가해줘". PM 이 `[FEATURES: accent-red, dark-mode, share-button]` 마커 응답 → app_features 누적 → QuizApp 실 반영.
+
+- **Thread-grouped chat UI** (genesis §9 패턴 이식). LiveChatThread 가 sim_posts.root_id 그룹핑 → 사람 root post 아래 PM/agent 응답들이 좌측 indent + border line 으로 nested 시각화.
+
+- **Daemon-guide banner**. LiveBoard 상단 amber banner 가 "🤖 Agentic team 대기 중 — `genasis listen stop` 으로 종료" 항상 표시. 자가테스트 후에도 daemon 살아있어 사용자가 채팅으로 직접 추가 요청 가능 + 종료 절차 한 곳에 노출.
+
+- **QuizApp customization 한계**: accent color (red/blue/green) + larger-text 실 반영, share-button/dark-mode 내부/i18n 은 feature flag 만 — v0.6.0 에서 실 UI 추가.
 
 - **Multi-agent fan-out routing** (genesis §9 + §26 trial flavor 이식). 사람이 채팅에 요구 게시하면 `genasis listen` daemon 이 PM `claude --print` 호출 → 응답의 `[APP: <kind>]` / `[FEATURES: …]` / `## 작업 분배` (`@role: task`) / `## 새 카드` / `[CARD: → state]` 마커 파싱 → 각 멘션된 role 에 follow-up `claude --print` → 모든 응답이 **사람 메시지 스레드 (`root_id = 사람 post id`)** 안에 reply. 동시에 sim_teams 와 sim_issues 멱등 갱신.
 

@@ -50,6 +50,12 @@ pub struct CardTransition {
 
 /// PM agent 가 사용할 system prompt + 응답 형식 명세. 사람 메시지 +
 /// PRD 컨텍스트를 받아서 multi-agent 분배 결정을 강제한다.
+///
+/// ADR-018 §"기존 앱 수정 시나리오": 트라이얼의 쇼케이스 앱은 이미
+/// example PRD 결과물 (Claude Code 전문가 진단 퀴즈) 으로 정해져 있다.
+/// 사람의 채팅 요청은 그 앱에 대한 **수정 / 커스터마이즈 요구** 로
+/// 해석한다 (전체 앱 교체 X). 따라서 `[APP: ...]` 는 일반적으로 quiz
+/// 유지 + `[FEATURES: ...]` 에 색상·버튼·테마 등 시각 변경 누적.
 pub fn build_pm_prompt(
     project_name: &str,
     project_slug: &str,
@@ -60,7 +66,12 @@ pub fn build_pm_prompt(
         .map(|s| format!("\n\n프로젝트 PRD 요약:\n{}\n", s))
         .unwrap_or_default();
     format!(
-        r#"당신은 Genasis agentic 팀의 PM 입니다. 프로젝트는 "{project_name}" (slug: {project_slug}).{prd}
+        r#"당신은 Genasis agentic 팀의 PM 입니다. 프로젝트는 "{project_name}" (slug: {project_slug}).
+
+본 프로젝트의 쇼케이스 앱은 이미 `genasis example prd` 가 만든 **Claude Code
+전문가 진단 퀴즈** (app_kind=`quiz`) 로 배포되어 있습니다. 사람이 채팅에 보낸
+새 요청은 그 기존 앱에 대한 **수정/커스터마이즈 요구** 로 받아들이세요. 새 앱을
+처음부터 만들지 마세요.{prd}
 
 사람이 채팅 채널 #scrum-{project_slug} 에 다음 요구를 게시했습니다.
 
@@ -72,31 +83,31 @@ pub fn build_pm_prompt(
 
 📥 요구사항 정리: <2-3 줄로 사람 요구의 핵심 정리>
 
-[APP: <kind>]
+[APP: quiz]
 [FEATURES: <feature1>, <feature2>, ...]
 
-쇼케이스에 띄울 데모 앱 종류를 결정합니다. kind 는 반드시 다음 중 하나:
-  - `quiz` (Claude Code 전문가 진단 — 기본 데모)
-  - `todo` (할 일 리스트 앱)
-  - `pomodoro` (뽀모도로 타이머)
-  - `markdown` (마크다운 미리보기)
-  - `counter` (카운터)
-  - `habit` (습관 추적)
+`[APP: ...]` 는 quiz 그대로 둡니다 (사용자가 명시적으로 다른 앱 종류로 교체
+요구하지 않는 한). `[FEATURES: ...]` 는 사람 요구를 다음 flag 로 매핑:
 
-FEATURES 는 데모 앱이 활성화할 기능 flag 들. 사람 요구에 매핑되는 것 모두:
+  - `accent-red` — 강조 버튼/색을 빨간색
+  - `accent-blue` — 강조색을 파란색
+  - `accent-green` — 강조색을 초록색
+  - `share-button` — 결과 화면에 공유 버튼 추가
   - `dark-mode` — 다크 테마
   - `i18n` — 영어/한국어 전환
-  - `search` — 검색 입력
-  - `priority` — 우선순위 분류
-  - `due-date` — 마감일
+  - `larger-text` — 글자 크기 증가
+
+매핑 안 되는 요구는 가장 비슷한 flag 로 근사. 여러 개 동시 활성 OK (set
+union 누적).
 
 ## 작업 분배
 - @<role>: <한 줄 작업 지시>
 - @<role>: <한 줄 작업 지시>
 
 분배 가능한 role: pm, planner, architect, frontend, backend, qa, designer,
-security, devops, code-reviewer. 사람 요구에 실제 필요한 role 만 (보통 2-4
-개). 각 줄은 `- @role: 작업` 형식 정확히 지킬 것.
+security, devops, code-reviewer. 사람 요구에 실제 필요한 role 만 (보통 2-3
+개 — 시각 변경이면 designer + frontend + qa). 각 줄은 `- @role: 작업` 형식
+정확히 지킬 것.
 
 ## 새 카드
 - "<카드 제목>" [@<assignee>] [state=todo]
