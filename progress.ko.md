@@ -1053,6 +1053,24 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-12: **v0.5.8 릴리스 — install.sh prefix 안전성 + README Self-host 진입점 (D-005 + D-008)**. 자가테스트 사이클 (이번엔 Playwright 브라우저 검증 포함) 이 신규 사용자 시점에서 두 결함을 잡음.
+
+  **Fix (D-005)** — `install.sh --prefix=<신규 경로>` 가 거짓 보고:
+  - 사용자가 `--prefix=/some/new/dir` (없는 경로) 를 주면 `mv: cannot stat` 발생, `sudo install` fallback 으로 가는데 non-TTY 환경 (curl|sh, CI 러너) 에서 비대화형 sudo 가 silently 실패 — `set -e` 가 sudo 의 interactive password prompt 너머로 전파 안 됨. 그런데도 `[OK] Installed: <path>` 가 출력. 실제 바이너리는 없음.
+  - Fix: `mv` 전 `mkdir -p "$PREFIX" 2>/dev/null || true` 추가. `sudo install` 을 `elif ... 2>/dev/null` 로 감싸서 실패를 명시적으로 catch, writable 기본값 명시한 `die` 로 종료. post-install `[ -x "$install_path" ]` hard check 추가하여 success 라인이 진짜 파일 존재할 때만 출력.
+  - Live 검증: `sh install.sh --prefix=/tmp/install-test-new --skip-prereqs --no-run` (없던 prefix) 가 디렉터리 생성 → 11 MB 바이너리 정상 설치 → `genasis --version` 정상 (0.5.7 — 갓 받은 릴리스).
+
+  **Fix (D-008)** — README Self-host Option B 가 Quick Path 에서 도달 불가:
+  - "Step-by-Step → Plane & Mattermost 설정 → Option B" 블록이 곧바로 `cd servers && ./scripts/setup-user-env.sh && docker compose up -d` 인데, `install.sh` 는 `genasis` 바이너리만 ship 함 — `servers/` 디렉터리는 받지 않음. README 그대로 따라간 신규 사용자가 `bash: cd: servers: No such file or directory` 에서 막힘.
+  - Fix: "먼저 `servers/` 디렉터리를 받습니다" preamble 추가, 2가지 받는 방법 명시 (전체 clone vs sparse-checkout `git sparse-checkout set servers`). `README.ko.md` 미러 동일.
+
+  **검증**:
+  - install.sh round-trip end-to-end `--prefix=/tmp/install-test-new` 통과
+  - README Quick Path 1-5 가 신규 `install.sh` 설치본 v0.5.7 바이너리로 라이브 `mmplane-trial.realstory.blog` 대상 그대로 green
+  - Playwright 브라우저 검증: Live Trial 페이지가 Marketing Squad + scrum-marketing-squad 채널 + 4컬럼 칸반 + 채팅 사이드바 정상 렌더; `genasis publish` 가 `app_status` 를 `complete` 로 flip 하고 쇼케이스 핸들이 활성화됨
+
+  **v0.5.8 태그 푸시**가 `release.yml` 트리거.
+
 - 2026-05-12: **v0.5.7 릴리스 — `genasis attach --upgrade` 플래그가 자체 deprecation 메시지와 일치 (D-003)**. v0.5.6 바이너리 self-test 계속 중, `Upgrade` 서브커맨드의 deprecation 메시지가 사용자를 `genasis attach --upgrade` 로 안내 (README CLI 참조도 동일) 하는데, 그 플래그가 `cmd_attach::Args` 에 실제로 존재하지 않음 — 실행하면 `error: unexpected argument '--upgrade' found` 출력, deprecated 서브커맨드로부터의 마이그레이션 경로가 문서화되어 있지 않은 상태.
 
   **Fix (D-003)**:

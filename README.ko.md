@@ -133,6 +133,22 @@ Genasis 에이전트는 **Plane** (이슈 관리)과 **Mattermost** (팀 채팅)
 
 **방법 B — 직접 설치 (완전한 통제)**
 
+먼저 Plane + Mattermost + Caddy + Postgres 도커 스택 정의가 담긴
+`servers/` 디렉터리를 받습니다. `install.sh` 는 `genasis` 바이너리만
+배포하므로 이 단계는 **별도** 입니다:
+
+```bash
+# 방법 1 — 전체 repo clone (가장 간단)
+git clone https://github.com/claude-genasis/genasis && cd genasis
+
+# 방법 2 — sparse-checkout 으로 servers/ 만 (~1 MB)
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/claude-genasis/genasis && \
+  cd genasis && git sparse-checkout set servers
+```
+
+그 다음 스택 기동:
+
 ```bash
 cd servers && ./scripts/setup-user-env.sh && docker compose up -d
 ```
@@ -239,7 +255,7 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.5.7)
+## 알려진 한계 (v0.5.8)
 
 - **호스팅 trial-app 배포 lag — Quick Path 는 이제 self-healing.** v0.5.5 부터 `ensure_project` / `ensure_channel` 은 `genasis init --trial` 단계에서 팀이 이미 seed 된 것을 탐지하면 auth-free `/api/trial/bootstrap` 로 라우팅 (모든 배포 버전이 받음). 그래서 운영자 배포가 stale 해도 Quick Path 단계 4 가 더는 hard-fail 하지 않음. 다만 agent 런타임이 부르는 downstream call (`create_issue`, `transition`, `post_root`) 은 여전히 legacy `/api/plane/*` / `/api/mattermost/*` 로 가므로 `agents-pool@289876c` 이전 배포에서는 401 가능. 에이전트 동작 중 `/api/plane/issues` / `/api/mattermost/posts` 에 401 발생하면 운영자에게 재배포 요청. 자체 host trial-app 은 항상 contract 맞음.
 

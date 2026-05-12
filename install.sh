@@ -517,12 +517,24 @@ fetch_binary() {
     fi
 
     install_path="$PREFIX/genasis"
+    # v0.5.8 D-005: ensure PREFIX exists before mv. Without this, a
+    # user passing `--prefix=/some/new/path` hits "mv: cannot stat" then
+    # the sudo fallback, which in non-TTY contexts (curl|sh, CI runners)
+    # fails silently without aborting because `set -e` does not propagate
+    # past sudo's interactive password prompt. Result was a confusing
+    # `[OK] Installed: <path>` line followed by a missing binary.
+    mkdir -p "$PREFIX" 2>/dev/null || true
     if mv "$tmp/genasis" "$install_path" 2>/dev/null; then
         chmod +x "$install_path"
+    elif sudo install -m 0755 "$tmp/genasis" "$install_path" 2>/dev/null; then
+        :
     else
-        warn "cannot write to $PREFIX without elevation; trying sudo."
-        sudo install -m 0755 "$tmp/genasis" "$install_path"
+        die "failed to install to $install_path — check permissions or pick a writable --prefix (default: \$HOME/.local/bin)"
     fi
+    # Hard verification: prove the file is actually there before claiming
+    # success. Catches the case where sudo aborted but didn't propagate
+    # an exit status. (v0.5.8 D-005)
+    [ -x "$install_path" ] || die "install verification failed: $install_path is missing or not executable"
     ok "Installed: $install_path"
 
     case ":${PATH:-}:" in
