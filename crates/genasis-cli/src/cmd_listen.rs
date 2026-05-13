@@ -110,65 +110,55 @@ pub async fn run(args: Args) -> Result<()> {
 }
 
 async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
-    let (cfg, stream, sink) = build_loop_components(project_root, args).await?;
+    let (cfg, stream, _sink) = build_loop_components(project_root, args).await?;
     println!(
-        "→ genasis listen (foreground) — project={} actor={} echo_only={} max_events={}",
-        cfg.project_slug, cfg.default_actor, args.echo_only, args.max_events
+        "→ genasis listen (foreground) — project={} max_events={}",
+        cfg.project_slug, args.max_events
     );
     println!("  Ctrl-C 로 종료. 백그라운드 daemon 으로 띄우려면 `genasis listen start`.");
 
-    // v0.6.0 alpha.4: echo-only 가 아니고 trial flavor 면 long-running
-    // session-based path. MCP tool 로 외부 시스템 조작하므로 sink (marker
-    // 파싱 router) 는 안 사용 — v0.5.x 호환용 fallback path 만 유지.
-    if !args.echo_only {
-        let cfg_data = genasis_core::config::Config::load(&project_root.join(CONFIG_FILE_NAME))?;
-        let flavor = if args.trial || cfg_data.trial.as_ref().map(|t| t.enabled).unwrap_or(false) {
-            "trial"
-        } else {
-            "real"
-        };
-        let trial_url = cfg_data
-            .trial
-            .as_ref()
-            .map(|t| t.url.clone())
-            .unwrap_or_default();
-        let team_token = cfg_data.effective_team_token().to_string();
-        let mcp_server_dir = std::env::var("GENASIS_MCP_SERVER_DIR")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .parent()
-                    .and_then(|p| p.parent())
-                    .map(|p| p.join("mcp-servers"))
-                    .unwrap_or_else(|| std::path::PathBuf::from("mcp-servers"))
-            });
-        let mcp_config = session::build_mcp_config(
-            flavor,
-            &trial_url,
-            &team_token,
-            &cfg.project_slug,
-            &cfg.project_name,
-            &mcp_server_dir,
-        );
-        let append = session::build_append_system_prompt(
-            flavor,
-            &team_token,
-            &cfg.project_slug,
-            &cfg.project_name,
-        );
-        let mcp_config_str = serde_json::to_string(&mcp_config)?;
-        match session::ClaudeTeamSession::spawn(project_root, &mcp_config_str, &append).await {
-            Ok((sess, rx)) => {
-                drop(sink); // sink 안 씀 — MCP tool 이 그 책임 대신
-                return run_listen_loop_session(stream, sess, rx, cfg).await;
-            }
-            Err(e) => {
-                warn!("ClaudeTeamSession spawn failed: {e} — fallback to v0.5.x marker path");
-            }
-        }
-    }
-
-    run_listen_loop(stream, &*sink, cfg).await
+    // v0.6.0 alpha.6: long-running claude session + MCP tool 모드 만.
+    // v0.5.x marker fallback / echo-only / claude --print 경로 모두 폐기.
+    // session spawn 이 실패하면 그대로 error 반환 — fallback 안 함.
+    let cfg_data = genasis_core::config::Config::load(&project_root.join(CONFIG_FILE_NAME))?;
+    let flavor = if args.trial || cfg_data.trial.as_ref().map(|t| t.enabled).unwrap_or(false) {
+        "trial"
+    } else {
+        "real"
+    };
+    let trial_url = cfg_data
+        .trial
+        .as_ref()
+        .map(|t| t.url.clone())
+        .unwrap_or_default();
+    let team_token = cfg_data.effective_team_token().to_string();
+    let mcp_server_dir = std::env::var("GENASIS_MCP_SERVER_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .and_then(|p| p.parent())
+                .map(|p| p.join("mcp-servers"))
+                .unwrap_or_else(|| std::path::PathBuf::from("mcp-servers"))
+        });
+    let mcp_config = session::build_mcp_config(
+        flavor,
+        &trial_url,
+        &team_token,
+        &cfg.project_slug,
+        &cfg.project_name,
+        &mcp_server_dir,
+    );
+    let append = session::build_append_system_prompt(
+        flavor,
+        &team_token,
+        &cfg.project_slug,
+        &cfg.project_name,
+    );
+    let mcp_config_str = serde_json::to_string(&mcp_config)?;
+    let (sess, rx) =
+        session::ClaudeTeamSession::spawn(project_root, &mcp_config_str, &append).await?;
+    run_listen_loop_session(stream, sess, rx, cfg).await
 }
 
 fn cmd_start(project_root: &Path, args: &Args) -> Result<()> {
