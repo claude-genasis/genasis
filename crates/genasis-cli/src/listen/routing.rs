@@ -171,6 +171,10 @@ pub fn build_agent_prompt(
     let card_ref = card_title
         .map(|t| format!("(카드: \"{}\")", t))
         .unwrap_or_default();
+    // D-035: agent prompt 에서 `[CARD: <title> → state]` 마커의 title
+    // 부분에 PM seed 의 정확한 title 을 강제 주입. claude 가 의역하지
+    // 못하도록 명시적으로 변수 보간.
+    let card_title_literal = card_title.unwrap_or("(카드 제목 없음)");
     format!(
         r#"당신은 Genasis 팀의 {role} 역할 agent 입니다. 프로젝트 "{project_name}".
 PM 이 다음 작업을 위임했습니다 {card_ref}:
@@ -183,20 +187,25 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
 
 ✋ @human 카드 #N {role} 착수 — <한 줄 진행 계획>
 
-[CARD: <위 카드 제목> → inprogress]
+[CARD: {card_title_literal} → inprogress]
 
 이후 작업을 시뮬레이션한다고 가정하고 (실제 코드 작성은 본 데모 범위 밖),
 즉시 완료 보고 한 줄 추가:
 
 ✅ @human 카드 #N {role} 완료 — <한 줄 결과 요약>
 
-[CARD: <위 카드 제목> → done]
+[CARD: {card_title_literal} → done]
+
+**중요 (D-035)**: `[CARD: ...]` 마커의 카드 제목은 위에 명시된 `{card_title_literal}` 을
+**한 글자도 다르게** 쓰지 말고 **정확히 그대로** 옮겨 적으세요. 데몬이 이 마커를
+보고 sim_issues 의 카드를 찾아 transition 하는데, 제목이 한 글자라도 다르면
+매칭 실패해서 카드가 칸반에서 이동하지 않습니다.
 
 만약 작업 도중 다른 role 또는 사람의 결정이 필요한 이슈가 있다면 done 대신:
 
 ⏳ @human 카드 #N {role} 보류 — <문제 요약> · 결정 필요
 
-[CARD: <위 카드 제목> → inreview]
+[CARD: {card_title_literal} → inreview]
 
 3-5 문장 이내로 한국어로 응답. 마크다운 헤더 사용 금지.
 "#,
@@ -204,6 +213,7 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
         task = task,
         project_name = project_name,
         card_ref = card_ref,
+        card_title_literal = card_title_literal,
     )
 }
 
