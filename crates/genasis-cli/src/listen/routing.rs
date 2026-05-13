@@ -167,6 +167,7 @@ pub fn build_agent_prompt(
     project_name: &str,
     project_slug: &str,
     card_title: Option<&str>,
+    seq_id: Option<u64>,
 ) -> String {
     let card_ref = card_title
         .map(|t| format!("(카드: \"{}\")", t))
@@ -175,6 +176,12 @@ pub fn build_agent_prompt(
     // 부분에 PM seed 의 정확한 title 을 강제 주입. claude 가 의역하지
     // 못하도록 명시적으로 변수 보간.
     let card_title_literal = card_title.unwrap_or("(카드 제목 없음)");
+    // D-037: 카드 번호 — sim_issues.sequence_id 또는 (real) Plane 의
+    // sequence_id. 둘 다 양의 정수라 같은 형식. None 이면 "#N" stub
+    // (이상 경로 — 데몬이 bootstrap response 에서 못 받아온 경우).
+    let card_number = seq_id
+        .map(|n| format!("#{n}"))
+        .unwrap_or_else(|| "#N".to_string());
     format!(
         r#"당신은 Genasis 팀의 {role} 역할 agent 입니다. 프로젝트 "{project_name}".
 PM 이 다음 작업을 위임했습니다 {card_ref}:
@@ -185,14 +192,14 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
 
 작업에 착수합니다. 다음 형식으로 응답하세요 (각 줄 정확히 준수):
 
-✋ @human 카드 #N {role} 착수 — <한 줄 진행 계획>
+✋ @human 카드 {card_number} {role} 착수 — <한 줄 진행 계획>
 
 [CARD: {card_title_literal} → inprogress]
 
 이후 작업을 시뮬레이션한다고 가정하고 (실제 코드 작성은 본 데모 범위 밖),
 즉시 완료 보고 한 줄 추가:
 
-✅ @human 카드 #N {role} 완료 — <한 줄 결과 요약>
+✅ @human 카드 {card_number} {role} 완료 — <한 줄 결과 요약>
 
 [CARD: {card_title_literal} → done]
 
@@ -203,7 +210,7 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
 
 만약 작업 도중 다른 role 또는 사람의 결정이 필요한 이슈가 있다면 done 대신:
 
-⏳ @human 카드 #N {role} 보류 — <문제 요약> · 결정 필요
+⏳ @human 카드 {card_number} {role} 보류 — <문제 요약> · 결정 필요
 
 [CARD: {card_title_literal} → inreview]
 
@@ -214,6 +221,7 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
         project_name = project_name,
         card_ref = card_ref,
         card_title_literal = card_title_literal,
+        card_number = card_number,
     )
 }
 

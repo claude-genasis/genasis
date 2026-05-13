@@ -72,7 +72,15 @@ pub trait EventSink: Send + Sync {
     ///   (real, 추후 확장)
     /// - new_cards → sim_issues 또는 Plane issue create
     /// - transitions → sim_issues UPDATE 또는 Plane issue PATCH
-    async fn apply_pm_routing(&self, routing: &routing::PmRouting) -> Result<()>;
+    ///
+    /// D-037: 반환값은 (title → sequence_id) 매핑. trial flavor 는 bootstrap
+    /// 응답의 `demo_issues[]` 에서 채움. real Plane flavor 는 issue create
+    /// API 응답에서 받음 (현재 stub 으로 빈 map). 데몬의 fan-out 이 이 맵을
+    /// 보고 agent prompt 의 `#N` placeholder 를 진짜 카드 번호로 대체.
+    async fn apply_pm_routing(
+        &self,
+        routing: &routing::PmRouting,
+    ) -> Result<std::collections::HashMap<String, u64>>;
 }
 
 /// 모든 flavor 가 공유하는 메인 loop. EventStream / EventSink 가 어디로
@@ -164,10 +172,16 @@ async fn handle_human_post(
     let route = routing::parse_pm_routing(&pm_response);
     info!(target: "listen", routing = %routing::render_routing_summary(&route), "PM routing parsed");
 
-    // (4) sim DB 적용 (sim_teams app_kind/features + sim_issues 카드)
-    if let Err(e) = sink.apply_pm_routing(&route).await {
-        warn!("apply_pm_routing failed: {e}");
-    }
+    // (4) sim DB 적용 (sim_teams app_kind/features + sim_issues 카드).
+    // D-037: 반환된 (title → sequence_id) 맵을 fan-out 에 넘겨서 agent
+    // 응답의 `#N` placeholder 를 실제 카드 번호로 대체.
+    let seq_map = match sink.apply_pm_routing(&route).await {
+        Ok(m) => m,
+        Err(e) => {
+            warn!("apply_pm_routing failed: {e}");
+            std::collections::HashMap::new()
+        }
+    };
 
     // (5) D-028 + D-032: 각 agent fan-out 을 "착수 → 작업 시간 → 완료"
     // 두 단계로 펼치고, **여러 agent 를 병렬로** 실행한다 (D-032 — 사용자
@@ -186,12 +200,22 @@ async fn handle_human_post(
     let mut tasks = futures_util::stream::FuturesUnordered::new();
     for (idx, assignment) in route.assignments.iter().enumerate() {
         let stagger = Duration::from_secs(idx as u64 * agent_gap_secs);
+        // 이 agent role 에 분배된 카드 찾고 (assignee 매칭),
+        // 그 카드의 정확한 PM seed title + sequence_id 를 fan-out 에 주입.
+        let assigned_card = route
+            .new_cards
+            .iter()
+            .find(|c| c.assignee.as_deref() == Some(assignment.role.as_str()));
+        let card_title = assigned_card.map(|c| c.title.clone());
+        let seq_id = card_title.as_ref().and_then(|t| seq_map.get(t).copied());
         let task = run_agent_step(
             event,
             sink,
             cfg,
             assignment,
             &route,
+            card_title,
+            seq_id,
             agent_work_secs,
             stagger,
         );
@@ -218,12 +242,20 @@ async fn handle_human_post(
 /// D-032: 한 agent 의 "착수 → sleep → 완료" 단계를 묶은 future.
 /// 여러 agent 가 병렬로 실행되며, `stagger` 만큼 시작을 어긋나게 해서
 /// 사람 눈에 여러 agent 가 순차적으로 일에 들어가는 모습을 보여준다.
+///
+/// D-036 + D-037: `card_title` 은 PM seed 의 정확한 title (의역 금지),
+/// `seq_id` 는 sim_issues 의 sequence_id (Plane 호환). 둘 다 fan-out 시
+/// agent 응답 마커에 그대로 보간되어 ensureIssue dedup + 사람이 보는
+/// 카드 번호가 일치하도록.
+#[allow(clippy::too_many_arguments)]
 async fn run_agent_step(
     event: &InboundEvent,
     sink: &dyn EventSink,
     cfg: &LoopConfig,
     assignment: &routing::AgentAssignment,
     pm_route: &routing::PmRouting,
+    card_title: Option<String>,
+    seq_id: Option<u64>,
     work_secs: u64,
     stagger: tokio::time::Duration,
 ) {
@@ -234,7 +266,7 @@ async fn run_agent_step(
 
     // (a) "착수" — inprogress transition 만 포함. echo stub 사용 (LLM
     // 호출 절약 — 진짜 응답은 done 단계에 한 번만).
-    let start_reply = build_echo_agent_start(assignment, cfg);
+    let start_reply = build_echo_agent_start(assignment, card_title.as_deref(), seq_id, cfg);
     if let Err(e) = sink.reply(event, &assignment.role, &start_reply).await {
         warn!("agent {} start reply failed: {e}", assignment.role);
     }
@@ -253,20 +285,17 @@ async fn run_agent_step(
 
     // (b) "완료" — done transition. echo-only 면 stub, 아니면 진짜
     // claude --print 응답 (그 안에 [CARD: → done] 포함).
+    let _ = pm_route; // 미래 확장 — done 시점 routing 컨텍스트
     let done_reply = if cfg.echo_only {
-        build_echo_agent_done(assignment, cfg)
+        build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
     } else {
-        let card_title = pm_route
-            .new_cards
-            .iter()
-            .find(|c| c.assignee.as_deref() == Some(assignment.role.as_str()))
-            .map(|c| c.title.clone());
         let prompt = routing::build_agent_prompt(
             &assignment.role,
             &assignment.task,
             &cfg.project_name,
             &cfg.project_slug,
             card_title.as_deref(),
+            seq_id,
         );
         match run_claude_print(&prompt, cfg).await {
             Ok(s) => s,
@@ -275,7 +304,7 @@ async fn run_agent_step(
                     "agent {} claude --print failed: {e} — fallback to echo done",
                     assignment.role
                 );
-                build_echo_agent_done(assignment, cfg)
+                build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
             }
         }
     };
@@ -380,30 +409,53 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     )
 }
 
-/// D-028: agent 의 작업 진행감을 사람이 인지할 수 있게 응답을 두 단계로
-/// 분리. 1단계 = "착수" + `[CARD: X → inprogress]` 만, 2단계 = "완료" +
-/// `[CARD: X → done]` 만. `handle_human_post` 가 둘 사이에 sleep 을 끼워
-/// 칸반 In Progress 컬럼이 시각적으로 비치도록 한다.
-fn build_echo_agent_start(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
+/// D-028 + D-036 + D-037: agent 의 "착수" 메시지. PM seed 의 정확한
+/// 카드 title 과 sequence_id 를 받아서 의역 없이 그대로 마커에 보간.
+/// `card_title` 이 None 이면 (이상 경로) assignment.task 의 앞부분 사용.
+fn build_echo_agent_start(
+    assignment: &routing::AgentAssignment,
+    card_title: Option<&str>,
+    seq_id: Option<u64>,
+    cfg: &LoopConfig,
+) -> String {
     let _ = cfg;
+    let title = card_title
+        .map(str::to_string)
+        .unwrap_or_else(|| first_three_words(&assignment.task));
+    let card_ref = seq_id
+        .map(|n| format!("#{n}"))
+        .unwrap_or_else(|| "#(no-id)".to_string());
     format!(
-        r#"✋ @human {role} 착수 — {task}
+        r#"✋ @human {card_ref} {role} 착수 — {task}
 
-[CARD: {task_title} → inprogress]"#,
+[CARD: {title} → inprogress]"#,
+        card_ref = card_ref,
         role = assignment.role,
         task = assignment.task,
-        task_title = first_three_words(&assignment.task),
+        title = title,
     )
 }
 
-fn build_echo_agent_done(assignment: &routing::AgentAssignment, cfg: &LoopConfig) -> String {
+fn build_echo_agent_done(
+    assignment: &routing::AgentAssignment,
+    card_title: Option<&str>,
+    seq_id: Option<u64>,
+    cfg: &LoopConfig,
+) -> String {
     let _ = cfg;
+    let title = card_title
+        .map(str::to_string)
+        .unwrap_or_else(|| first_three_words(&assignment.task));
+    let card_ref = seq_id
+        .map(|n| format!("#{n}"))
+        .unwrap_or_else(|| "#(no-id)".to_string());
     format!(
-        r#"✅ @human {role} 완료 — 시뮬레이션 모드에서 작업 마침
+        r#"✅ @human {card_ref} {role} 완료 — 시뮬레이션 모드에서 작업 마침
 
-[CARD: {task_title} → done]"#,
+[CARD: {title} → done]"#,
+        card_ref = card_ref,
         role = assignment.role,
-        task_title = first_three_words(&assignment.task),
+        title = title,
     )
 }
 

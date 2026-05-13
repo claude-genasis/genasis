@@ -283,7 +283,10 @@ impl EventSink for MattermostSink {
         Ok(())
     }
 
-    async fn apply_pm_routing(&self, routing: &PmRouting) -> Result<()> {
+    async fn apply_pm_routing(
+        &self,
+        routing: &PmRouting,
+    ) -> Result<std::collections::HashMap<String, u64>> {
         // Real Mattermost / Plane 모드의 apply_pm_routing 은 향후 확장
         // 포인트 — Plane issue create + assignee PATCH + state 변경을
         // PLANE_API_KEY 로 수행. 본 사이클은 trial 모드 검증에 집중하므로
@@ -295,7 +298,7 @@ impl EventSink for MattermostSink {
             transitions = routing.transitions.len(),
             "MattermostSink: PM routing observed (Plane integration deferred to v0.6.0)"
         );
-        Ok(())
+        Ok(std::collections::HashMap::new())
     }
 
     async fn maybe_transition_for_directive(&self, message: &str) -> Result<()> {

@@ -245,7 +245,11 @@ impl EventSink for TrialAppSink {
         Ok(())
     }
 
-    async fn apply_pm_routing(&self, routing: &PmRouting) -> Result<()> {
+    async fn apply_pm_routing(
+        &self,
+        routing: &PmRouting,
+    ) -> Result<std::collections::HashMap<String, u64>> {
+        let mut seq_map: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
         // (a) app_kind / app_features 가 명시되면 sim_teams 업데이트
         if routing.app_kind.is_some() || !routing.app_features.is_empty() {
             let mut body = json!({
@@ -334,6 +338,23 @@ impl EventSink for TrialAppSink {
                         transitions = routing.transitions.len(),
                         "trial: sim_issues seed/transition via bootstrap"
                     );
+                    // D-037: 응답의 `demo_issues[]` 가 각 카드의 sequence_id
+                    // 를 담고 있음. title → sequence_id 매핑으로 데몬 fan-out
+                    // 이 agent prompt 의 `#N` placeholder 를 실제 카드 번호로
+                    // 대체. Plane 호환: real Plane 의 sequence_id 와 같은
+                    // 정수 형식이라 v0.6.0 에서도 같은 코드 흐름 가능.
+                    if let Ok(body) = r.json::<Value>().await {
+                        if let Some(arr) = body.get("demo_issues").and_then(|v| v.as_array()) {
+                            for issue in arr {
+                                if let (Some(title), Some(seq)) = (
+                                    issue.get("title").and_then(|t| t.as_str()),
+                                    issue.get("sequence_id").and_then(|s| s.as_u64()),
+                                ) {
+                                    seq_map.insert(title.to_string(), seq);
+                                }
+                            }
+                        }
+                    }
                 }
                 Ok(r) => warn!(
                     "trial bootstrap apply {} → {}: {}",
@@ -344,7 +365,7 @@ impl EventSink for TrialAppSink {
                 Err(e) => warn!("trial bootstrap apply {url}: {e}"),
             }
         }
-        Ok(())
+        Ok(seq_map)
     }
 
     async fn maybe_transition_for_directive(&self, message: &str) -> Result<()> {
