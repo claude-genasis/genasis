@@ -19,6 +19,8 @@ trial-app 의 진짜 역할 (v0.5.x 에서 회피한 것):
 - **팀이 진짜 코드 작업 수행** (text 응답이 아닌 file Edit + build + deploy)
 - **사용자가 결과 시각 확인** (브라우저 dev server)
 
+**핵심 원칙**: `genasis` 자체는 **인프라/오케스트레이션만 담당**. 코드 생성·변경·빌드·배포는 **agent 의 일** 이지 genasis CLI 의 일이 아니다. 예: `genasis example prd` 는 **PRD.md 만 생성**, React scaffold 까지 만들지 않음 — scaffold 는 frontend agent 가 PRD 보고 처음부터 짜는 게 진짜 흐름.
+
 ## v0.5.x 회피 회고
 
 | 결함 ID | 회피의 본질 |
@@ -76,20 +78,30 @@ PM agent 호출 (Claude Agent SDK Node subprocess)
 - agent fan-out 은 일단 그대로 (Phase 2 에서 전환)
 - **검증**: PM 응답이 PRD 내용 인지하고 정확한 작업 분배
 
-### M-v6.0.2 — Example 프로젝트 scaffold
+### M-v6.0.2 — 모든 role agent SDK + Edit/Write/Bash tool 부여
 
-- `genasis example prd` 가 PRD.md + **실제 React 프로젝트 scaffold** 생성
-- sandbox 디렉토리 안에 trial-app QuizApp 사본 + package.json + dev server 설정
-- `genasis listen start` 가 dev server 자동 spawn (npm run dev on :30000+team_index)
-- 사용자가 자기 브라우저로 localhost:<port> 접속 → 자기 demo 앱 봄
+- `genasis example prd` 는 **PRD.md 만 생성** (요구사항 텍스트). 코드 scaffold 생성 안 함 — 그건 agent 의 일.
+- frontend / backend / designer / qa / devops 호출이 모두 Agent SDK 로
+- 각 role 마다 적합한 tool 권한:
+  - frontend / backend: Read, **Edit, Write**, Bash
+  - designer: Read, **Edit, Write** (Tailwind config, globals.css, design tokens)
+  - qa: Read, Write (테스트 파일), **Bash** (Playwright/jest 실행)
+  - devops: Read, **Bash** (npm install/build/dev, port 관리)
+  - pm / planner / architect: Read, Bash (코드 인지 + git log 같은 진단)
+- agent prompt 변경: "텍스트 응답이 아닌 **진짜 file Write/Edit** 수행. 코드는 cwd 에 만들고, 진행은 [CARD: ... → state] 마커로 보고"
 
-### M-v6.0.3 — agent 가 진짜 코드 변경
+### M-v6.0.3 — agent 가 PRD 보고 처음부터 앱 구현
 
-- frontend agent 호출이 Read/Edit/Bash tool 활성 + cwd=sandbox
-- agent prompt: "이 디렉토리의 React 컴포넌트를 직접 수정하라. 텍스트 응답이 아닌 file Edit 수행"
-- designer / qa / devops 도 동일하게 진짜 작업
-- devops 가 build/restart 자동
-- agent 응답 본문에 [CARD: ... → done] 마커 (현재처럼) + 추가로 변경한 파일 목록
+이게 본 사이클의 진짜 본질 검증.
+
+- 빈 프로젝트 + PRD.md 만 있는 sandbox 에서 사용자가 "이 PRD 대로 앱 만들어줘" 요청
+- PM 이 PRD 읽고 작업 분배: frontend (React scaffold + 컴포넌트), designer (디자인 토큰), qa (테스트), devops (dev server)
+- **frontend agent 가 `npm init` 또는 vite/next create + React 컴포넌트 진짜 Write**
+- designer 가 Tailwind config + 디자인 토큰 진짜 Write
+- qa 가 Playwright 테스트 진짜 작성
+- **devops agent 가 `npm install` + `npm run dev` Bash 호출 → 자기 dev server spawn (예: localhost:30000+team_index)**
+- 사용자가 자기 브라우저로 그 URL 접속 → **agentic team 이 처음부터 만든 진짜 앱** 봄
+- 후속 요청 ("버튼 빨강으로", "shimmer 효과") 도 같은 agent 들이 진짜 코드 Edit + hot-reload
 
 ### M-v6.0.4 — per-team 격리
 
