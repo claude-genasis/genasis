@@ -1,0 +1,13 @@
+{
+  "name": "@genasis/mcp-mattermost",
+  "version": "0.1.0",
+  "description": "MCP server — Mattermost REST API wrapper for the genasis listen daemon (real flavor).",
+  "type": "module",
+  "main": "index.mjs",
+  "bin": {
+    "genasis-mcp-mattermost": "index.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

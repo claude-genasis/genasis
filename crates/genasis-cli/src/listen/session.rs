@@ -227,20 +227,20 @@ pub fn build_mcp_config(
         .display()
         .to_string();
     let mut servers = serde_json::Map::new();
+    // D-052: NODE_PATH 자동 탐지 — 사용자별로 npm root -g 결과가 다름.
+    // GENASIS_NODE_PATH env 가 있으면 override, 없으면 `npm root -g`
+    // 호출. 실패 시 마지막 fallback default.
+    let node_path = std::env::var("GENASIS_NODE_PATH").unwrap_or_else(|_| {
+        std::process::Command::new("npm")
+            .args(["root", "-g"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "/usr/lib/node_modules".to_string())
+    });
     if flavor == "trial" || flavor == "auto" {
-        // D-052: NODE_PATH 자동 탐지 — 사용자별로 npm root -g 결과가 다름.
-        // GENASIS_NODE_PATH env 가 있으면 override, 없으면 `npm root -g`
-        // 호출. 실패 시 마지막 fallback default.
-        let node_path = std::env::var("GENASIS_NODE_PATH").unwrap_or_else(|_| {
-            std::process::Command::new("npm")
-                .args(["root", "-g"])
-                .output()
-                .ok()
-                .filter(|o| o.status.success())
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| "/usr/lib/node_modules".to_string())
-        });
         servers.insert(
             "trial-app".to_string(),
             serde_json::json!({
@@ -257,8 +257,76 @@ pub fn build_mcp_config(
             }),
         );
     }
-    // P5 stub: real flavor 일 때 mattermost + plane MCP server 등록
-    // (구현은 mcp-servers/mattermost/, plane/ 에서 진행 — beta 사이클).
+    // beta: real flavor 면 mattermost + plane MCP server 등록.
+    // 환경변수는 daemon process 환경에서 그대로 전달 — 운영자가
+    // `genasis listen` 실행 전 export.
+    if flavor == "real" || flavor == "auto" {
+        let mattermost_index = mcp_server_dir
+            .join("mattermost")
+            .join("index.mjs")
+            .display()
+            .to_string();
+        let plane_index = mcp_server_dir
+            .join("plane")
+            .join("index.mjs")
+            .display()
+            .to_string();
+        if std::env::var("MM_URL").is_ok() && std::env::var("MM_ADMIN_TOKEN").is_ok() {
+            servers.insert(
+                "mattermost".to_string(),
+                serde_json::json!({
+                    "command": "node",
+                    "args": [mattermost_index],
+                    "env": {
+                        "NODE_PATH": node_path,
+                        "MM_URL": std::env::var("MM_URL").unwrap_or_default(),
+                        "MM_ADMIN_TOKEN": std::env::var("MM_ADMIN_TOKEN").unwrap_or_default(),
+                        "MM_TEAM_ID": std::env::var("MM_TEAM_ID").unwrap_or_default(),
+                        "MM_DEFAULT_CHANNEL_ID": std::env::var("MM_DEFAULT_CHANNEL_ID").unwrap_or_default(),
+                    },
+                }),
+            );
+        }
+        if std::env::var("PLANE_URL").is_ok() && std::env::var("PLANE_API_KEY").is_ok() {
+            let mut plane_env = serde_json::Map::new();
+            plane_env.insert(
+                "NODE_PATH".to_string(),
+                serde_json::Value::String(node_path.clone()),
+            );
+            plane_env.insert(
+                "PLANE_URL".to_string(),
+                serde_json::Value::String(std::env::var("PLANE_URL").unwrap_or_default()),
+            );
+            plane_env.insert(
+                "PLANE_API_KEY".to_string(),
+                serde_json::Value::String(std::env::var("PLANE_API_KEY").unwrap_or_default()),
+            );
+            plane_env.insert(
+                "PLANE_WORKSPACE_SLUG".to_string(),
+                serde_json::Value::String(
+                    std::env::var("PLANE_WORKSPACE_SLUG").unwrap_or_default(),
+                ),
+            );
+            plane_env.insert(
+                "PLANE_PROJECT_ID".to_string(),
+                serde_json::Value::String(std::env::var("PLANE_PROJECT_ID").unwrap_or_default()),
+            );
+            // PLANE_USER_ID_<ROLE> — pass through any matching env.
+            for (k, v) in std::env::vars() {
+                if k.starts_with("PLANE_USER_ID_") {
+                    plane_env.insert(k, serde_json::Value::String(v));
+                }
+            }
+            servers.insert(
+                "plane".to_string(),
+                serde_json::json!({
+                    "command": "node",
+                    "args": [plane_index],
+                    "env": serde_json::Value::Object(plane_env),
+                }),
+            );
+        }
+    }
     serde_json::json!({ "mcpServers": serde_json::Value::Object(servers) })
 }
 

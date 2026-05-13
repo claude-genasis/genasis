@@ -22,7 +22,6 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{info, warn};
 
-
 use super::{EventStream, InboundEvent};
 
 type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
@@ -35,6 +34,10 @@ pub struct MattermostWsStream {
     /// 우리 측 agent bot user_id 집합 — `is_human` 판정에 사용. 비어
     /// 있으면 "역할 키워드 외 actor" 기준 fallback.
     agent_user_ids: Vec<String>,
+    /// M-v6.0.4: 데몬이 binding 된 team key (보통 MM_TEAM_ID 또는
+    /// 운영자가 정한 논리 team_token). 모든 inbound event 에 부여 →
+    /// run_listen_loop_multi 가 이걸로 session 라우팅.
+    team_token: String,
 }
 
 impl MattermostWsStream {
@@ -44,6 +47,7 @@ impl MattermostWsStream {
         mm_base_url: &str,
         bot_token: &str,
         agent_user_ids: Vec<String>,
+        team_token: String,
     ) -> Result<Self> {
         let ws_url = derive_ws_url(mm_base_url);
         let mut s = Self {
@@ -52,6 +56,7 @@ impl MattermostWsStream {
             socket: None,
             seq: 1,
             agent_user_ids,
+            team_token,
         };
         s.reconnect().await?;
         Ok(s)
@@ -191,6 +196,7 @@ impl EventStream for MattermostWsStream {
                 !self.agent_user_ids.iter().any(|id| id == &user_id)
             };
             return Ok(InboundEvent::PostCreated {
+                team_token: self.team_token.clone(),
                 post_id,
                 channel_id,
                 channel_name,

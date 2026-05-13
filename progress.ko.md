@@ -1053,6 +1053,31 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.9 — D-054 마무리 + beta real MCP server + M-v6.0.4 multi-team session map**. alpha.8 이후 남아 있던 세 가지 pending 작업을 한 사이클에 ship.
+
+  **D-054 마무리 — 시뮬레이션 시대 잔재 제거**:
+  - `crates/genasis-cli/src/listen/{routing.rs, sdk.rs}` 모듈 자체 삭제 (deprecation stub 으로 alpha.7 부터 비어 있던 상태). `mod.rs` 의 `pub mod sdk;` 선언도 함께 제거. v0.5.x marker 파싱 / fresh-spawn `run_claude_agent_sdk` 흔적 완전 소거.
+
+  **beta — real Mattermost / Plane MCP server 구현**:
+  - `mcp-servers/mattermost/index.mjs` (+ package.json) — `@modelcontextprotocol/sdk` stdio server. tools: `post_message` (Bearer 인증 + 채널명→UUID 캐시 + `actor` prefix), `list_posts`, `list_channels`, `update_post`. env: `MM_URL` / `MM_ADMIN_TOKEN` / `MM_TEAM_ID` / `MM_DEFAULT_CHANNEL_ID`.
+  - `mcp-servers/plane/index.mjs` (+ package.json) — tools: `create_issue` (title idempotency + state UUID 자동 매핑 + PLANE_USER_ID_<ROLE> 환경변수 → assignee UUID), `transition_issue`, `list_issues`, `list_states`. Plane state UUID 매핑: 첫 호출 시 `/states/` GET → "todo"/"inprogress"/"inreview"/"done" alias 를 backlog/started/completed group 으로 fallback.
+  - `crates/genasis-cli/src/listen/session.rs::build_mcp_config` 에 `real` / `auto` flavor 분기 추가 — `MM_URL` + `MM_ADMIN_TOKEN` env 있으면 mattermost server 등록, `PLANE_URL` + `PLANE_API_KEY` 있으면 plane server 등록. `PLANE_USER_ID_*` env 는 자동 전파. NODE_PATH 도 trial 과 동일하게 `npm root -g` 자동 탐지.
+  - overlay 본문은 trial 과 동일 — 같은 tool 인터페이스 (`mcp__mattermost__post_message`, `mcp__plane__create_issue` 등) 로 flavor swap.
+
+  **M-v6.0.4 — multi-team sandbox (HashMap<team_token, ClaudeTeamSession>)**:
+  - `InboundEvent::PostCreated` 에 `team_token: String` 필드 추가. trial_sse / mattermost_ws 두 stream 모두 자기 구독 team_token 을 모든 이벤트에 부여.
+  - `MattermostWsStream::connect` 시그니처에 `team_token: String` 추가 — 운영자가 N 개 인스턴스 동시 호스팅 가능. `cmd_listen` 은 `MM_TEAM_ID` env (없으면 mm.url) 를 team key 로 사용.
+  - 신규 `pub type SessionFactory = Box<dyn Fn(&str) -> Pin<Box<dyn Future<Output = Result<...>> + Send>> + Send + Sync>;` + `pub async fn run_listen_loop_multi(stream, cfg, factory)`. team_token 별로 `HashMap<String, ClaudeTeamSession>` lookup → 없으면 factory 호출 lazy spawn. drain task 도 team 별로 분리 (`team` field 로깅).
+  - `cmd_listen::run_foreground` 가 closure 로 factory 합성 — `project_root` / `flavor` / `trial_url` / `mcp_server_dir` 캡처해서 호출 시점에 team_token 만 받아 session spawn. 단일 team 케이스도 같은 코드 경로 (현재 stream 들은 1 team 만 emit 하므로 HashMap 에 1 key 만 들어감 — 향후 multi-stream 확장 시 그대로 N key).
+  - `run_listen_loop_session` 는 `run_listen_loop_multi` 로 대체 (호출자는 cmd_listen 하나).
+
+  **결과**: alpha.9 는 v0.6.0 의 "프로토콜 + 데몬 + MCP server + multi-team" 4 축이 다 갖춰진 첫 빌드. real flavor 도 trial 과 동일 overlay 본문으로 동작 가능. `cargo build --workspace` 0 errors, `cargo fmt --check` clean.
+
+  **남은 작업 (alpha.10 / beta)**:
+  - real flavor live 검증 (실제 Mattermost + Plane 인스턴스 대상 end-to-end smoke). 운영자가 PAT 발급 + `[[humans]]` 등록 + `genasis listen --real` 실행 → 같은 PM 메시지가 trial 과 동일한 lifecycle 통과.
+  - multi-team end-to-end 검증 — operator 인스턴스 한 개에서 team_token 2 개 SSE 동시 수신 → 두 session 이 독립 spawn / 독립 sandbox 에서 작업.
+  - agents-v1.0.3 catalog publish (overlay 변경 없으면 skip).
+
 - 2026-05-14: **v0.6.0-alpha.5 — lazy session init + agents-pool overlay swap + 라이브 결정적 검증 (P3+P4 통합 완성)**. 사용자 §"alpha.5 진행 + 그 뒤 모든 것 다 진행" 명령 따른 본질 검증 사이클.
 
   **lazy session init (D-047)**:

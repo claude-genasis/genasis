@@ -30,7 +30,7 @@ use crate::listen::lifecycle::{
 use crate::listen::mattermost_ws::MattermostWsStream;
 use crate::listen::session;
 use crate::listen::trial_sse::TrialAppSseStream;
-use crate::listen::{run_listen_loop_session, EventStream, LoopConfig};
+use crate::listen::{run_listen_loop_multi, EventStream, LoopConfig, SessionFactory};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -117,9 +117,10 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
     );
     println!("  Ctrl-C 로 종료. 백그라운드 daemon 으로 띄우려면 `genasis listen start`.");
 
-    // v0.6.0 alpha.6: long-running claude session + MCP tool 모드 만.
+    // v0.6.0 alpha.6+: long-running claude session + MCP tool 모드 만.
     // v0.5.x marker fallback / echo-only / claude --print 경로 모두 폐기.
-    // session spawn 이 실패하면 그대로 error 반환 — fallback 안 함.
+    // M-v6.0.4: factory closure 를 run_listen_loop_multi 에 넘김 — 들어오는
+    // team_token 별로 lazy-spawn. 단일 team 케이스도 같은 코드 경로.
     let cfg_data = genasis_core::config::Config::load(&project_root.join(CONFIG_FILE_NAME))?;
     let flavor = if args.trial || cfg_data.trial.as_ref().map(|t| t.enabled).unwrap_or(false) {
         "trial"
@@ -131,7 +132,6 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
         .as_ref()
         .map(|t| t.url.clone())
         .unwrap_or_default();
-    let team_token = cfg_data.effective_team_token().to_string();
     let mcp_server_dir = std::env::var("GENASIS_MCP_SERVER_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| {
@@ -141,24 +141,43 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
                 .map(|p| p.join("mcp-servers"))
                 .unwrap_or_else(|| std::path::PathBuf::from("mcp-servers"))
         });
-    let mcp_config = session::build_mcp_config(
-        flavor,
-        &trial_url,
-        &team_token,
-        &cfg.project_slug,
-        &cfg.project_name,
-        &mcp_server_dir,
-    );
-    let append = session::build_append_system_prompt(
-        flavor,
-        &team_token,
-        &cfg.project_slug,
-        &cfg.project_name,
-    );
-    let mcp_config_str = serde_json::to_string(&mcp_config)?;
-    let (sess, rx) =
-        session::ClaudeTeamSession::spawn(project_root, &mcp_config_str, &append).await?;
-    run_listen_loop_session(stream, sess, rx, cfg).await
+
+    let project_root_owned = project_root.to_path_buf();
+    let project_slug = cfg.project_slug.clone();
+    let project_name = cfg.project_name.clone();
+    let flavor_owned = flavor.to_string();
+    let trial_url_owned = trial_url;
+    let mcp_dir_owned = mcp_server_dir;
+
+    let factory: SessionFactory = Box::new(move |team_token: &str| {
+        let project_root = project_root_owned.clone();
+        let project_slug = project_slug.clone();
+        let project_name = project_name.clone();
+        let flavor = flavor_owned.clone();
+        let trial_url = trial_url_owned.clone();
+        let mcp_dir = mcp_dir_owned.clone();
+        let team_token = team_token.to_string();
+        Box::pin(async move {
+            let mcp_config = session::build_mcp_config(
+                &flavor,
+                &trial_url,
+                &team_token,
+                &project_slug,
+                &project_name,
+                &mcp_dir,
+            );
+            let append = session::build_append_system_prompt(
+                &flavor,
+                &team_token,
+                &project_slug,
+                &project_name,
+            );
+            let mcp_config_str = serde_json::to_string(&mcp_config)?;
+            session::ClaudeTeamSession::spawn(&project_root, &mcp_config_str, &append).await
+        })
+    });
+
+    run_listen_loop_multi(stream, cfg, factory).await
 }
 
 fn cmd_start(project_root: &Path, args: &Args) -> Result<()> {
@@ -336,8 +355,13 @@ async fn build_loop_components(
             mm_url = %mm.url,
             "listen daemon → real Mattermost"
         );
+        // M-v6.0.4: real flavor 도 multi-team 가능. team key 는 MM_TEAM_ID
+        // (없으면 mattermost URL host) — 운영자가 N 개의 MM 인스턴스 동시
+        // 호스팅 하려면 데몬도 N 개 띄우면 되고, 같은 MM 에서 채널만 분리
+        // 한다면 단일 데몬 단일 key 로 충분.
+        let team_key = std::env::var("MM_TEAM_ID").unwrap_or_else(|_| mm.url.clone());
         let stream: Box<dyn EventStream> =
-            Box::new(MattermostWsStream::connect(&mm.url, &token, vec![]).await?);
+            Box::new(MattermostWsStream::connect(&mm.url, &token, vec![], team_key).await?);
         Ok((loop_cfg, stream))
     }
 }

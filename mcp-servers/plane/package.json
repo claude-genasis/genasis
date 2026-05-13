@@ -1,0 +1,13 @@
+{
+  "name": "@genasis/mcp-plane",
+  "version": "0.1.0",
+  "description": "MCP server — Plane REST API wrapper (issues / states / assignees) for the genasis listen daemon (real flavor).",
+  "type": "module",
+  "main": "index.mjs",
+  "bin": {
+    "genasis-mcp-plane": "index.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

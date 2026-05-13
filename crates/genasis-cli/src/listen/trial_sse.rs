@@ -14,7 +14,6 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tracing::{info, warn};
 
-
 use super::{is_human_actor, EventStream, InboundEvent};
 
 pub struct TrialAppSseStream {
@@ -149,6 +148,7 @@ impl EventStream for TrialAppSseStream {
                         .and_then(|x| x.as_i64())
                         .map(|i| i.to_string());
                     return Ok(InboundEvent::PostCreated {
+                        team_token: self.team_token.clone(),
                         post_id,
                         channel_id,
                         channel_name: None,
