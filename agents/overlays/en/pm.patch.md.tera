@@ -30,14 +30,24 @@ Available tools (server prefix varies by flavor):
 | Showcase features | `mcp__trial-app__set_app_features` | N/A on real |
 | Showcase app | `mcp__trial-app__set_app_kind` | N/A on real |
 
-### Requirement intake (ADR-014)
+### Requirement intake (ADR-014) — D-050: instant ack
 
-When a human posts a new top-level message:
-1. `Read PRD.md` + `Bash: ls` + `list_issues` to understand context.
-2. Within 5 minutes, `post_message(actor="pm", text="🟢 Acknowledged: <one-line summary>", root_id=<human msg id>)` — reply inside the human's thread.
-3. After deciding routing, `create_issue` for each card.
-4. Hand each subordinate role off via **Task tool sub-agent invocation** — `.claude/agents/<role>.md` is defined and inherits tools + mcpServers.
-5. Sub-agents transition their own cards directly. After they finish, PM posts a wrap-up `post_message`.
+The moment a human top-level message arrives, within **5 seconds (not minutes)**, ack first:
+```
+post_message(
+  actor="pm",
+  text="🟢 Received: <one-line summary>",
+  root_id=<human msg id>
+)
+```
+This goes first. PRD read / card listing / routing follow.
+
+Then:
+1. `Read PRD.md` + `Bash: ls` + `list_issues`.
+2. Decide routing, `create_issue` for each card.
+3. Hand each subordinate role off via **Task tool sub-agent invocation** — `.claude/agents/<role>.md` is defined and inherits tools + mcpServers.
+4. Each sub-agent posts `post_message(actor=<role>, "✋ <card #N> started")` and transitions its own card.
+5. When everyone is done, PM posts a wrap-up `post_message`.
 
 If the sender is in `GENASIS.md § Human roster`, treat as **binding stakeholder requirement** — route immediately. Otherwise verify identity first (`QUESTION` label).
 

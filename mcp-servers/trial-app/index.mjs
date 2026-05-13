@@ -57,41 +57,49 @@ async function trialFetch(path, init = {}) {
   return body;
 }
 
-// channel_id resolution — sim_posts POST needs numeric channel_id
-let cachedChannelId = null;
-async function resolveChannelId() {
-  if (cachedChannelId) return cachedChannelId;
+// D-055: per-channel id cache. post_message 의 channel param 으로
+// scrum/design/release 같은 분리 채널 지원.
+const channelIdCache = new Map();
+async function resolveChannelId(channelName) {
+  const name = channelName || CHANNEL_NAME;
+  if (channelIdCache.has(name)) return channelIdCache.get(name);
   const body = await trialFetch(
-    `/api/mattermost/posts?channel_name=${encodeURIComponent(CHANNEL_NAME)}`,
+    `/api/mattermost/posts?channel_name=${encodeURIComponent(name)}`,
   );
   const posts = body?.posts || [];
   if (posts.length === 0) {
     throw new Error(
-      `cannot resolve channel_id for ${CHANNEL_NAME}: no posts seeded yet — run genasis init --trial first`,
+      `cannot resolve channel_id for ${name}: no posts seeded yet — run genasis init --trial first or pick a channel that has at least one welcome post`,
     );
   }
-  cachedChannelId = posts[0].channel_id;
-  return cachedChannelId;
+  const id = posts[0].channel_id;
+  channelIdCache.set(name, id);
+  return id;
 }
 
 const TOOLS = [
   {
     name: "post_message",
     description:
-      "Post a chat message to the team's scrum channel. Use `root_id` to thread under an existing message (typically the human's request).",
+      "Post a chat message to one of the team's channels. Default channel = scrum. Use `root_id` to thread under an existing message (typically the human's request).",
     inputSchema: {
       type: "object",
       properties: {
         actor: {
           type: "string",
           description:
-            "Persona posting the message (e.g. 'pm', 'frontend', 'designer', 'qa', 'devops', 'deploy', 'cleanup'). Avoid 'human'.",
+            "Persona posting the message (e.g. 'pm', 'frontend', 'designer', 'qa', 'devops', 'deploy', 'cleanup', 'status'). Avoid 'human'.",
         },
         text: { type: "string", description: "Message body (markdown ok)." },
         root_id: {
           type: "integer",
           description:
             "Optional sim_posts.id of the human's request to thread under. Omit for top-level message.",
+        },
+        channel: {
+          type: "string",
+          description:
+            "Channel name (D-055). Default = team scrum channel. Other channels must already exist in sim_channels.",
         },
       },
       required: ["actor", "text"],
@@ -166,6 +174,21 @@ const TOOLS = [
       required: ["kind"],
     },
   },
+  {
+    name: "announce_dev_server_url",
+    description:
+      "D-056: devops 가 dev server 띄운 후 호출. 사용자 ShowcasePanel 의 LocalDevServerOrFallback 가 이 URL 을 자동 prefill 해서 iframe 으로 표시. URL 은 localhost:<port> 또는 외부 접근 가능한 주소.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description: "Dev server URL (예: http://localhost:5173).",
+        },
+      },
+      required: ["url"],
+    },
+  },
 ];
 
 const server = new Server(
@@ -181,7 +204,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     let result;
     switch (name) {
       case "post_message": {
-        const channel_id = await resolveChannelId();
+        const channel_id = await resolveChannelId(args.channel);
         const body = {
           channel_id,
           actor: args.actor,
@@ -195,8 +218,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break;
       }
       case "list_posts": {
+        const name = args?.channel || CHANNEL_NAME;
         result = await trialFetch(
-          `/api/mattermost/posts?channel_name=${encodeURIComponent(CHANNEL_NAME)}`,
+          `/api/mattermost/posts?channel_name=${encodeURIComponent(name)}`,
         );
         break;
       }
@@ -264,6 +288,18 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             status: "complete",
             project: { slug: PROJECT_SLUG, name: PROJECT_NAME },
             app_kind: args.kind,
+          }),
+        });
+        break;
+      }
+      case "announce_dev_server_url": {
+        // D-056: trial-app 의 sim_teams.dev_server_url 컬럼 갱신.
+        // ShowcasePanel 의 LocalDevServerOrFallback 가 GET 으로 prefill.
+        result = await trialFetch("/api/trial/team-app/dev-server", {
+          method: "POST",
+          body: JSON.stringify({
+            team_token: TEAM_TOKEN,
+            url: args.url,
           }),
         });
         break;
