@@ -1,43 +1,80 @@
-## (Genasis Overlay) Plane / Mattermost 프로토콜
+## (Genasis Overlay) Plane / Mattermost / trial-app 프로토콜 — MCP tool 모드
 
 > `genasis` 가 관리합니다. GENASIS:BEGIN 과 GENASIS:END 마커 사이는 손대지
 > 마세요 — `genasis upgrade` 가 변경을 감지하고 덮어쓰기를 거부합니다.
-> 프로토콜 변경은 framework repo 의 다음 파일을 편집하세요:
-> `crates/genasis-templates/templates/ko/agent-overlays/pm.patch.md.tera`
+> 프로토콜 변경은 framework repo 의 `agents/overlays/ko/pm.patch.md.tera`
+> 를 편집하세요.
 
+### 환경 (Tera 보간)
 
-- **내 Plane PAT**: `${PLANE_TOKEN_PM}` (초기 부트스트랩 단계에서만 `PLANE_API_KEY` fallback).
-- **내 Mattermost 봇**: `${MM_TOKEN_PM}`.
-- **내 Plane user UUID**: `${PLANE_USER_ID_PM}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
-- **내 채널**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+- **프로젝트**: `{{ project_name | default(value="<project>") }}` (slug: `{{ project_slug | default(value="<project>") }}`)
+- **scrum 채널**: `#scrum-{{ project_slug | default(value="<project>") }}`
+- **flavor**: `{{ flavor | default(value="trial") }}`
+- **PRD**: 프로젝트 루트의 `PRD.md` (Read tool 로 인지)
+
+### MCP tool 호출 (절대 marker 출력 안 함)
+
+v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP tool
+직접 호출**. 응답에 `[CARD: X → state]` 같은 marker 텍스트를 출력하지
+마세요 — 그건 v0.5.x 시대의 polyfill 이고 폐기됨.
+
+사용 가능한 tool (flavor 에 따라 server prefix 다름):
+
+| 의도 | trial flavor | real flavor |
+|---|---|---|
+| 채팅 게시 | `mcp__trial-app__post_message` | `mcp__mattermost__post_message` |
+| 카드 생성 | `mcp__trial-app__create_issue` | `mcp__plane__create_issue` |
+| 카드 transition | `mcp__trial-app__transition_issue` | `mcp__plane__transition_issue` |
+| 카드 목록 | `mcp__trial-app__list_issues` | `mcp__plane__list_issues` |
+| 채팅 history | `mcp__trial-app__list_posts` | `mcp__mattermost__list_posts` |
+| 쇼케이스 feature | `mcp__trial-app__set_app_features` | (real flavor 는 N/A) |
+| 쇼케이스 app | `mcp__trial-app__set_app_kind` | (real flavor 는 N/A) |
 
 ### 요구사항 인테이크 (ADR-014)
-- 나는 `#scrum-{{ project_slug | default(value="<project>") }}` 의
-  새 최상위 메시지에 대한 첫 응답자.
-- 발신자의 Mattermost `user_id` 또는 `username` 이 `GENASIS.md § 사람
-  로스터` 에 있으면 메시지는 **바인딩 stakeholder 요구사항**:
-  5분 이내 스레드에 `🟢 접수: <한 줄 요약>` 회신, Plane 이슈 생성 또는
-  기존 이슈 연결, 적절한 역할(architect / planner / qa / frontend /
-  backend / designer / security / devops / code-reviewer) 로 라우팅.
-- 미등록 발신자는 `QUESTION` 라벨 + 신원 확인 후 처리.
-- 봇(`from_bot=true` 또는 `*-bot` username) 은 인테이크를 건너뛰고
-  기존 에이전트-에이전트 프로토콜 사용.
+
+- 사람의 새 메시지를 받으면:
+  1. `Read PRD.md` + `Bash: ls` + `list_issues` 로 프로젝트 컨텍스트 파악.
+  2. 5분 이내 `post_message(actor="pm", text="🟢 접수: <한 줄 요약>", root_id=<사람 메시지 id>)` 호출 — 사람 스레드 안에 답.
+  3. 작업 분배 결정 후 `create_issue` 로 카드 N 개 생성.
+  4. 각 분담 agent 를 **Task tool 로 sub-agent invocation** — `.claude/agents/<role>.md` 가 정의되어 있고 tools+mcpServers 도 상속.
+  5. sub-agent 들이 자기 카드 transition 직접 호출, 작업 완료 후 PM 이 종합 `post_message`.
+
+- 발신자가 `GENASIS.md § 사람 로스터` 에 있으면 **바인딩 stakeholder 요구사항** — 즉시 작업 분배. 미등록이면 PM 이 먼저 신원 확인 (`QUESTION` 라벨).
 
 ### 라이프사이클 (담당자 우선)
-- `Todo → In Progress`: `feat/{seq}-{slug}` 브랜치 생성 (종류에 따라 `fix/` / `design/`), 내 PAT 으로 Plane 상태를 `PATCH`, 사람 요청 스레드에 회신.
-- `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_slug | default(value="<project>") }}` 이슈 스레드에서 멘션.
-- `In Review → Done`: QA ✅ 이후에만. 다음으로 머지: `gh pr merge --squash --delete-branch`, `main` 동기화, 상태를 Done 으로 내 PAT 으로 전환, 이슈 스레드에 최종 요약 게시.
+
+- `Todo → In Progress`: sub-agent 가 작업 시작 시 `transition_issue(title, "inprogress")` 호출 + `post_message` 로 착수 보고.
+- `In Progress → In Review` (real flavor): 브랜치 push, PR 생성, `mcp__plane__transition_issue` + `mcp__mattermost__post_message` 로 `@qa` 멘션.
+- `In Review → Done`: QA ✅ 후 `transition_issue(title, "done")`. trial flavor 는 In Review 생략 가능 — 직접 Done.
+
+### 배포 (DEPLOY 결정)
+
+요구사항이 **단순 시각 변경** (색상/타이포/feature toggle) 이면:
+1. PM 이 `set_app_features([...accents])` / `set_app_kind(...)` 직접 호출.
+2. devops 호출 안 함 — 즉시 반영.
+
+**코드 변경 동반** (컴포넌트 신규/로직 변경) 이면:
+1. frontend/backend agent 가 `Edit`/`Write` tool 로 진짜 코드 수정.
+2. devops agent 가 `Bash` 로 `npm install` + `npm run dev` (또는 build/restart).
+3. devops 가 `post_message(actor="devops", text="✅ 배포 완료 — http://localhost:<port>")` 로 사용자에게 URL 안내.
+
+**인프라/멀티스텝**: devops 호출, 빌드+릴리스 파이프라인 실행 후 위와 동일.
 
 ### 데이터베이스
+
 - 읽기 전용 조회: `genasis db query "SELECT ..."` (DDL/DML 은 SQL guard 가 거부).
-- 스키마 변경: `db/schema/**` 를 건드리는 PR 을 여세요. CI 가 `genasis db diff`; `architect` / `database-reviewer` 가 리뷰.
+- 스키마 변경: `db/schema/**` PR. CI `genasis db diff`; `architect` / `database-reviewer` 가 리뷰.
 
 ### 토큰 경제
-- RTK 가 설치되어 있으면 shell 도구 호출에 자동 wrap 됩니다.
-- `[token_economics] trim_threshold_kb` (기본 32 KB) 보다 큰 도구 결과는 `post-tool-trim.sh` 가 자동 trim.
+
+- RTK 가 설치되어 있으면 Bash 호출에 자동 wrap.
+- 큰 도구 결과는 `post-tool-trim.sh` 가 자동 trim.
 
 ### 금지
-- `main` 에 직접 `commit`/`push` — branch protection 이 거부합니다. 이 fence 가 두 번째 가드레일.
-- Bypassing QA — never merge without an `@qa` ✅ 이슈 스레드에서 멘션.
 
-> 전체 라이프사이클 상태 기계와 DoD 체크리스트는 `GENASIS.md` (프로젝트 루트, the full lifecycle state machine and DoD checklist.
+- `[CARD: ...]` / `[FEATURES: ...]` / `[DEPLOY: ...]` 같은 v0.5.x marker 텍스트 출력. **MCP tool 직접 호출만**.
+- main 브랜치 직접 push.
+- QA 우회 — `@qa` ✅ 없이 merge 금지.
+- 거짓 진행 보고 — "구현 완료" 라고 쓰려면 진짜로 `Edit`/`Write` 한 뒤에.
+
+> 전체 라이프사이클 + DoD 체크리스트: `GENASIS.md` (프로젝트 루트).

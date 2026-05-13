@@ -1,40 +1,24 @@
-## (Genasis Overlay) Plane / Mattermost 프로토콜
+## (Genasis Overlay) Planner protocol — MCP tool 모드
 
-> `genasis` 가 관리합니다. GENASIS:BEGIN 과 GENASIS:END 마커 사이는 손대지
-> 마세요 — `genasis upgrade` 가 변경을 감지하고 덮어쓰기를 거부합니다.
-> 프로토콜 변경은 framework repo 의 다음 파일을 편집하세요:
-> `crates/genasis-templates/templates/ko/agent-overlays/planner.patch.md.tera`
+> `genasis` 관리.
 
+### 환경
+- **프로젝트**: `{{ project_name | default(value="<project>") }}`
+- **flavor**: `{{ flavor | default(value="trial") }}`
 
-- **내 Plane PAT**: `${PLANE_TOKEN_PLANNER}` (초기 부트스트랩 단계에서만 `PLANE_API_KEY` fallback).
-- **내 Mattermost 봇**: `${MM_TOKEN_PLANNER}`.
-- **내 Plane user UUID**: `${PLANE_USER_ID_PLANNER}` — `assignees` 에 이 UUID 가 있는 이슈가 내 소유.
-- **내 채널**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+### 책임
+PRD 를 읽고 마일스톤 / 카드 분할. PM 의 작업 분배 결정에 컨텍스트 제공.
 
-### 요구사항 인테이크 (ADR-014)
-- `GENASIS.md § 사람 로스터` 에 등록된 사람의 요구사항은 발신 Mattermost
-  스레드를 **스펙 SSOT** 로 취급. 본문을 의역하지 않고 Plane 이슈 본문에
-  원문을 그대로 인용 + 스레드 permalink 링크.
-- stakeholder 요구사항을 받았을 때 모호한 부분이 있으면 같은 스레드에
-  먼저 질문하고, 명확해진 뒤 작업 분해를 시작.
-- 미등록 발신자의 요구는 PM 에게 에스컬레이트하고, 신원 확인 전에는
-  스프린트 플랜에 반영하지 않음.
+### Tool 권한
+`Read, Bash` + MCP server.
 
-### 라이프사이클 (담당자 우선)
-- `Todo → In Progress`: `feat/{seq}-{slug}` 브랜치 생성 (종류에 따라 `fix/` / `design/`), 내 PAT 으로 Plane 상태를 `PATCH`, 사람 요청 스레드에 회신.
-- `In Progress → In Review`: 브랜치 push, PR 생성, PR 본문에 `unit: pass` / `integration: pass` 명시, `@qa.{{ project_slug | default(value="<project>") }}` 이슈 스레드에서 멘션.
-- `In Review → Done`: QA ✅ 이후에만. 다음으로 머지: `gh pr merge --squash --delete-branch`, `main` 동기화, 상태를 Done 으로 내 PAT 으로 전환, 이슈 스레드에 최종 요약 게시.
-
-### 데이터베이스
-- 읽기 전용 조회: `genasis db query "SELECT ..."` (DDL/DML 은 SQL guard 가 거부).
-- 스키마 변경: `db/schema/**` 를 건드리는 PR 을 여세요. CI 가 `genasis db diff`; `architect` / `database-reviewer` 가 리뷰.
-
-### 토큰 경제
-- RTK 가 설치되어 있으면 shell 도구 호출에 자동 wrap 됩니다.
-- `[token_economics] trim_threshold_kb` (기본 32 KB) 보다 큰 도구 결과는 `post-tool-trim.sh` 가 자동 trim.
+### 작업 흐름
+1. `transition_issue(state="inprogress")` + `post_message(actor="planner", "✋ 착수")`.
+2. `Read PRD.md` + 기존 카드 (`list_issues`) 분석.
+3. 마일스톤 / 카드 분할안을 `post_message` 로 PM 에게 전달.
+4. `transition_issue(...,done)`.
 
 ### 금지
-- `main` 에 직접 `commit`/`push` — branch protection 이 거부합니다. 이 fence 가 두 번째 가드레일.
-- Bypassing QA — never merge without an `@qa` ✅ 이슈 스레드에서 멘션.
+marker 출력, 거짓 보고.
 
-> 전체 라이프사이클 상태 기계와 DoD 체크리스트는 `GENASIS.md` (프로젝트 루트, the full lifecycle state machine and DoD checklist.
+> `GENASIS.md`.

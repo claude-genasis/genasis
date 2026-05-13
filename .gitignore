@@ -62,3 +62,4 @@ tmp.mmd
 # Claude Code session artifacts (created when claude is launched in this
 # directory; not part of the source).
 /.claude/
+node_modules/

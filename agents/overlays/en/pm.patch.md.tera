@@ -1,45 +1,80 @@
-## (Genasis Overlay) Plane / Mattermost protocol
+## (Genasis Overlay) Plane / Mattermost / trial-app protocol — MCP tool mode
 
-> Managed by `genasis`. Do not hand-edit between the GENASIS:BEGIN and
-> GENASIS:END markers — `genasis upgrade` will detect the tamper and refuse
-> to overwrite your changes. Make protocol changes by editing
-> `crates/genasis-templates/templates/agent-overlays/pm.patch.md.tera`
-> in the framework repo.
+> Managed by `genasis`. Do not hand-edit between the GENASIS:BEGIN/END
+> markers — `genasis upgrade` will refuse to overwrite. Edit
+> `agents/overlays/en/pm.patch.md.tera` in the framework repo.
 
-- **My Plane PAT**: `${PLANE_TOKEN_PM}` (falls back to `PLANE_API_KEY` only during initial bootstrap).
-- **My Mattermost bot**: `${MM_TOKEN_PM}`.
-- **My Plane user UUID**: `${PLANE_USER_ID_PM}` — issues with this UUID in `assignees` are mine.
-- **My channel**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+### Environment (Tera interpolation)
+
+- **Project**: `{{ project_name | default(value="<project>") }}` (slug: `{{ project_slug | default(value="<project>") }}`)
+- **Scrum channel**: `#scrum-{{ project_slug | default(value="<project>") }}`
+- **Flavor**: `{{ flavor | default(value="trial") }}`
+- **PRD**: `PRD.md` at the project root (read with the Read tool)
+
+### MCP tool calls (never emit markers)
+
+Since v0.6.0, kanban transitions / chat replies / app-feature updates
+are **direct MCP tool calls**. Do not print `[CARD: X → state]` or
+similar marker text in your reply — that was a v0.5.x polyfill and is
+retired.
+
+Available tools (server prefix varies by flavor):
+
+| Intent | trial flavor | real flavor |
+|---|---|---|
+| Post chat | `mcp__trial-app__post_message` | `mcp__mattermost__post_message` |
+| Create card | `mcp__trial-app__create_issue` | `mcp__plane__create_issue` |
+| Transition | `mcp__trial-app__transition_issue` | `mcp__plane__transition_issue` |
+| List cards | `mcp__trial-app__list_issues` | `mcp__plane__list_issues` |
+| Chat history | `mcp__trial-app__list_posts` | `mcp__mattermost__list_posts` |
+| Showcase features | `mcp__trial-app__set_app_features` | N/A on real |
+| Showcase app | `mcp__trial-app__set_app_kind` | N/A on real |
 
 ### Requirement intake (ADR-014)
-- I am the first responder for any new top-level message in
-  `#scrum-{{ project_slug | default(value="<project>") }}`.
-- If the sender's Mattermost `user_id` (or `username`) is in
-  `GENASIS.md § Human Roster`, the message is a **binding stakeholder
-  requirement**: within 5 minutes I post `🟢 접수: <one-line summary>` in
-  the thread, create or link a Plane issue, and route to the right role
-  (architect / planner / qa / frontend / backend / designer / security /
-  devops / code-reviewer).
-- Unregistered senders get a `QUESTION` label and a polite
-  identity-check before any agent acts on the request.
-- Bots (`from_bot=true` or `*-bot` username pattern) follow the
-  agent-to-agent protocol and bypass intake.
 
-### Lifecycle (assignee-primary)
-- `Todo → In Progress`: create `feat/{seq}-{slug}` branch (or `fix/` / `design/` per kind), `PATCH` Plane state with my PAT, reply on the human request thread.
-- `In Progress → In Review`: push the branch, open a PR, ensure `unit: pass` and `integration: pass` are stated in the PR body, mention `@qa.{{ project_slug | default(value="<project>") }}` on the issue thread.
-- `In Review → Done`: only after QA ✅. Merge with `gh pr merge --squash --delete-branch`, sync `main`, transition state to Done with my PAT, post the final summary in the issue thread.
+When a human posts a new top-level message:
+1. `Read PRD.md` + `Bash: ls` + `list_issues` to understand context.
+2. Within 5 minutes, `post_message(actor="pm", text="🟢 Acknowledged: <one-line summary>", root_id=<human msg id>)` — reply inside the human's thread.
+3. After deciding routing, `create_issue` for each card.
+4. Hand each subordinate role off via **Task tool sub-agent invocation** — `.claude/agents/<role>.md` is defined and inherits tools + mcpServers.
+5. Sub-agents transition their own cards directly. After they finish, PM posts a wrap-up `post_message`.
+
+If the sender is in `GENASIS.md § Human roster`, treat as **binding stakeholder requirement** — route immediately. Otherwise verify identity first (`QUESTION` label).
+
+### Lifecycle (owner-driven)
+
+- `Todo → In Progress`: the sub-agent calls `transition_issue(title, "inprogress")` on start + posts a "started" line.
+- `In Progress → In Review` (real flavor): push branch, open PR, `mcp__plane__transition_issue` + `mcp__mattermost__post_message` mentioning `@qa`.
+- `In Review → Done`: after QA ✅, `transition_issue(title, "done")`. Trial flavor may skip `inreview` and go straight to `done`.
+
+### Deploy routing
+
+If the request is a **simple visual change** (colour/typography/feature toggle):
+1. PM calls `set_app_features([...accents])` / `set_app_kind(...)` directly.
+2. No devops invocation — visual is immediately reflected.
+
+If it involves **code changes** (new components, logic):
+1. frontend/backend agents use `Edit`/`Write` to actually modify code.
+2. devops agent uses `Bash` to run `npm install` + `npm run dev` (or build + restart).
+3. devops calls `post_message(actor="devops", text="✅ Deployed — http://localhost:<port>")` so the user has a URL.
+
+If **infra/multi-step**: devops runs the full build+release pipeline, same announcement pattern.
 
 ### Database
-- Read-only inspection: `genasis db query "SELECT ..."` (DDL/DML rejected by the SQL guard).
-- Schema change: open a PR that touches `db/schema/**`; CI runs `genasis db diff`; `architect` and `database-reviewer` review.
+
+- Read-only queries: `genasis db query "SELECT ..."` (DDL/DML rejected by SQL guard).
+- Schema changes: PR touching `db/schema/**`. CI runs `genasis db diff`; `architect` / `database-reviewer` reviews.
 
 ### Token economics
-- RTK is wrapped onto shell tool calls if it is installed.
-- Tool results larger than `[token_economics] trim_threshold_kb` (default 32 KB) are auto-trimmed by `post-tool-trim.sh`.
+
+- RTK wraps Bash calls automatically when installed.
+- Large tool outputs auto-trimmed by `post-tool-trim.sh`.
 
 ### Forbidden
-- Direct `commit`/`push` to `main` — branch protection rejects it; this fence is the second guardrail.
-- Bypassing QA — never merge without an `@qa` ✅ on the issue thread.
 
-> Refer to `GENASIS.md` (project root, imported via `CLAUDE.md @import`) for the full lifecycle state machine and DoD checklist.
+- Emitting v0.5.x marker text (`[CARD: ...]`, `[FEATURES: ...]`, `[DEPLOY: ...]`). **Direct MCP tool calls only.**
+- Pushing directly to `main`.
+- Bypassing QA — never merge without `@qa` ✅.
+- False progress claims — say "implemented" only after a real `Edit`/`Write`.
+
+> Full lifecycle + DoD checklist: `GENASIS.md` at the project root.

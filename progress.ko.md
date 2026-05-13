@@ -1053,6 +1053,38 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.4 — overlay MCP-mode 전환 + 데몬 session 통합 + P5 stub (P3 + P4 + P5 skeleton)**. 사용자 §"남은 모든 과정 다 한 번에 완성" 명령에 따라 v0.6.0 의 전 마일스톤 (P3/P4/P5) 핵심을 한 사이클에 ship.
+
+  **P3 — overlay 20 파일 (ko/en × 10 role)**:
+  - 모든 `agents/overlays/{en,ko}/{pm,planner,architect,frontend,backend,designer,qa,devops,security,code-reviewer}.patch.md.tera` 를 marker 출력 → MCP tool 직접 호출 모델로 재작성
+  - 공통 패턴: 환경 변수 (`{{ project_name }}` / `flavor`) + tool 권한 (role 별 차이) + workflow (transition_issue → post_message → 진짜 Edit/Write/Bash → post_message done → transition_issue done) + 금지 (marker 출력 / 거짓 보고)
+  - trial flavor 와 real flavor 가 같은 tool 인터페이스 (`mcp__trial-app__transition_issue` vs `mcp__plane__transition_issue`) — overlay 본문 한 벌로 양쪽 지원
+
+  **P4 — 데몬 통합**:
+  - `session.rs::ClaudeTeamSession::spawn` 시그니처 `Result<(Self, mpsc::Receiver<SessionEvent>)>` — events rx 외부 노출
+  - `session.rs::build_mcp_config(flavor, trial_url, team_token, project_slug, project_name, mcp_server_dir)` — inline JSON config 생성 (trial-app server 등록, real flavor 는 P5 자리)
+  - `session.rs::build_append_system_prompt(...)` — runtime context (channel/team/role) 주입
+  - `mod.rs::run_listen_loop_session` 신규 — 사람 메시지 → `session.send_user_message(text)`. session 의 stdout event 는 background task 가 drain + 로그. **marker 파싱 0**
+  - `cmd_listen::run_foreground` 가 echo-only=false + trial flavor 면 session path, 아니면 v0.5.x marker path (fallback). session spawn 실패 시 자동 fallback
+  - 결과: 데몬은 broker, agent 가 MCP tool 로 직접 외부 시스템 조작
+
+  **P5 — real Mattermost / Plane MCP stub**:
+  - `mcp-servers/mattermost/README.md` + `mcp-servers/plane/README.md` 작성
+  - tool 인터페이스 명세 (trial-app MCP 와 동일) + Mattermost/Plane API 매핑 표 + env 명세
+  - beta 사이클에 같은 구조로 Node 구현
+
+  **다음 (alpha.5 라이브 검증)**:
+  - agents-pool 의 `genasis/agents/overlays/` 동기화 — release tarball 갱신, 사용자 sandbox 의 .claude/agents/*.md 가 새 overlay 받음
+  - install.sh 재실행 → 사용자 sandbox 의 GENASIS:BEGIN/END 마커 사이가 MCP-mode overlay 로 교체
+  - 데몬 v0.6.0-alpha.4 띄움 → 사람 메시지 → claude session spawn → PM 이 MCP tool 직접 호출 → 라이브 검증
+  - 검증 후 v0.5.x marker 코드 (routing.rs parse_pm_routing, mod.rs handle_human_post 의 marker path, sdk.rs run_claude_agent_sdk fresh-spawn) 일괄 제거
+
+  **시뮬레이션 시대 코드 폐기 예정 (alpha.5)**:
+  - `routing.rs::parse_pm_routing` / `apply_pm_routing` / `cleanup_stuck_cards` / `build_pm_prompt` / `build_agent_prompt` / `build_echo_*` 일괄 제거
+  - `mod.rs::handle_human_post` + `run_agent_step` + `run_claude_print` 폐기 → `run_listen_loop_session` 만 유지
+  - `sdk.rs::run_claude_agent_sdk` 폐기 → `session.rs::ClaudeTeamSession` 만
+  - D-029~D-046 fix 들 자연 해소 (parsing 자체 없으니 marker brittleness 0)
+
 - 2026-05-14: **v0.6.0-alpha.3 — Long-running session + MCP server 골격 (P1 + P2)**. 사용자 §"현재 alpha.2 의 SDK 분산 호출은 router-style 이고 진짜 Claude agentic team 이 아니다" + §"alpha.4 + beta 통합 진행" 결정 따른 큰 전환.
 
   **P1 — `crates/genasis-cli/src/listen/session.rs`**:

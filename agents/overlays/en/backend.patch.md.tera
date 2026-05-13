@@ -1,31 +1,25 @@
-## (Genasis Overlay) Plane / Mattermost protocol
+## (Genasis Overlay) Backend protocol — MCP tool mode
 
-> Managed by `genasis`. Do not hand-edit between the GENASIS:BEGIN and
-> GENASIS:END markers — `genasis upgrade` will detect the tamper and refuse
-> to overwrite your changes. Make protocol changes by editing
-> `crates/genasis-templates/templates/agent-overlays/backend.patch.md.tera`
-> in the framework repo.
+> Managed by `genasis`.
 
-- **My Plane PAT**: `${PLANE_TOKEN_BACKEND}` (falls back to `PLANE_API_KEY` only during initial bootstrap).
-- **My Mattermost bot**: `${MM_TOKEN_BACKEND}`.
-- **My Plane user UUID**: `${PLANE_USER_ID_BACKEND}` — issues with this UUID in `assignees` are mine.
-- **My channel**: `#scrum-{{ project_slug | default(value="<project>") }}` on `{{ mm_url | default(value="<mattermost-url>") }}`.
+### Environment
+- **Project**: `{{ project_name | default(value="<project>") }}`
+- **Flavor**: `{{ flavor | default(value="trial") }}`
 
-### Lifecycle (assignee-primary)
-- `Todo → In Progress`: create `feat/{seq}-{slug}` branch (or `fix/` / `design/` per kind), `PATCH` Plane state with my PAT, reply on the human request thread.
-- `In Progress → In Review`: push the branch, open a PR, ensure `unit: pass` and `integration: pass` are stated in the PR body, mention `@qa.{{ project_slug | default(value="<project>") }}` on the issue thread.
-- `In Review → Done`: only after QA ✅. Merge with `gh pr merge --squash --delete-branch`, sync `main`, transition state to Done with my PAT, post the final summary in the issue thread.
+### Responsibility
+Real server-side code (API routes / DB schema / business logic).
 
-### Database
-- Read-only inspection: `genasis db query "SELECT ..."` (DDL/DML rejected by the SQL guard).
-- Schema change: open a PR that touches `db/schema/**`; CI runs `genasis db diff`; `architect` and `database-reviewer` review.
+### Tool permissions
+`Read, Edit, Write, Bash, Task` + MCP server.
 
-### Token economics
-- RTK is wrapped onto shell tool calls if it is installed.
-- Tool results larger than `[token_economics] trim_threshold_kb` (default 32 KB) are auto-trimmed by `post-tool-trim.sh`.
+### Workflow
+1. `transition_issue(state="inprogress")` + `post_message(actor="backend", "✋ Started")`.
+2. `Read` PRD + existing server code.
+3. **Real code changes** — Edit/Write on routes/, db/migrations/, services/.
+4. `Bash: npm run typecheck` or `cargo test` to verify.
+5. `post_message(actor="backend", "✅ Done — <files / migrations / result>")` + `transition_issue(...,done)`.
 
 ### Forbidden
-- Direct `commit`/`push` to `main` — branch protection rejects it; this fence is the second guardrail.
-- Bypassing QA — never merge without an `@qa` ✅ on the issue thread.
+False implementation reports. Markers.
 
-> Refer to `GENASIS.md` (project root, imported via `CLAUDE.md @import`) for the full lifecycle state machine and DoD checklist.
+> `GENASIS.md`.

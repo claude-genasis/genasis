@@ -102,6 +102,88 @@ pub trait EventSink: Send + Sync {
 ///
 /// `max_events == 0` → 무한 loop (default). 양수면 그만큼 처리 후 종료
 /// — 자가테스트 / 디버그 용.
+/// v0.6.0 alpha.4: session-based listen loop. 사람 메시지를 long-running
+/// claude session 에 stdin push — main agent 가 받아 sub-agent 와 협업
+/// 후 MCP tool 로 직접 외부 시스템 (trial-app / Mattermost / Plane) 조작.
+/// 데몬은 broker — marker 파싱 / sim DB 호출 / cleanup 같은 v0.5.x router
+/// 책임 모두 폐기.
+pub async fn run_listen_loop_session(
+    mut stream: Box<dyn EventStream>,
+    mut session: session::ClaudeTeamSession,
+    mut events: tokio::sync::mpsc::Receiver<session::SessionEvent>,
+    cfg: LoopConfig,
+) -> Result<()> {
+    // background task: session 의 stdout event 를 drain + 로그.
+    // agent 의 진짜 작업은 MCP tool 로 외부 시스템 조작이라 데몬은 그저 관찰.
+    tokio::spawn(async move {
+        while let Some(ev) = events.recv().await {
+            match ev {
+                session::SessionEvent::AssistantText { text, .. } => {
+                    info!(
+                        target: "listen",
+                        text_preview = %text.chars().take(120).collect::<String>(),
+                        "session assistant text"
+                    );
+                }
+                session::SessionEvent::ToolUse { tool_name, .. } => {
+                    info!(target: "listen", tool = %tool_name, "session tool_use");
+                }
+                session::SessionEvent::Result {
+                    success,
+                    duration_ms,
+                    ..
+                } => {
+                    info!(
+                        target: "listen",
+                        success,
+                        duration_ms,
+                        "session turn complete"
+                    );
+                }
+                _ => {}
+            }
+        }
+    });
+
+    let mut handled: u32 = 0;
+    loop {
+        let event = match stream.next_event().await {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("event stream error: {e} — sleeping 5s before retry");
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+        match &event {
+            InboundEvent::PostCreated {
+                actor,
+                message,
+                is_human,
+                ..
+            } => {
+                if !is_human {
+                    continue;
+                }
+                info!(
+                    target: "listen",
+                    actor = %actor,
+                    message_preview = %message.chars().take(80).collect::<String>(),
+                    "received human-authored post → session.send"
+                );
+                if let Err(e) = session.send_user_message(message).await {
+                    warn!("session send failed: {e}");
+                }
+            }
+        }
+        handled += 1;
+        if cfg.max_events > 0 && handled >= cfg.max_events {
+            println!("→ reached --max-events={}, exiting", cfg.max_events);
+            return Ok(());
+        }
+    }
+}
+
 pub async fn run_listen_loop(
     mut stream: Box<dyn EventStream>,
     sink: &dyn EventSink,

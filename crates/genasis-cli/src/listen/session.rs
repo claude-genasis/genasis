@@ -24,13 +24,16 @@ use tracing::{debug, info, warn};
 
 /// 한 team 의 long-running claude session. 사람 메시지 N건이 같은
 /// 인스턴스로 흘러들어가 main agent 가 컨텍스트 유지하며 처리.
+///
+/// 데몬은 보통 `send_user_message` 만 호출. session 안의 agent 들이
+/// MCP tool (post_message / transition_issue 등) 로 직접 외부 시스템
+/// 조작하므로 데몬은 응답 stream 을 별도 처리할 필요 없음 — 그저 로그.
+/// `events_rx` 는 spawn 시 외부로 노출되어 background task 가 drain.
 pub struct ClaudeTeamSession {
     #[allow(dead_code)]
     child: Child,
     stdin: ChildStdin,
-    /// stdout NDJSON event stream — assistant / tool_use / result 등
-    events: mpsc::Receiver<SessionEvent>,
-    /// session_id (claude 가 init 이벤트로 emit) — debug + crash 후 resume
+    /// session_id (claude 가 init 이벤트로 emit) — debug 용
     session_id: Option<String>,
 }
 
@@ -67,7 +70,7 @@ impl ClaudeTeamSession {
         cwd: &Path,
         mcp_config_json: &str,
         append_system_prompt: &str,
-    ) -> Result<Self> {
+    ) -> Result<(Self, mpsc::Receiver<SessionEvent>)> {
         let claude_path = which::which("claude").context("claude CLI 가 PATH 에 없음")?;
         let mut cmd = Command::new(claude_path);
         cmd.arg("-p")
@@ -182,12 +185,14 @@ impl ClaudeTeamSession {
             debug!(target: "listen", "claude session stdout reader ended");
         });
 
-        Ok(Self {
-            child,
-            stdin,
-            events: rx,
-            session_id,
-        })
+        Ok((
+            Self {
+                child,
+                stdin,
+                session_id,
+            },
+            rx,
+        ))
     }
 
     /// 사람 메시지 1건을 session 에 push. main agent 가 받아 처리.
@@ -208,14 +213,78 @@ impl ClaudeTeamSession {
         Ok(())
     }
 
-    /// 다음 이벤트까지 await. None 반환 = stdout 닫힘 (subprocess 종료).
-    pub async fn next_event(&mut self) -> Option<SessionEvent> {
-        self.events.recv().await
-    }
-
     pub fn session_id(&self) -> Option<&str> {
         self.session_id.as_deref()
     }
+}
+
+/// MCP config inline JSON 생성 — trial flavor 면 trial-app server 등록,
+/// real flavor 면 mattermost + plane server 등록. 환경변수로 team_token /
+/// project_slug 등 주입 (MCP server 의 env 로).
+pub fn build_mcp_config(
+    flavor: &str,
+    trial_url: &str,
+    team_token: &str,
+    project_slug: &str,
+    project_name: &str,
+    mcp_server_dir: &Path,
+) -> serde_json::Value {
+    let channel_name = format!("scrum-{}", project_slug);
+    let trial_index = mcp_server_dir
+        .join("trial-app")
+        .join("index.mjs")
+        .display()
+        .to_string();
+    let mut servers = serde_json::Map::new();
+    if flavor == "trial" || flavor == "auto" {
+        servers.insert(
+            "trial-app".to_string(),
+            serde_json::json!({
+                "command": "node",
+                "args": [trial_index],
+                "env": {
+                    "GENASIS_TRIAL_URL": trial_url,
+                    "GENASIS_TEAM_TOKEN": team_token,
+                    "GENASIS_PROJECT_SLUG": project_slug,
+                    "GENASIS_PROJECT_NAME": project_name,
+                    "GENASIS_CHANNEL_NAME": channel_name,
+                },
+            }),
+        );
+    }
+    // P5 stub: real flavor 일 때 mattermost + plane MCP server 등록
+    // (구현은 mcp-servers/mattermost/, plane/ 에서 진행 — beta 사이클).
+    serde_json::json!({ "mcpServers": serde_json::Value::Object(servers) })
+}
+
+/// PM 에게 주입할 system context — channel / team / role 목록 등.
+/// overlay 의 Tera 변수와 별개로 runtime 에 결정되는 값들.
+pub fn build_append_system_prompt(
+    flavor: &str,
+    team_token: &str,
+    project_slug: &str,
+    project_name: &str,
+) -> String {
+    format!(
+        r#"You are the orchestrator of a Genasis agentic team.
+
+Runtime context:
+- Project: {project_name} (slug: {project_slug})
+- Flavor: {flavor}
+- Team token: {token_short}…
+- Scrum channel: scrum-{project_slug}
+- MCP servers available: trial-app (if trial) | mattermost+plane (if real)
+
+When a human posts a message, follow the protocol in .claude/agents/pm.md
+(MCP tool calls, not marker text). Use the Task tool to invoke sub-agents
+defined in .claude/agents/<role>.md. Sub-agents inherit MCP servers and
+should call mcp__<server>__<tool> directly — do not emit [CARD: ...] or
+similar v0.5.x markers in chat text."#,
+        flavor = flavor,
+        project_name = project_name,
+        project_slug = project_slug,
+        token_short = &team_token[..team_token.len().min(8)],
+    )
 }
 
 fn parse_assistant(v: &Value) -> Option<SessionEvent> {
