@@ -169,91 +169,123 @@ async fn handle_human_post(
         warn!("apply_pm_routing failed: {e}");
     }
 
-    // (5) D-028: 각 agent fan-out 을 "착수 → 작업 시간 → 완료" 두 단계로
-    // 펼친다. echo-only 모드에서도 in-progress 가 시각적으로 보이도록
-    // 의도적으로 sleep 을 끼워, 사용자가 칸반 In Progress 컬럼에 카드가
-    // 잠시 들어가는 것을 관찰할 수 있게 한다. 진짜 claude --print 응답
-    // 모드 (echo_only=false) 는 응답 자체에 시간이 걸리므로 추가 sleep 은
-    // PM ↔ agent ↔ agent 사이에만 최소한으로 둔다.
+    // (5) D-028 + D-032: 각 agent fan-out 을 "착수 → 작업 시간 → 완료"
+    // 두 단계로 펼치고, **여러 agent 를 병렬로** 실행한다 (D-032 — 사용자
+    // §"병렬처리로 시간 아낄 수 있다면"). 각 agent 내부에서는 inprogress
+    // 카드가 사람 눈에 보일 시간 (`agent_work_secs`) 만큼 sleep, 외부
+    // 에서는 모든 agent 가 동시 시작 + `agent_gap_secs` 만큼 staggered
+    // start 로 사람이 "여러 agent 가 협업 중" 임을 인지하게 한다.
     use tokio::time::{sleep, Duration};
     let agent_work_secs = cfg.agent_work_secs.max(1) as u64;
-    let agent_gap_secs = cfg.agent_gap_secs.max(0) as u64;
+    let agent_gap_secs = cfg.agent_gap_secs as u64;
 
-    // PM 응답 직후 첫 agent 가 일하기 시작하기 전 짧은 호흡. 사람이
-    // 채팅 화면에서 PM 메시지를 읽을 시간을 준다.
+    // PM 응답 직후 첫 agent 시작 전 짧은 호흡 — 사람이 PM 메시지를 읽을 시간.
     sleep(Duration::from_millis(800)).await;
 
+    // 각 agent 의 작업 future 를 만들어 staggered start 로 spawn.
+    let mut tasks = futures_util::stream::FuturesUnordered::new();
     for (idx, assignment) in route.assignments.iter().enumerate() {
-        // (5a) "착수" — inprogress transition 만 포함
-        let start_reply = if cfg.echo_only {
-            build_echo_agent_start(assignment, cfg)
-        } else {
-            // claude --print 한 번 호출이 inprogress+done 둘 다 만들 수
-            // 있는데, 우리는 두 단계로 펼치기 위해 echo 의 "착수" stub 만
-            // 사용. 진짜 claude 응답은 (5b) done 단계에 한 번 호출하도록
-            // 흐름을 단순화 (per-agent 두 번 LLM 호출은 과함).
-            build_echo_agent_start(assignment, cfg)
-        };
-        if let Err(e) = sink.reply(event, &assignment.role, &start_reply).await {
-            warn!("agent {} start reply failed: {e}", assignment.role);
-        }
-        let start_route = routing::parse_pm_routing(&start_reply);
-        if !start_route.transitions.is_empty() {
-            let _ = sink.apply_pm_routing(&start_route).await;
-        }
-
-        // (5b) 작업 시간 — 사람이 In Progress 카드를 인지할 시간.
-        info!(
-            target: "listen",
-            role = %assignment.role,
-            secs = agent_work_secs,
-            "agent working — visible in-progress window"
+        let stagger = Duration::from_secs(idx as u64 * agent_gap_secs);
+        let task = run_agent_step(
+            event,
+            sink,
+            cfg,
+            assignment,
+            &route,
+            agent_work_secs,
+            stagger,
         );
-        sleep(Duration::from_secs(agent_work_secs)).await;
-
-        // (5c) "완료" — done transition. echo-only 면 stub, 아니면
-        // claude --print 가 자연어 응답 생성 (그 안에 [CARD: → done] 포함).
-        let done_reply = if cfg.echo_only {
-            build_echo_agent_done(assignment, cfg)
-        } else {
-            let card_title = route
-                .new_cards
-                .iter()
-                .find(|c| c.assignee.as_deref() == Some(assignment.role.as_str()))
-                .map(|c| c.title.clone());
-            let prompt = routing::build_agent_prompt(
-                &assignment.role,
-                &assignment.task,
-                &cfg.project_name,
-                &cfg.project_slug,
-                card_title.as_deref(),
-            );
-            match run_claude_print(&prompt, cfg).await {
-                Ok(s) => s,
-                Err(e) => {
-                    warn!(
-                        "agent {} claude --print failed: {e} — fallback to echo done",
-                        assignment.role
-                    );
-                    build_echo_agent_done(assignment, cfg)
-                }
-            }
-        };
-        if let Err(e) = sink.reply(event, &assignment.role, &done_reply).await {
-            warn!("agent {} done reply failed: {e}", assignment.role);
-        }
-        let done_route = routing::parse_pm_routing(&done_reply);
-        if !done_route.transitions.is_empty() {
-            let _ = sink.apply_pm_routing(&done_route).await;
-        }
-
-        // (5d) 다음 agent 로 넘어가기 전 호흡 — 동시 처리가 아니라
-        // 순차적으로 일한다는 인지를 사람에게 준다.
-        if idx + 1 < route.assignments.len() {
-            sleep(Duration::from_secs(agent_gap_secs)).await;
-        }
+        tasks.push(task);
     }
+    use futures_util::StreamExt;
+    while tasks.next().await.is_some() {
+        // 각 agent step 결과는 step 내부에서 reply 및 transition 모두
+        // 적용 — 여기서는 join 만.
+    }
+
+    // (6) D-030: [DEPLOY: ...] 마커별 후처리. 현재는 트라이얼 환경에서
+    // sim_teams.app_features 갱신이 곧 즉시 배포이므로 features-only 면
+    // PM 의 "배포 완료" announce 만 추가, by-last-agent / devops 는
+    // agent fan-out 안에서 마지막 응답 메시지에 "✅ 배포 완료" announce
+    // 가 포함되도록 agent prompt 에서 안내 (현재는 메타 마커로만 기록).
+    if let Some(mode) = &route.deploy {
+        info!(target: "listen", deploy = %mode, "deploy routing");
+    }
+
     Ok(())
+}
+
+/// D-032: 한 agent 의 "착수 → sleep → 완료" 단계를 묶은 future.
+/// 여러 agent 가 병렬로 실행되며, `stagger` 만큼 시작을 어긋나게 해서
+/// 사람 눈에 여러 agent 가 순차적으로 일에 들어가는 모습을 보여준다.
+async fn run_agent_step(
+    event: &InboundEvent,
+    sink: &dyn EventSink,
+    cfg: &LoopConfig,
+    assignment: &routing::AgentAssignment,
+    pm_route: &routing::PmRouting,
+    work_secs: u64,
+    stagger: tokio::time::Duration,
+) {
+    use tokio::time::{sleep, Duration};
+    if !stagger.is_zero() {
+        sleep(stagger).await;
+    }
+
+    // (a) "착수" — inprogress transition 만 포함. echo stub 사용 (LLM
+    // 호출 절약 — 진짜 응답은 done 단계에 한 번만).
+    let start_reply = build_echo_agent_start(assignment, cfg);
+    if let Err(e) = sink.reply(event, &assignment.role, &start_reply).await {
+        warn!("agent {} start reply failed: {e}", assignment.role);
+    }
+    let start_route = routing::parse_pm_routing(&start_reply);
+    if !start_route.transitions.is_empty() {
+        let _ = sink.apply_pm_routing(&start_route).await;
+    }
+
+    info!(
+        target: "listen",
+        role = %assignment.role,
+        secs = work_secs,
+        "agent working — visible in-progress window"
+    );
+    sleep(Duration::from_secs(work_secs)).await;
+
+    // (b) "완료" — done transition. echo-only 면 stub, 아니면 진짜
+    // claude --print 응답 (그 안에 [CARD: → done] 포함).
+    let done_reply = if cfg.echo_only {
+        build_echo_agent_done(assignment, cfg)
+    } else {
+        let card_title = pm_route
+            .new_cards
+            .iter()
+            .find(|c| c.assignee.as_deref() == Some(assignment.role.as_str()))
+            .map(|c| c.title.clone());
+        let prompt = routing::build_agent_prompt(
+            &assignment.role,
+            &assignment.task,
+            &cfg.project_name,
+            &cfg.project_slug,
+            card_title.as_deref(),
+        );
+        match run_claude_print(&prompt, cfg).await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!(
+                    "agent {} claude --print failed: {e} — fallback to echo done",
+                    assignment.role
+                );
+                build_echo_agent_done(assignment, cfg)
+            }
+        }
+    };
+    if let Err(e) = sink.reply(event, &assignment.role, &done_reply).await {
+        warn!("agent {} done reply failed: {e}", assignment.role);
+    }
+    let done_route = routing::parse_pm_routing(&done_reply);
+    if !done_route.transitions.is_empty() {
+        let _ = sink.apply_pm_routing(&done_route).await;
+    }
 }
 
 fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
@@ -284,6 +316,18 @@ fn build_echo_pm_response(message: &str, cfg: &LoopConfig) -> String {
     }
     if m.contains("보라") || m.contains("purple") || m.contains("퍼플") {
         features.push("accent-purple");
+    }
+    if m.contains("청록") || m.contains("teal") || m.contains("민트") || m.contains("cyan") {
+        features.push("accent-teal");
+    }
+    if m.contains("노란") || m.contains("노랑") || m.contains("yellow") {
+        features.push("accent-yellow");
+    }
+    if m.contains("주황") || m.contains("orange") || m.contains("오렌지") {
+        features.push("accent-orange");
+    }
+    if m.contains("분홍") || m.contains("pink") || m.contains("핑크") {
+        features.push("accent-pink");
     }
     if m.contains("다크") || m.contains("dark") {
         features.push("dark-mode");

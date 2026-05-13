@@ -27,6 +27,13 @@ pub struct PmRouting {
     pub assignments: Vec<AgentAssignment>,
     pub new_cards: Vec<NewCard>,
     pub transitions: Vec<CardTransition>,
+    /// D-030: 배포 책임 분기. PM 이 `[DEPLOY: ...]` 마커로 결정.
+    /// - `features-only` — sim_teams.app_features 갱신만 = 즉시 적용.
+    ///   별도 agent 호출 안 함.
+    /// - `by-last-agent` — 작업 분배 마지막 agent (보통 frontend/backend)
+    ///   가 자기 응답 끝에 "배포 완료" announce. 코드 변경 동반 시.
+    /// - `devops` — devops agent 별도 호출. 인프라/멀티스텝 변경 시.
+    pub deploy: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,33 +96,57 @@ pub fn build_pm_prompt(
 `[APP: ...]` 는 quiz 그대로 둡니다 (사용자가 명시적으로 다른 앱 종류로 교체
 요구하지 않는 한). `[FEATURES: ...]` 는 사람 요구를 다음 flag 로 매핑:
 
-  - `accent-red` — 강조 버튼/색을 빨간색
-  - `accent-blue` — 강조색을 파란색
-  - `accent-green` — 강조색을 초록색
+  - `accent-red` — 빨간 / red
+  - `accent-blue` — 파란 / blue
+  - `accent-green` — 초록 / green
+  - `accent-purple` — 보라 / purple
+  - `accent-teal` — 청록 / teal / 민트 / cyan / 터쿼이즈
+  - `accent-yellow` — 노란 / yellow
+  - `accent-orange` — 주황 / orange
+  - `accent-pink` — 분홍 / pink
   - `share-button` — 결과 화면에 공유 버튼 추가
   - `dark-mode` — 다크 테마
   - `i18n` — 영어/한국어 전환
   - `larger-text` — 글자 크기 증가
 
-매핑 안 되는 요구는 가장 비슷한 flag 로 근사. 여러 개 동시 활성 OK (set
-union 누적).
+위 사전에 없는 색/feature 요구는 가장 비슷한 flag 로 근사하지 말고
+사람 요구의 한국어 단어를 영문 kebab-case 로 그대로 출력 (예: "코랄"
+→ `accent-coral`). 데몬이 해당 flag 를 그대로 받아 sim_teams 에 저장.
+여러 개 동시 활성 OK (set union 누적).
 
 ## 작업 분배
 - @<role>: <한 줄 작업 지시>
 - @<role>: <한 줄 작업 지시>
 
+**반드시 `## 작업 분배` 헤더 prefix 정확히 (`##` 두 개 + 공백 + 한국어)**.
 분배 가능한 role: pm, planner, architect, frontend, backend, qa, designer,
-security, devops, code-reviewer. 사람 요구에 실제 필요한 role 만 (보통 2-3
-개 — 시각 변경이면 designer + frontend + qa). 각 줄은 `- @role: 작업` 형식
-정확히 지킬 것.
+security, devops, code-reviewer. 사람 요구에 실제 필요한 role 만 (보통 2-4
+개 — 시각 변경이면 designer + frontend + qa, 코드 변경 동반이면 + devops).
+각 줄은 `- @role: 작업` 형식 정확히 지킬 것.
 
 ## 새 카드
 - "<카드 제목>" [@<assignee>] [state=todo]
 - "<카드 제목>" [@<assignee>] [state=todo]
 
-각 작업 분배에 대응하는 새 칸반 카드. assignee 는 위 작업 분배의 role 과 일치.
-state 는 기본 `todo` (해당 agent 가 착수 시 자기 atomic transaction 으로 `inprogress`
-로 옮김).
+**반드시 `## 새 카드` 헤더 prefix 정확히**. 각 작업 분배에 대응하는 새
+칸반 카드. assignee 는 위 작업 분배의 role 과 일치. state 는 기본 `todo`
+(해당 agent 가 착수 시 자기 atomic transaction 으로 `inprogress` 로 옮김).
+
+## 배포 (DEPLOY)
+
+작업 분배 마지막 부분에 반드시 `[DEPLOY: <mode>]` 마커 한 개:
+
+- `[DEPLOY: features-only]` — feature flag 만 갱신 (시각 변경 / UI 토글).
+  데몬이 sim_teams.app_features 자동 갱신 = 즉시 배포. 별도 agent 호출 없음.
+- `[DEPLOY: by-last-agent role=<role>]` — 코드 변경 동반. 작업 분배의
+  마지막 agent (보통 frontend/backend) 가 자기 응답 끝에 "✅ 배포 완료"
+  announce. role 은 그 agent role 명.
+- `[DEPLOY: devops]` — 인프라/멀티스텝 변경 (DB 마이그레이션, 환경변수,
+  의존성). 작업 분배에 @devops 포함 필수, devops 가 빌드+릴리스 파이프라인
+  실행.
+
+판단 기준: 색상/타이포/버튼 표시 토글 같은 단순 시각 변경은 features-only.
+컴포넌트 신규/로직 변경은 by-last-agent. 인프라/멀티스텝은 devops.
 
 응답 마지막에는 한 줄로 사용자에게 진행 안내:
 > @human 작업 분배 완료. 각 agent 의 응답을 같은 스레드에서 확인하세요.
@@ -194,8 +225,16 @@ pub fn parse_pm_routing(pm_response: &str) -> PmRouting {
             .collect();
     }
 
-    // ## 작업 분배 블록 안의 `- @<role>: <task>` 라인
-    if let Some(block) = extract_section(pm_response, "## 작업 분배") {
+    // [DEPLOY: <mode>] — D-030 배포 책임 분기.
+    if let Some(cap) = regex_capture(pm_response, r"\[DEPLOY:\s*([^\]]+)\]") {
+        out.deploy = Some(cap.trim().to_string());
+    }
+
+    // ## 작업 분배 블록 안의 `- @<role>: <task>` 라인.
+    // D-029a: claude PM 응답이 `##` prefix 를 자주 빠뜨려서 (`작업 분배`
+    // 만 출력) parser 가 fan-out 을 못 트리거하는 경우 발견. 헤더 prefix
+    // 변종 (#·##·###·**작업 분배** 등) 을 모두 인식하도록 robust 화.
+    if let Some(block) = extract_section(pm_response, "작업 분배") {
         for line in block.lines() {
             let line = line.trim();
             if !line.starts_with("- @") {
@@ -215,7 +254,7 @@ pub fn parse_pm_routing(pm_response: &str) -> PmRouting {
     }
 
     // ## 새 카드 블록 안의 `- "<title>" [@<assignee>] [state=<s>]` 라인
-    if let Some(block) = extract_section(pm_response, "## 새 카드") {
+    if let Some(block) = extract_section(pm_response, "새 카드") {
         for line in block.lines() {
             let line = line.trim();
             if !line.starts_with("- \"") {
@@ -292,14 +331,34 @@ fn regex_all_captures(haystack: &str, pattern: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// `## <title>` 헤더와 다음 `## ` 헤더 (또는 EOF) 사이의 본문 추출.
-fn extract_section<'a>(haystack: &'a str, header: &str) -> Option<&'a str> {
-    let start = haystack.find(header)?;
-    let after_header = &haystack[start + header.len()..];
-    let body_start = after_header.find('\n')? + 1;
-    let body = &after_header[body_start..];
-    let end = body.find("\n## ").unwrap_or(body.len());
-    Some(&body[..end])
+/// `<title>` 섹션의 본문 추출. D-029a: claude 가 `## ` prefix 를 자주
+/// 빠뜨려서 `## <title>` strict match 만으로는 fan-out 실패. 헤더 변종
+/// (`# <title>`, `## <title>`, `### <title>`, `**<title>**`, 그냥 `<title>`)
+/// 모두 헤더로 인식, 다음 비슷한 헤더 (또는 EOF) 까지를 body 로 반환.
+fn extract_section<'a>(haystack: &'a str, title: &str) -> Option<&'a str> {
+    let title_re = regex::Regex::new(&format!(
+        r"^\s*(?:#{{1,6}}\s+|\*\*\s*)?{}\s*(?:\*\*)?\s*:?\s*$",
+        regex::escape(title)
+    ))
+    .ok()?;
+    // 본문 종료 후보: 헤더처럼 보이는 다음 라인 (`# foo`, `**foo**`).
+    let heading_re = regex::Regex::new(r"^\s*(?:#{1,6}\s+\S|\*\*\s*\S[^*]*\*\*\s*:?\s*$)").ok()?;
+
+    let mut start_off: Option<usize> = None;
+    let mut cursor = 0usize;
+    for line in haystack.split_inclusive('\n') {
+        let line_no_nl = line.strip_suffix('\n').unwrap_or(line);
+        let line_no_cr = line_no_nl.strip_suffix('\r').unwrap_or(line_no_nl);
+        if start_off.is_none() {
+            if title_re.is_match(line_no_cr) {
+                start_off = Some(cursor + line.len());
+            }
+        } else if heading_re.is_match(line_no_cr) {
+            return Some(&haystack[start_off?..cursor]);
+        }
+        cursor += line.len();
+    }
+    start_off.map(|s| &haystack[s..])
 }
 
 pub fn render_routing_summary(r: &PmRouting) -> String {
@@ -313,6 +372,9 @@ pub fn render_routing_summary(r: &PmRouting) -> String {
     lines.push(format!("assignments={}", r.assignments.len()));
     lines.push(format!("new_cards={}", r.new_cards.len()));
     lines.push(format!("transitions={}", r.transitions.len()));
+    if let Some(d) = &r.deploy {
+        lines.push(format!("deploy={d}"));
+    }
     lines.join(" | ")
 }
 
