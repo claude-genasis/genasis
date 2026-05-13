@@ -259,6 +259,8 @@ async fn build_loop_components(
         project_slug: project_slug.clone(),
         agent_work_secs: args.agent_work_secs,
         agent_gap_secs: args.agent_gap_secs,
+        // v0.6.0: project_root 는 사용자 sandbox cwd. agent SDK 의 cwd 가 됨.
+        project_root: project_root.to_path_buf(),
     };
     if trial_enabled {
         let trial = cfg

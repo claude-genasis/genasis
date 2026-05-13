@@ -1,0 +1,140 @@
+# PLAN — v0.6.0 본질 회복: per-team sandbox + agent code access
+
+> 한국어: 이 PLAN 은 사용자 §"trial-app 이 시뮬레이션이 아닌 실제 동작" 요구의
+> 본질을 v0.5.x 사이클 내내 시뮬레이션 외형 다듬기로 회피해 온 것을 인정하고,
+> v0.6.0 부터 진짜 agent code-access + per-team sandbox 모델로 재구축한다.
+
+## 사용자 의도 (정확히 재정리)
+
+genasis 의 본질:
+- **Claude 의 agentic team 기능을 이용해 multi-agent team 을 생성·관리하는 도구**
+- 사람은 **칸반 + 채팅** 인터페이스로 그 팀과 소통
+- 두 가지 사용자 층:
+  - **인프라 가능자**: real Plane + Mattermost 연동
+  - **체험 사용자**: trial-app 이 minimal Plane/Mattermost 대용 (per-team)
+
+trial-app 의 진짜 역할 (v0.5.x 에서 회피한 것):
+- **per-team 격리** — 각 team 이 자기 작업 공간
+- **사용자 채팅 명령이 실제 agentic team 에 전달**
+- **팀이 진짜 코드 작업 수행** (text 응답이 아닌 file Edit + build + deploy)
+- **사용자가 결과 시각 확인** (브라우저 dev server)
+
+## v0.5.x 회피 회고
+
+| 결함 ID | 회피의 본질 |
+|---|---|
+| D-029b (색상 사전 확장) | 진짜 코드 변경 회피 → feature flag string 사전 hard-code |
+| D-039 (타이틀 accent 적용) | 진짜 코드 변경 회피 → QuizApp Tailwind 분기 hard-code |
+| D-040 (deploy announce) | 진짜 빌드/배포 회피 → 채팅 announce 문구 hard-code |
+| D-041 (cleanup_stuck) | 진짜 카드 상태 추적 회피 → "정리해줘" 키워드 보면 일괄 done |
+| 모든 v0.5.x | **agent 가 코드 못 봄, 못 수정** — `claude --print` stateless |
+
+frontend agent 가 채팅에 "Button 컴포넌트에 shimmer-border 클래스 적용해 전 버튼에 자동 반영, 스토리북 스냅샷 통과" 라고 한 응답은 **모두 가짜** — 실제 코드 변경 없었음.
+
+## v0.6.0 아키텍처
+
+```
+사용자 (브라우저)
+  │
+  ├─ 채팅 패널 (호스팅 trial-app)
+  │   └─ 호스팅 trial-app = 칸반/채팅 UI 만 (시각 결과 X)
+  │
+  └─ 시각 결과 (사용자 자기 localhost:<port>)
+      └─ 사용자 로컬 dev server (per-team sandbox)
+
+사용자 채팅 입력
+  │
+  ▼ SSE
+사용자 로컬 데몬 (genasis listen, cwd=<sandbox>)
+  │
+  ▼
+PM agent 호출 (Claude Agent SDK Node subprocess)
+  - cwd: <sandbox>
+  - allowed_tools: Read, Bash (코드 컨텍스트 파악)
+  - permission_mode: acceptEdits
+  │
+  ▼ PM 응답 + routing 마커
+각 role agent 병렬 호출 (Agent SDK)
+  - frontend: cwd=<sandbox> + Read/Edit/Bash (실제 React 코드 수정)
+  - designer: Tailwind 토큰 / globals.css 수정
+  - qa: Playwright 테스트 작성 + 실행
+  - devops: npm build + dev server restart
+  │
+  ▼ agent 가 진짜 파일 Edit
+  ▼ devops 가 hot-reload 또는 build
+  ▼
+사용자 브라우저 자동 새로고침 → 변경 시각 보임
+```
+
+## 마일스톤
+
+### M-v6.0.1 — Agent SDK 통합 (첫 진전)
+
+- 데몬에 `run_claude_agent_sdk(prompt, cwd, tools) -> Result<String>` 함수 추가
+- Node subprocess + `NODE_PATH=/home/bravo/.npm-global/lib/node_modules` + `@anthropic-ai/claude-agent-sdk`
+- PM 호출 먼저 SDK 모드로 전환 (PRD.md 읽어 컨텍스트화)
+- agent fan-out 은 일단 그대로 (Phase 2 에서 전환)
+- **검증**: PM 응답이 PRD 내용 인지하고 정확한 작업 분배
+
+### M-v6.0.2 — Example 프로젝트 scaffold
+
+- `genasis example prd` 가 PRD.md + **실제 React 프로젝트 scaffold** 생성
+- sandbox 디렉토리 안에 trial-app QuizApp 사본 + package.json + dev server 설정
+- `genasis listen start` 가 dev server 자동 spawn (npm run dev on :30000+team_index)
+- 사용자가 자기 브라우저로 localhost:<port> 접속 → 자기 demo 앱 봄
+
+### M-v6.0.3 — agent 가 진짜 코드 변경
+
+- frontend agent 호출이 Read/Edit/Bash tool 활성 + cwd=sandbox
+- agent prompt: "이 디렉토리의 React 컴포넌트를 직접 수정하라. 텍스트 응답이 아닌 file Edit 수행"
+- designer / qa / devops 도 동일하게 진짜 작업
+- devops 가 build/restart 자동
+- agent 응답 본문에 [CARD: ... → done] 마커 (현재처럼) + 추가로 변경한 파일 목록
+
+### M-v6.0.4 — per-team 격리
+
+- 각 team_token 별 sandbox 디렉토리 자동 생성 + dev server port 할당
+- 다중 team 동시 작업 가능 (서로 격리)
+- 사용자가 `genasis init --trial` → sandbox 만들어짐 → 자기 localhost:<port> 접속
+
+### M-v6.0.5 — 호스팅 trial-app 역할 재정의
+
+- 호스팅 (`mmplane-trial.realstory.blog`) = 칸반/채팅 UI + 시뮬레이션 demo
+- "에이전트가 만든 앱 보기" 모달:
+  - 옵션 A: 사용자 로컬 dev server URL 사용자 입력 + iframe (CORS 처리)
+  - 옵션 B: 호스팅 측은 demo placeholder + "실제 동작은 자기 컴퓨터 localhost:<port> 참고"
+- PM prompt 가 "시뮬레이션 demo 한정" 명시 (호스팅 인스턴스에서)
+- 사용자 로컬에서는 "real code edit" 모드 (sandbox cwd 가 agent 에게 노출됨)
+
+## v0.6.0-alpha.1 (이 사이클 시작점)
+
+**범위**: M-v6.0.1 만. PM 호출의 Agent SDK 전환 + cwd 의 PRD.md 인지.
+
+**작업 단위**:
+1. 신규 함수 `crates/genasis-cli/src/listen/sdk.rs::run_claude_agent_sdk(prompt, cwd, tools)`
+   - Node subprocess `NODE_PATH=... node -e "<inline script>"`
+   - stream-json 출력 파싱 → 최종 assistant message 추출
+   - tool 권한 + cwd + permission_mode
+2. `mod.rs::handle_human_post` 의 PM 호출 분기:
+   - `claude --print` 대신 `run_claude_agent_sdk` 호출
+   - cwd 는 `cfg.project_root` (데몬 시작 시 결정된 sandbox dir)
+   - tools=Read, Bash (Edit 는 frontend 단계에서)
+3. `LoopConfig` 에 `project_root: PathBuf` 추가, cmd_listen 에서 채움
+4. echo_only 모드는 그대로 유지 (CI 검증용)
+5. fallback: SDK 호출 실패 시 echo PM response
+
+**검증**:
+- 사용자 sandbox `/work/agenteams/team-ex/v516-final/` 에 PRD.md 가 있음
+- 데몬 진짜 LLM 모드로 띄움
+- 채팅 메시지 보내면 PM 이 PRD.md 의 컨텍스트 (Claude Code 진단 퀴즈) 인지하고 응답
+- 데몬 로그에 SDK 호출 + cwd + tool 사용 흔적 노출
+
+## 시뮬레이션 시대 (v0.5.x) 의 종료 선언
+
+본 PLAN 채택 후 다음을 폐기 또는 점진 폐기:
+- `build_echo_pm_response` 의 키워드 사전 (D-029b 등) — 진짜 LLM 이 처리
+- QuizApp 의 hard-coded `accentClass` / `titleAccentClass` (D-039) — 진짜 코드 변경
+- 데몬의 deploy announce (D-040) — devops agent 가 진짜 build 후 자동 announce
+- `cleanup_stuck_cards` 휴리스틱 (D-041) — agent 가 자기 작업 마무리 시 진짜 transition
+
+지금 즉시 제거하지는 않음 — 점진 폐기 (alpha 사이클 진행하면서 의존 풀린 것부터).

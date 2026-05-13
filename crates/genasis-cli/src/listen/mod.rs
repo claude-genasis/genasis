@@ -23,6 +23,7 @@ use tracing::{info, warn};
 pub mod lifecycle;
 pub mod mattermost_ws;
 pub mod routing;
+pub mod sdk;
 pub mod trial_sse;
 
 /// 사람이 채팅 채널에 올린 메시지 → `claude --print` 입력으로 변환할
@@ -183,11 +184,32 @@ async fn handle_human_post(
         build_echo_pm_response(message, cfg)
     } else {
         let prompt = routing::build_pm_prompt(&cfg.project_name, &cfg.project_slug, message, None);
-        match run_claude_print(&prompt, cfg).await {
-            Ok(s) => s,
+        // v0.6.0 M-v6.0.1: PM 은 Agent SDK 모드로 호출 — cwd 의 PRD.md 등
+        // 사용자 프로젝트 컨텍스트를 Read tool 로 직접 인지. tool 권한은
+        // Read + Bash 만 (Edit 은 frontend 단계에서). claude --print stateless
+        // 호출은 v0.5.x 시뮬레이션 시대의 한계라 폐기.
+        let sdk_result = sdk::run_claude_agent_sdk(
+            &prompt,
+            &cfg.project_root,
+            &["Read", "Bash"],
+            cfg.claude_timeout_secs as u64,
+        )
+        .await;
+        match sdk_result {
+            Ok(s) if !s.trim().is_empty() => s,
+            Ok(_) => {
+                warn!("PM Agent SDK returned empty — fallback to claude --print");
+                run_claude_print(&prompt, cfg).await.unwrap_or_else(|e| {
+                    warn!("PM claude --print fallback failed: {e}");
+                    build_echo_pm_response(message, cfg)
+                })
+            }
             Err(e) => {
-                warn!("PM claude --print failed: {e} — fallback to echo");
-                build_echo_pm_response(message, cfg)
+                warn!("PM Agent SDK failed: {e} — fallback to claude --print");
+                run_claude_print(&prompt, cfg).await.unwrap_or_else(|e| {
+                    warn!("PM claude --print fallback failed: {e}");
+                    build_echo_pm_response(message, cfg)
+                })
             }
         }
     };
@@ -519,6 +541,10 @@ pub struct LoopConfig {
     /// claude --print 의 system context 보강용 (PRD 제목 + 프로젝트 명).
     pub project_name: String,
     pub project_slug: String,
+    /// v0.6.0 M-v6.0.1: agent SDK 의 cwd. 이 디렉토리가 agent 의 Read/
+    /// Edit/Bash tool 의 작업 영역이 된다. `genasis init --trial` 디렉토리
+    /// 가 기본. 사용자 sandbox = 사용자 자기 프로젝트 디렉토리.
+    pub project_root: std::path::PathBuf,
     /// D-028: 각 agent 의 "착수 → 완료" 사이 작업 시간 (초). 칸반 In
     /// Progress 카드를 사람이 인지할 시간을 준다. echo-only 모드에서도
     /// 실제로 일하는 것처럼 보이는 진행감을 만든다.

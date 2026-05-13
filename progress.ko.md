@@ -1053,6 +1053,22 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-13: **v0.6.0-alpha.1 — 본질 회복 시작: Agent SDK 통합 (M-v6.0.1)**. 사용자 §"agent 가 진짜 프로젝트 코드를 알고 그 안에서 해결책을 찾아야 함" 정확 지적. v0.5.x 사이클의 모든 fix (D-029b 색상 사전 / D-039 hard-coded CSS 분기 / D-040 announce 문구 / D-041 cleanup 휴리스틱) 가 시뮬레이션 외형 다듬기였음을 인정. v0.6.0 로 본질 회복 시작.
+
+  **새 PLAN_v0.6.0.md**: per-team sandbox + agent code access 모델. 5개 마일스톤 (Agent SDK 통합 / example scaffold / 진짜 코드 변경 / per-team 격리 / 호스팅 trial-app 역할 재정의).
+
+  **M-v6.0.1 (이 사이클)**: `crates/genasis-cli/src/listen/sdk.rs` 신규 — `run_claude_agent_sdk(prompt, cwd, tools, timeout)` 가 Node subprocess `@anthropic-ai/claude-agent-sdk` 띄움. `permissionMode: 'acceptEdits'` + `cwd` + `allowedTools` 보장. **Anthropic API key 없이 로컬 Claude Code 세션 자동 인증** (`feedback_no_claude_api` 준수). `LoopConfig.project_root: PathBuf` 추가. `handle_human_post` PM 호출 분기를 `claude --print` 에서 SDK 모드로 전환 (tools=[Read, Bash] — Edit 는 frontend phase 에서). 실패 시 `claude --print` 또는 echo fallback. echo-only 모드는 CI 검증용 그대로.
+
+  **라이브 검증 (메시지 id=239)**: 사용자 sandbox `/work/agenteams/team-ex/v516-final/` 에서 데몬 띄움 + 메시지 "이 프로젝트의 PRD 내용을 한 줄로 요약해줘" → PM 응답 12초 만에 도착, 본문에 "본 프로젝트(v516 Final)의 PRD 핵심 내용 요약" 라고 정확히 PRD 컨텍스트 인지. Agent SDK 가 cwd 의 PRD.md 를 Read tool 로 진짜 읽음 검증 완료.
+
+  **다음 phase (다음 사이클 이후)**:
+  - PM prompt 분기 — 단순 질의 vs 작업 요청 (현재는 항상 fan-out 강제)
+  - frontend/designer/qa/devops agent 도 SDK 모드 + Edit/Bash tool
+  - `genasis example prd` 가 PRD.md + 실제 React scaffold (npm 프로젝트) 생성
+  - sandbox 격리 (per-team) + dev server auto-spawn
+
+  **시뮬레이션 시대 종료 선언**: D-029b ~ D-042 의 hard-coded 사전/분기/휴리스틱은 점진 폐기. 진짜 agent 작업이 동등 기능 대체.
+
 - 2026-05-13: **v0.5.26 릴리스 — deploy/cleanup actor self-trigger 무한루프 방지 (D-042 핫픽스)**. v0.5.25 D-040 검증 중 데몬이 자기가 게시한 `[deploy]` actor 메시지를 SSE 로 다시 받아서 `is_human_actor("deploy") = true` → PM 응답 1회 trigger → assignments=0 빈 응답 (무한루프는 아니지만 무의미 LLM 호출 + 메시지 1개 더 게시). `is_human_actor` 의 KNOWN_BOTS 에 `"deploy"`, `"cleanup"` 추가해서 데몬 자기 게시 system actor 모두 system 으로 분류.
 
 - 2026-05-13: **v0.5.25 릴리스 — accent 적용 범위 확장 + 배포 announce + stuck 카드 정리 (D-039/040/041 + agents-pool@2aa07e9)**. 사용자가 "자가테스트 끝났는데 티켓이 todo/inprogress 에 남아있고, 결과물이 쇼케이스에 안 나타나고, 배포했다고 답한 agent 가 없다" 직보고. 세 문제 동시 수정.
