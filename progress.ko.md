@@ -1053,6 +1053,36 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.5 — lazy session init + agents-pool overlay swap + 라이브 결정적 검증 (P3+P4 통합 완성)**. 사용자 §"alpha.5 진행 + 그 뒤 모든 것 다 진행" 명령 따른 본질 검증 사이클.
+
+  **lazy session init (D-047)**:
+  - 첫 시도에서 `ClaudeTeamSession::spawn` 이 15s timeout 으로 fail 했던 원인 — claude stream-json 모드는 stdin 으로 첫 NDJSON 메시지가 도착할 때까지 init event 안 발행 (stdin EOF 또는 첫 input 까지 대기)
+  - 수정: session spawn 시 init 동기 wait 제거. subprocess + stdin/stdout pipe 만 열고 background drain task 가 stdout 의 NDJSON 을 SessionEvent enum 으로 변환 — init / assistant / tool_use / result 가 같은 stream 에 섞여 옴
+  - 결과: spawn 즉시 ready, 첫 사람 메시지 send 후 5-30 초 안에 init + 응답 시작
+  - `build_mcp_config` 의 trial-app server env 에 `NODE_PATH` 추가 — server 의 `require('@modelcontextprotocol/sdk')` MODULE_NOT_FOUND 방지
+
+  **사용자 sandbox overlay 수동 sync (publish 우회)**:
+  - `/tmp/apply_overlay_v0_6.py`: 본 repo `agents/overlays/en/*.tera` 를 Tera 변수 보간 (project_name=v516 Final, project_slug=v516-final, flavor=trial) 후 사용자 sandbox `.claude/agents/<role>.md` 의 GENASIS:BEGIN/END marker 사이에 직접 삽입
+  - `/tmp/patch_frontmatter.py`: frontmatter `tools:` 필드를 role 별 v0.6.0 spec 으로 갱신 (예 pm: Read,Bash,Task; frontend: Read,Edit,Write,Bash,Task)
+  - 10 role 모두 갱신 — 정식 publish 워크플로우는 agents-pool 의 verified/ cleanup 후 별도 진행
+
+  **라이브 결정적 검증 (사용자 sandbox `/work/agenteams/team-ex/v516-final/`, 메시지 id=275 "시작 버튼을 진한 보라색으로 바꿔줘")**:
+  - session 1개 lazy init, session_id=86d20006, mcp_servers=["trial-app", ...] 등록
+  - PM (Task tool 로 sub-agent invocation) → designer + frontend + qa 가 같은 session 컨텍스트 안에서 협업
+  - **사용자 sandbox 의 진짜 코드 변경**: `src/styles/tokens.css` (designer — 토큰 재매핑) + `src/components/StartScreen.tsx` (frontend — 컴포넌트 수정). agent text 응답에 `.lilac-cta` 클래스 / `--color-accent-lilac*` 토큰 정확 인용 — Read tool 실제 사용 증거
+  - **MCP tool 호출 흔적**: sim_posts id=270-273 (pm/designer/frontend/qa actor, 모두 root_id=269 thread) — `mcp__trial-app__post_message` 호출. sim_teams.app_features 에 `accent-lilac` 추가 — `mcp__trial-app__set_app_features` 호출
+  - **session turn complete success=true duration_ms=135076** (~2.25분, 4-role 협업 + 진짜 코드 변경 + 7 MCP tool 호출)
+  - v0.5.x marker brittleness 완전 부재 — parsing 자체 없음
+
+  **본질 회복 선언**: 사용자가 v0.5.16 부터 일관 강조한 "trial app 이 시뮬레이션 아닌 실제 동작" 의 본질이 v0.6.0-alpha.5 에서 **결정적 검증**. agent 가 사람 채팅 → 사용자 코드 베이스 → MCP tool 로 외부 시스템 (trial-app/Mattermost/Plane) → 사용자 시각 결과 — 진짜 Claude agentic team.
+
+  **다음 사이클 (alpha.6)**:
+  - v0.5.x simulation 코드 일괄 제거: `routing.rs::{parse_pm_routing, apply_pm_routing, build_pm_prompt, build_agent_prompt, build_echo_*}`, `mod.rs::{handle_human_post, run_agent_step, run_claude_print}`, `sdk.rs::run_claude_agent_sdk` — fallback path 폐기
+  - agents-pool publish 정식 워크플로우 (verified/ 채움 + publish.sh 또는 우회 publish 스크립트) → `agents-v1.0.1` release → install.sh 재실행
+  - mcp-servers/mattermost/ + plane/ 본 구현 (beta)
+  - multi-team sandbox (M-v6.0.4)
+  - 호스팅 trial-app 의 쇼케이스 패널 = 사용자 로컬 dev server URL iframe / 명시 안내 (M-v6.0.5)
+
 - 2026-05-14: **v0.6.0-alpha.4 — overlay MCP-mode 전환 + 데몬 session 통합 + P5 stub (P3 + P4 + P5 skeleton)**. 사용자 §"남은 모든 과정 다 한 번에 완성" 명령에 따라 v0.6.0 의 전 마일스톤 (P3/P4/P5) 핵심을 한 사이클에 ship.
 
   **P3 — overlay 20 파일 (ko/en × 10 role)**:

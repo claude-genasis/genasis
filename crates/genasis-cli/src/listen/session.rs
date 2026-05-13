@@ -96,67 +96,24 @@ impl ClaudeTeamSession {
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
 
         let (tx, rx) = mpsc::channel::<SessionEvent>(256);
-        let mut session_id = None;
+        let session_id: Option<String> = None;
 
-        // 첫 init event 를 받아서 session_id 채움 + 나머지는 background task
-        let mut reader = BufReader::new(stdout).lines();
+        // claude stream-json 모드는 stdin 으로 첫 NDJSON 메시지가 도착할
+        // 때까지 init 도 발행 안 함. spawn 시점에서 init 동기 wait 하면
+        // 영원히 timeout — lazy init 으로 변경. background task 가 stdout
+        // 을 drain 하면서 init/assistant/result 이벤트 발견하면 channel
+        // 로 forward. session_id 는 첫 init 이벤트 도착 시점에 채워짐 (외부
+        // 에서 SessionEvent::Init 받는 쪽에서 인지).
+        let reader = BufReader::new(stdout).lines();
+        info!(
+            target: "listen",
+            "claude team session subprocess spawned — waiting for first user message before init"
+        );
 
-        // 동기 phase: init 라인 1개 + 옵션 추가 metadata 라인까지 받기 위해
-        // 짧은 loop. 5초 안에 init 안 오면 에러.
-        let init_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
-        loop {
-            let read_result = tokio::time::timeout(
-                init_deadline.saturating_duration_since(tokio::time::Instant::now()),
-                reader.next_line(),
-            )
-            .await;
-            match read_result {
-                Ok(Ok(Some(line))) => {
-                    if let Ok(v) = serde_json::from_str::<Value>(&line) {
-                        if v.get("type").and_then(|t| t.as_str()) == Some("system")
-                            && v.get("subtype").and_then(|s| s.as_str()) == Some("init")
-                        {
-                            let sid = v
-                                .get("session_id")
-                                .and_then(|s| s.as_str())
-                                .unwrap_or("")
-                                .to_string();
-                            let mcp_list = v
-                                .get("mcp_servers")
-                                .and_then(|m| m.as_array())
-                                .map(|arr| {
-                                    arr.iter()
-                                        .filter_map(|s| {
-                                            s.get("name").and_then(|n| n.as_str()).map(String::from)
-                                        })
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-                            session_id = Some(sid.clone());
-                            info!(
-                                target: "listen",
-                                session_id = %sid,
-                                mcp_servers = ?mcp_list,
-                                "claude team session init"
-                            );
-                            let _ = tx
-                                .send(SessionEvent::Init {
-                                    session_id: sid,
-                                    mcp_servers: mcp_list,
-                                })
-                                .await;
-                            break;
-                        }
-                    }
-                }
-                Ok(Ok(None)) => return Err(anyhow!("claude session stdout closed before init")),
-                Ok(Err(e)) => return Err(anyhow!("claude session stdout read: {e}")),
-                Err(_) => return Err(anyhow!("claude session init timeout (15s)")),
-            }
-        }
-
-        // background task: 나머지 stdout 을 SessionEvent 로 변환 후 tx 로 push
+        // background task: stdout 을 SessionEvent 로 변환 후 tx 로 push.
+        // init / assistant / result 모두 같은 stream 에 섞여 옴.
         tokio::spawn(async move {
+            let mut reader = reader;
             while let Ok(Some(line)) = reader.next_line().await {
                 if line.trim().is_empty() {
                     continue;
@@ -169,10 +126,39 @@ impl ClaudeTeamSession {
                     }
                 };
                 let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                let event = match ty {
-                    "assistant" => parse_assistant(&v),
-                    "tool_use" => parse_tool_use(&v),
-                    "result" => parse_result(&v),
+                let subtype = v.get("subtype").and_then(|t| t.as_str()).unwrap_or("");
+                let event = match (ty, subtype) {
+                    ("system", "init") => {
+                        let sid = v
+                            .get("session_id")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let mcp_list = v
+                            .get("mcp_servers")
+                            .and_then(|m| m.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|s| {
+                                        s.get("name").and_then(|n| n.as_str()).map(String::from)
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        info!(
+                            target: "listen",
+                            session_id = %sid,
+                            mcp_servers = ?mcp_list,
+                            "claude team session init (lazy)"
+                        );
+                        Some(SessionEvent::Init {
+                            session_id: sid,
+                            mcp_servers: mcp_list,
+                        })
+                    }
+                    ("assistant", _) => parse_assistant(&v),
+                    ("tool_use", _) => parse_tool_use(&v),
+                    ("result", _) => parse_result(&v),
                     _ => Some(SessionEvent::Other(v)),
                 };
                 if let Some(ev) = event {
@@ -237,12 +223,18 @@ pub fn build_mcp_config(
         .to_string();
     let mut servers = serde_json::Map::new();
     if flavor == "trial" || flavor == "auto" {
+        // NODE_PATH — 글로벌 SDK 가 설치된 경로. env 에서 override 가능,
+        // 기본은 npm global lib. 이걸 안 넣으면 mcp server 내부의
+        // `require('@modelcontextprotocol/sdk')` 가 MODULE_NOT_FOUND.
+        let node_path = std::env::var("GENASIS_NODE_PATH")
+            .unwrap_or_else(|_| "/home/bravo/.npm-global/lib/node_modules".to_string());
         servers.insert(
             "trial-app".to_string(),
             serde_json::json!({
                 "command": "node",
                 "args": [trial_index],
                 "env": {
+                    "NODE_PATH": node_path,
                     "GENASIS_TRIAL_URL": trial_url,
                     "GENASIS_TEAM_TOKEN": team_token,
                     "GENASIS_PROJECT_SLUG": project_slug,
