@@ -301,6 +301,11 @@ impl EventSink for MattermostSink {
         Ok(std::collections::HashMap::new())
     }
 
+    async fn cleanup_stuck_cards(&self) -> Result<usize> {
+        // Real Plane: v0.6.0 에서 issue 전체 PATCH state=done.
+        Ok(0)
+    }
+
     async fn maybe_transition_for_directive(&self, message: &str) -> Result<()> {
         if !super::message_requests_done(message) {
             return Ok(());

@@ -368,6 +368,104 @@ impl EventSink for TrialAppSink {
         Ok(seq_map)
     }
 
+    async fn cleanup_stuck_cards(&self) -> Result<usize> {
+        // D-041: listIssues GET + 모든 inprogress/todo 카드를 일괄 done 마커로
+        // 묶어서 bootstrap demo_issues 한 round-trip 으로 transition.
+        let issues_url = format!(
+            "{}/api/plane/issues?project_slug={}",
+            self.base_url, self.project_slug
+        );
+        let resp = match self
+            .client
+            .get(&issues_url)
+            .header("X-Genasis-Team-Token", &self.team_token)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => r,
+            Ok(r) => {
+                warn!("cleanup listIssues {} → {}", issues_url, r.status());
+                return Ok(0);
+            }
+            Err(e) => {
+                warn!("cleanup listIssues {issues_url}: {e}");
+                return Ok(0);
+            }
+        };
+        let body: Value = match resp.json().await {
+            Ok(b) => b,
+            Err(e) => {
+                warn!("cleanup listIssues parse: {e}");
+                return Ok(0);
+            }
+        };
+        let issues = body
+            .get("issues")
+            .and_then(|r| r.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let stuck: Vec<&Value> = issues
+            .iter()
+            .filter(|i| {
+                i.get("state")
+                    .and_then(|s| s.as_str())
+                    .map(|s| s == "inprogress" || s == "todo")
+                    .unwrap_or(false)
+            })
+            .collect();
+        if stuck.is_empty() {
+            return Ok(0);
+        }
+        let mut demo_issues: Vec<Value> = Vec::new();
+        for issue in &stuck {
+            let title = issue.get("title").and_then(|t| t.as_str()).unwrap_or("");
+            if title.is_empty() {
+                continue;
+            }
+            demo_issues.push(json!({
+                "title": title,
+                "state": "done",
+                "assignee": issue.get("assignee").and_then(|a| a.as_str()).unwrap_or("agent"),
+            }));
+        }
+        let cleanup_count = demo_issues.len();
+        let body = json!({
+            "team_token": self.team_token,
+            "project": {"slug": self.project_slug, "name": self.project_name},
+            "channels": [{
+                "key": "scrum",
+                "name": format!("scrum-{}", self.project_slug),
+                "display_name": format!("{} — Scrum", self.project_name),
+            }],
+            "demo_issues": demo_issues,
+        });
+        let url = format!("{}/api/trial/bootstrap", self.base_url);
+        match self
+            .client
+            .post(&url)
+            .header("X-Genasis-Team-Token", &self.team_token)
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => {
+                info!(
+                    target: "listen",
+                    cleanup_count,
+                    "cleanup: stuck cards transitioned to done"
+                );
+            }
+            Ok(r) => warn!(
+                "cleanup bootstrap {} → {}: {}",
+                url,
+                r.status(),
+                r.text().await.unwrap_or_default()
+            ),
+            Err(e) => warn!("cleanup bootstrap {url}: {e}"),
+        }
+        Ok(cleanup_count)
+    }
+
     async fn maybe_transition_for_directive(&self, message: &str) -> Result<()> {
         if !message_requests_done(message) {
             return Ok(());

@@ -81,6 +81,13 @@ pub trait EventSink: Send + Sync {
         &self,
         routing: &routing::PmRouting,
     ) -> Result<std::collections::HashMap<String, u64>>;
+
+    /// D-041: 사용자 메시지에 "정리/마무리/완료/cleanup" 키워드가 있을 때
+    /// 데몬이 호출. 현재 inprogress/todo 상태로 stuck 된 sim_issues 카드들을
+    /// 일괄 done 으로 옮긴다. 반환값은 정리된 카드 개수. trial flavor 는
+    /// listIssues GET + 각 카드별 transition 마커 → bootstrap. real Plane
+    /// flavor 는 v0.6.0 에서 issue PATCH 일괄 호출 (현재 stub 0).
+    async fn cleanup_stuck_cards(&self) -> Result<usize>;
 }
 
 /// 모든 flavor 가 공유하는 메인 loop. EventStream / EventSink 가 어디로
@@ -149,6 +156,28 @@ async fn handle_human_post(
     sink: &dyn EventSink,
     cfg: &LoopConfig,
 ) -> Result<()> {
+    // (0) D-041: 사용자 메시지에 "정리/마무리/완료/cleanup" 키워드가
+    // 있으면 PM 응답 받기 전에 sim_issues 의 stuck (inprogress/todo)
+    // 카드들을 일괄 done 으로 정리. 누적된 이전 사이클 잔여 카드 청소.
+    let m_lower = message.to_lowercase();
+    let wants_cleanup = ["정리", "마무리", "완료해", "cleanup", "tidy up", "wrap up"]
+        .iter()
+        .any(|k| m_lower.contains(k));
+    if wants_cleanup {
+        match sink.cleanup_stuck_cards().await {
+            Ok(n) if n > 0 => {
+                let msg = format!(
+                    "🧹 잔여 카드 정리 — sim_issues 의 inprogress/todo 카드 {n} 건을 done 으로 일괄 transition. 이전 사이클 stuck 카드 청소 완료."
+                );
+                if let Err(e) = sink.reply(event, "cleanup", &msg).await {
+                    warn!("cleanup announce failed: {e}");
+                }
+            }
+            Ok(_) => {}
+            Err(e) => warn!("cleanup_stuck_cards failed: {e}"),
+        }
+    }
+
     // (1) PM 응답 생성
     let pm_response = if cfg.echo_only {
         build_echo_pm_response(message, cfg)
@@ -227,13 +256,31 @@ async fn handle_human_post(
         // 적용 — 여기서는 join 만.
     }
 
-    // (6) D-030: [DEPLOY: ...] 마커별 후처리. 현재는 트라이얼 환경에서
-    // sim_teams.app_features 갱신이 곧 즉시 배포이므로 features-only 면
-    // PM 의 "배포 완료" announce 만 추가, by-last-agent / devops 는
-    // agent fan-out 안에서 마지막 응답 메시지에 "✅ 배포 완료" announce
-    // 가 포함되도록 agent prompt 에서 안내 (현재는 메타 마커로만 기록).
+    // (6) D-030 + D-040: [DEPLOY: ...] 마커별 후처리. 데몬이 직접
+    // `[deploy]` actor 명의로 "✅ 배포 완료" announce 자동 게시 —
+    // features-only 면 agent fan-out 끝난 직후 PM 스레드에 한 줄.
+    // 사용자 §"배포했다고 답한 agent 가 없었다" 결함 해결.
     if let Some(mode) = &route.deploy {
         info!(target: "listen", deploy = %mode, "deploy routing");
+        let announce = match mode.as_str() {
+            "features-only" => Some(format!(
+                "✅ 배포 완료 — sim_teams.app_features = {:?} 가 즉시 쇼케이스에 반영되었습니다. \
+                 (모드: features-only / no code build needed)",
+                route.app_features,
+            )),
+            m if m.starts_with("by-last-agent") => Some(format!(
+                "✅ 배포 완료 — 마지막 작업 agent ({mode}) 가 코드 변경 + 배포 완료 announce 함."
+            )),
+            "devops" => Some(
+                "✅ 배포 완료 — devops agent 가 빌드 + 릴리스 파이프라인 실행 완료.".to_string(),
+            ),
+            _ => None,
+        };
+        if let Some(text) = announce {
+            if let Err(e) = sink.reply(event, "deploy", &text).await {
+                warn!("deploy announce failed: {e}");
+            }
+        }
     }
 
     Ok(())
