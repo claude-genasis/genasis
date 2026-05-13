@@ -22,8 +22,8 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{info, warn};
 
-use super::routing::PmRouting;
-use super::{EventSink, EventStream, InboundEvent};
+
+use super::{EventStream, InboundEvent};
 
 type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -200,127 +200,5 @@ impl EventStream for MattermostWsStream {
                 is_human,
             });
         }
-    }
-}
-
-pub struct MattermostSink {
-    mm_base_url: String,
-    bot_token: String,
-    /// `actor` (genasis 페르소나 이름) → Mattermost bot user_id 매핑.
-    /// listen daemon 이 응답을 어떤 bot 명의로 올릴지 결정. 비어 있으면
-    /// 본 sink 가 빈 actor 인자 무시하고 `bot_token` 의 user 로 그대로
-    /// 게시.
-    persona_user_id: std::collections::HashMap<String, String>,
-    plane_base_url: Option<String>,
-    plane_api_key: Option<String>,
-    client: Client,
-}
-
-impl MattermostSink {
-    pub fn new(
-        mm_base_url: &str,
-        bot_token: &str,
-        persona_user_id: std::collections::HashMap<String, String>,
-        plane_base_url: Option<String>,
-        plane_api_key: Option<String>,
-    ) -> Self {
-        Self {
-            mm_base_url: mm_base_url.trim_end_matches('/').to_string(),
-            bot_token: bot_token.to_string(),
-            persona_user_id,
-            plane_base_url,
-            plane_api_key,
-            client: Client::builder()
-                .timeout(Duration::from_secs(20))
-                .build()
-                .expect("reqwest Client"),
-        }
-    }
-}
-
-#[async_trait]
-impl EventSink for MattermostSink {
-    async fn reply(&self, triggered_by: &InboundEvent, actor: &str, text: &str) -> Result<()> {
-        let (channel_id, root_id) = match triggered_by {
-            InboundEvent::PostCreated {
-                channel_id,
-                thread_root_id,
-                ..
-            } => (channel_id.clone(), thread_root_id.clone()),
-        };
-        // 페르소나 매핑이 있으면 해당 bot 토큰을 별도로 받아야 진짜 그
-        // 사용자 명의로 게시 가능 — 현재 MattermostSink 는 한 bot_token
-        // 만 보유하므로 actor 는 메시지 prefix 로 남김.
-        let prefixed = if let Some(uid) = self.persona_user_id.get(actor) {
-            // user_id 알려진 경우라도 단일 토큰만 있으므로 본문 prefix
-            // + Mattermost username 자동 mention 으로 시각화.
-            format!("@{uid} {text}")
-        } else {
-            format!("[{actor}] {text}")
-        };
-        let mut body = json!({
-            "channel_id": channel_id,
-            "message": prefixed,
-        });
-        if let Some(rid) = root_id {
-            body["root_id"] = json!(rid);
-        }
-        let url = format!("{}/api/v4/posts", self.mm_base_url);
-        let resp = self
-            .client
-            .post(&url)
-            .bearer_auth(&self.bot_token)
-            .json(&body)
-            .send()
-            .await?;
-        if !resp.status().is_success() {
-            anyhow::bail!(
-                "Mattermost reply POST {url} → {}: {}",
-                resp.status(),
-                resp.text().await.unwrap_or_default()
-            );
-        }
-        Ok(())
-    }
-
-    async fn apply_pm_routing(
-        &self,
-        routing: &PmRouting,
-    ) -> Result<std::collections::HashMap<String, u64>> {
-        // Real Mattermost / Plane 모드의 apply_pm_routing 은 향후 확장
-        // 포인트 — Plane issue create + assignee PATCH + state 변경을
-        // PLANE_API_KEY 로 수행. 본 사이클은 trial 모드 검증에 집중하므로
-        // 일단 routing 요약만 로그.
-        info!(
-            target: "listen",
-            assignments = routing.assignments.len(),
-            new_cards = routing.new_cards.len(),
-            transitions = routing.transitions.len(),
-            "MattermostSink: PM routing observed (Plane integration deferred to v0.6.0)"
-        );
-        Ok(std::collections::HashMap::new())
-    }
-
-    async fn cleanup_stuck_cards(&self) -> Result<usize> {
-        // Real Plane: v0.6.0 에서 issue 전체 PATCH state=done.
-        Ok(0)
-    }
-
-    async fn maybe_transition_for_directive(&self, message: &str) -> Result<()> {
-        if !super::message_requests_done(message) {
-            return Ok(());
-        }
-        // Plane 측 transition 은 진짜 운영 환경에 한해 의미가 있는데
-        // 실제로 "어떤 이슈를 done 으로?" 는 message 컨텍스트만으론 추정
-        // 불가. 본 sink 는 일단 no-op 으로 두고 Mattermost 채널에 follow-up
-        // 한 줄 추가 — "정리 의도 감지됨, 어떤 이슈를 지정할지 알려주세요"
-        // 같은 안내. 정확한 transition 은 Plane MCP / `/issue-done` 명령에
-        // 위임.
-        info!(
-            target: "listen",
-            "MattermostSink: 'done' directive detected — Plane transition 은 사용자가 명시한 이슈에 한해 별도 명령으로."
-        );
-        let _ = (&self.plane_base_url, &self.plane_api_key); // 향후 확장
-        Ok(())
     }
 }

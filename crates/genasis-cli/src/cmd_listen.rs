@@ -27,10 +27,10 @@ use crate::listen::lifecycle::{
     log_path, pid_path, read_pid, remove_pid_file, start_precheck, status, stop_daemon, write_pid,
     StartPrecheck,
 };
-use crate::listen::mattermost_ws::{MattermostSink, MattermostWsStream};
+use crate::listen::mattermost_ws::MattermostWsStream;
 use crate::listen::session;
-use crate::listen::trial_sse::{TrialAppSink, TrialAppSseStream};
-use crate::listen::{run_listen_loop, run_listen_loop_session, EventSink, EventStream, LoopConfig};
+use crate::listen::trial_sse::TrialAppSseStream;
+use crate::listen::{run_listen_loop_session, EventStream, LoopConfig};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -110,7 +110,7 @@ pub async fn run(args: Args) -> Result<()> {
 }
 
 async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
-    let (cfg, stream, _sink) = build_loop_components(project_root, args).await?;
+    let (cfg, stream) = build_loop_components(project_root, args).await?;
     println!(
         "→ genasis listen (foreground) — project={} max_events={}",
         cfg.project_slug, args.max_events
@@ -275,7 +275,7 @@ fn cmd_logs(project_root: &Path, follow: bool) -> Result<()> {
 async fn build_loop_components(
     project_root: &Path,
     args: &Args,
-) -> Result<(LoopConfig, Box<dyn EventStream>, Box<dyn EventSink>)> {
+) -> Result<(LoopConfig, Box<dyn EventStream>)> {
     let cfg_path = project_root.join(CONFIG_FILE_NAME);
     if !cfg_path.is_file() {
         return Err(anyhow!(
@@ -294,14 +294,9 @@ async fn build_loop_components(
     let project_slug = slugify(&project_name);
     let trial_enabled = args.trial || cfg.trial.as_ref().map(|t| t.enabled).unwrap_or(false);
     let loop_cfg = LoopConfig {
-        default_actor: args.default_actor.clone(),
-        claude_timeout_secs: args.claude_timeout_secs,
-        echo_only: args.echo_only,
         max_events: args.max_events,
         project_name: project_name.clone(),
         project_slug: project_slug.clone(),
-        agent_work_secs: args.agent_work_secs,
-        agent_gap_secs: args.agent_gap_secs,
         // v0.6.0: project_root 는 사용자 sandbox cwd. agent SDK 의 cwd 가 됨.
         project_root: project_root.to_path_buf(),
     };
@@ -323,15 +318,8 @@ async fn build_loop_components(
         );
         let stream: Box<dyn EventStream> =
             Box::new(TrialAppSseStream::new(&trial.url, &team_token)?);
-        let sink: Box<dyn EventSink> = Box::new(TrialAppSink::new(
-            &trial.url,
-            &team_token,
-            &project_slug,
-            &project_name,
-        ));
-        Ok((loop_cfg, stream, sink))
+        Ok((loop_cfg, stream))
     } else {
-        // real Mattermost path — MM_ADMIN_TOKEN 등 환경변수 필수.
         let mm = cfg
             .mattermost
             .as_ref()
@@ -350,16 +338,7 @@ async fn build_loop_components(
         );
         let stream: Box<dyn EventStream> =
             Box::new(MattermostWsStream::connect(&mm.url, &token, vec![]).await?);
-        // persona_user_id 매핑은 향후 humans roster 에서 가져오도록 확장
-        // 여지. 현재는 빈 map — 응답 본문에 `[actor]` prefix.
-        let sink: Box<dyn EventSink> = Box::new(MattermostSink::new(
-            &mm.url,
-            &token,
-            std::collections::HashMap::new(),
-            cfg.plane.as_ref().map(|p| p.url.clone()),
-            std::env::var("PLANE_API_KEY").ok(),
-        ));
-        Ok((loop_cfg, stream, sink))
+        Ok((loop_cfg, stream))
     }
 }
 

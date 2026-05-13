@@ -89,7 +89,10 @@ impl ClaudeTeamSession {
         cmd.current_dir(cwd)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+            .stderr(std::process::Stdio::piped())
+            // D-051: 데몬 stop 시 session subprocess (그 자식 MCP server
+            // 들 포함) leak 안 되도록. Drop 시 SIGKILL.
+            .kill_on_drop(true);
 
         let mut child = cmd.spawn().context("spawn claude session subprocess")?;
         let stdin = child.stdin.take().ok_or_else(|| anyhow!("no stdin"))?;
@@ -127,7 +130,9 @@ impl ClaudeTeamSession {
                 };
                 let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
                 let subtype = v.get("subtype").and_then(|t| t.as_str()).unwrap_or("");
-                let event = match (ty, subtype) {
+                // D-048: assistant 는 content block 안에 text + tool_use
+                // 섞임 → 여러 SessionEvent 로 emit.
+                let events: Vec<SessionEvent> = match (ty, subtype) {
                     ("system", "init") => {
                         let sid = v
                             .get("session_id")
@@ -151,20 +156,20 @@ impl ClaudeTeamSession {
                             mcp_servers = ?mcp_list,
                             "claude team session init (lazy)"
                         );
-                        Some(SessionEvent::Init {
+                        vec![SessionEvent::Init {
                             session_id: sid,
                             mcp_servers: mcp_list,
-                        })
+                        }]
                     }
                     ("assistant", _) => parse_assistant(&v),
-                    ("tool_use", _) => parse_tool_use(&v),
-                    ("result", _) => parse_result(&v),
-                    _ => Some(SessionEvent::Other(v)),
+                    ("tool_use", _) => parse_tool_use(&v).into_iter().collect(),
+                    ("result", _) => parse_result(&v).into_iter().collect(),
+                    _ => vec![SessionEvent::Other(v)],
                 };
-                if let Some(ev) = event {
+                for ev in events {
                     if tx.send(ev).await.is_err() {
                         debug!(target: "listen", "session event receiver dropped");
-                        break;
+                        return;
                     }
                 }
             }
@@ -223,11 +228,19 @@ pub fn build_mcp_config(
         .to_string();
     let mut servers = serde_json::Map::new();
     if flavor == "trial" || flavor == "auto" {
-        // NODE_PATH — 글로벌 SDK 가 설치된 경로. env 에서 override 가능,
-        // 기본은 npm global lib. 이걸 안 넣으면 mcp server 내부의
-        // `require('@modelcontextprotocol/sdk')` 가 MODULE_NOT_FOUND.
-        let node_path = std::env::var("GENASIS_NODE_PATH")
-            .unwrap_or_else(|_| "/home/bravo/.npm-global/lib/node_modules".to_string());
+        // D-052: NODE_PATH 자동 탐지 — 사용자별로 npm root -g 결과가 다름.
+        // GENASIS_NODE_PATH env 가 있으면 override, 없으면 `npm root -g`
+        // 호출. 실패 시 마지막 fallback default.
+        let node_path = std::env::var("GENASIS_NODE_PATH").unwrap_or_else(|_| {
+            std::process::Command::new("npm")
+                .args(["root", "-g"])
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "/usr/lib/node_modules".to_string())
+        });
         servers.insert(
             "trial-app".to_string(),
             serde_json::json!({
@@ -279,7 +292,10 @@ similar v0.5.x markers in chat text."#,
     )
 }
 
-fn parse_assistant(v: &Value) -> Option<SessionEvent> {
+/// D-048: assistant message 의 content block 들 안에 text + tool_use 가
+/// 섞여 있음. 둘 다 별도 SessionEvent 로 emit 해야 데몬이 어느 MCP tool
+/// 호출됐는지 추적 가능. 반환값을 Option<Vec<SessionEvent>> 로 변경.
+fn parse_assistant(v: &Value) -> Vec<SessionEvent> {
     let session_id = v
         .get("session_id")
         .and_then(|s| s.as_str())
@@ -290,21 +306,34 @@ fn parse_assistant(v: &Value) -> Option<SessionEvent> {
         .and_then(|c| c.as_array())
         .cloned()
         .unwrap_or_default();
-    let mut text = String::new();
+    let mut out = Vec::new();
     for b in &blocks {
-        if b.get("type").and_then(|t| t.as_str()) == Some("text") {
-            if let Some(t) = b.get("text").and_then(|t| t.as_str()) {
-                if !text.is_empty() {
-                    text.push('\n');
+        match b.get("type").and_then(|t| t.as_str()) {
+            Some("text") => {
+                if let Some(t) = b.get("text").and_then(|t| t.as_str()) {
+                    if !t.trim().is_empty() {
+                        out.push(SessionEvent::AssistantText {
+                            text: t.to_string(),
+                            session_id: session_id.clone(),
+                        });
+                    }
                 }
-                text.push_str(t);
             }
+            Some("tool_use") => {
+                let tool_name = b
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let input = b.get("input").cloned().unwrap_or(json!({}));
+                if !tool_name.is_empty() {
+                    out.push(SessionEvent::ToolUse { tool_name, input });
+                }
+            }
+            _ => {}
         }
     }
-    if text.is_empty() {
-        return None;
-    }
-    Some(SessionEvent::AssistantText { text, session_id })
+    out
 }
 
 fn parse_tool_use(v: &Value) -> Option<SessionEvent> {
