@@ -617,6 +617,10 @@ pub fn is_human_actor(actor: &str) -> bool {
         "genasis",
         "diagnostic",
         "system",
+        // D-042: 데몬 자체가 게시하는 system actor 들. 자기 메시지를
+        // SSE 로 다시 받았을 때 PM 응답 트리거 (무한 루프) 방지.
+        "deploy",
+        "cleanup",
     ];
     !KNOWN_BOTS.iter().any(|b| a.eq_ignore_ascii_case(b))
 }
