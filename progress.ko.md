@@ -1053,6 +1053,28 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.3 — Long-running session + MCP server 골격 (P1 + P2)**. 사용자 §"현재 alpha.2 의 SDK 분산 호출은 router-style 이고 진짜 Claude agentic team 이 아니다" + §"alpha.4 + beta 통합 진행" 결정 따른 큰 전환.
+
+  **P1 — `crates/genasis-cli/src/listen/session.rs`**:
+  - `ClaudeTeamSession::spawn(cwd, mcp_config, append_system_prompt)` 가 long-running `claude -p --input-format stream-json --output-format stream-json --mcp-config <inline-json> --permission-mode acceptEdits` subprocess 띄움
+  - team_token 별 1 session — 매 사람 메시지마다 fresh spawn 안 함, 같은 인스턴스에 NDJSON stdin push
+  - stdout 의 NDJSON event stream 을 `SessionEvent::{Init, AssistantText, ToolUse, Result, Other}` enum 으로 정규화 + tokio mpsc 로 비동기 송신
+  - 인증: claude CLI subprocess 모드 — 사용자 Pro 구독, 별도 API 비용 0 (사용자 명시 강조 `feedback_no_claude_api`)
+
+  **P2 — `mcp-servers/trial-app/`**:
+  - Node `@modelcontextprotocol/sdk` 기반 stdio MCP server
+  - 7 tools: `post_message`, `list_posts`, `create_issue`, `transition_issue`, `list_issues`, `set_app_features`, `set_app_kind`
+  - trial-app REST API 의 thin wrapper — env 로 `GENASIS_TRIAL_URL` / `TEAM_TOKEN` / `PROJECT_SLUG` / `PROJECT_NAME` / `CHANNEL_NAME` 받음
+  - 검증: stdio JSON-RPC initialize + tools/list 요청에 7 tools 응답 완료
+
+  **다음 (alpha.4 통합)**:
+  - P3: `.claude/agents/*.md` overlay 의 frontmatter 에 `mcpServers: [trial-app]` 추가 + 본문 protocol 을 marker 출력 → MCP tool call 안내로 변경
+  - 데몬 mod.rs::handle_human_post 폐기 → `session.send_user_message(text)` 한 줄로
+  - routing.rs::parse_pm_routing 폐기 (D-029a/b, D-035-038, D-041 모두 자연 해소)
+  - real Mattermost / Plane MCP server (beta)
+
+  **시뮬레이션 시대 폐기 진행률**: alpha.2 (agent 가 진짜 코드 짬) → alpha.3 (long-running session 골격) → alpha.4 (marker 폐기) → beta (real flavor MCP). 본 사이클은 인프라 ship, 다음 사이클에 실 활용 통합 + 라이브 검증.
+
 - 2026-05-14: **v0.6.0-alpha.2 — 모든 role agent SDK + 진짜 코드 작성 검증 (M-v6.0.2 + M-v6.0.3 부분)**. 사용자 §"agent 가 프로젝트 코드를 알고 그 안에서 해결책을 찾아야 한다" 의 본질 검증 결정적 성공.
 
   **코드 변경**:

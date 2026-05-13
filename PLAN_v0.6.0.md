@@ -78,6 +78,70 @@ PM agent 호출 (Claude Agent SDK Node subprocess)
 - agent fan-out 은 일단 그대로 (Phase 2 에서 전환)
 - **검증**: PM 응답이 PRD 내용 인지하고 정확한 작업 분배
 
+### v0.6.0-alpha.3 ~ beta — Long-running session + MCP 전환 (사용자 §"방식 B 본질")
+
+**문제 인식 (alpha.2 사후 회고)**:
+- 현재 sdk.rs 는 매 호출마다 fresh Node + claude subprocess 띄움 → **disposable workers**, "team" 정신 없음, session warm-up 반복
+- routing.rs 의 marker 파싱 (D-029~D-042) 은 LLM 자유 응답을 강제로 정형화하는 brittle 패턴
+
+**전환 방향 (사용자 결정)**: alpha.4 + beta 통합 진행 — 처음부터 MCP 모델.
+
+#### Phase 1 (alpha.3) — ClaudeTeamSession (Rust 데몬)
+
+- `crates/genasis-cli/src/listen/session.rs` 신규
+- team_token 별 1 long-running `claude -p --input-format stream-json --output-format stream-json --mcp-config <path>` subprocess
+- stdin tx: NDJSON `{"type":"user","message":...}` push
+- stdout rx: NDJSON event stream 파싱 → assistant/tool_use/result event
+- crash recovery (subprocess 죽으면 자동 재기동, 마지막 사람 메시지부터 resume)
+- session lazy spawn (첫 사람 메시지 도착 시)
+
+#### Phase 2 (alpha.3) — trial-app MCP server
+
+- `mcp-servers/trial-app/` 신규 (Node, `@modelcontextprotocol/sdk`)
+- tools (trial-app REST API thin wrapper):
+  - `post_message(channel_name, actor, message, root_id?)` — sim_posts 게시
+  - `list_posts(channel_name)` — 채팅 history
+  - `create_issue(project_slug, title, assignee, state?)` — sim_issues INSERT
+  - `transition_issue(id, state)` — 카드 state 변경
+  - `list_issues(project_slug)` — 칸반 현재 상태
+  - `set_app_features(features)` — sim_teams.app_features (LRU 방식 유지)
+  - `set_app_kind(kind)` — sim_teams.app_kind
+- 데몬이 session spawn 시 mcp-config 로 등록 → agent 가 자연스러운 tool call
+
+#### Phase 3 (alpha.3) — agent.md overlay 변경
+
+- `.claude/agents/pm.md` overlay: `tools: [Read, Bash, Task]` + `mcpServers: [trial-app]` (frontmatter)
+- 각 role agent: 자기 role 에 맞는 tools + mcpServers
+- overlay protocol 본문: marker 출력 → MCP tool call 안내
+  - 예: "카드 이동은 `mcp_trial-app.transition_issue(id, state)` 호출"
+  - 예: "채팅 게시는 `mcp_trial-app.post_message(...)` 호출"
+- PM 의 Task tool sub-agent 호출 패턴 명시 (`.claude/agents/<role>.md` 가 정의됐다고 가정)
+
+#### Phase 4 (alpha.4) — marker 파싱 폐기
+
+- `routing.rs::parse_pm_routing` deprecate → 제거
+- `mod.rs::handle_human_post` 폐기 → `session.send_user_message(text)` 한 줄
+- `EventSink::apply_pm_routing` / `cleanup_stuck_cards` 폐기 (MCP tool 이 직접)
+- D-029 (parser robust) / D-035 (title literal) / D-036 (echo title) / D-037 (sequence_id) / D-038 (regex hyphen) / D-041 (cleanup heuristic) 모두 **자연 해소** — MCP tool call 은 구조화 데이터라 parsing 없음
+
+#### Phase 5 (beta) — real Mattermost / Plane MCP
+
+- `mcp-servers/mattermost/` — real Mattermost API wrapper (admin token)
+- `mcp-servers/plane/` — real Plane REST wrapper (PLANE_API_KEY)
+- agent.md frontmatter 의 `mcpServers:` 만 trial → mattermost/plane 으로 swap
+- agent 입장에선 같은 `post_message` / `transition_issue` 인터페이스 — flavor 차이는 데몬의 MCP server 선택만
+
+#### 폐기 / 마이그레이션 표
+
+| 폐기 대상 (v0.5.x) | 대체 |
+|---|---|
+| `sdk.rs::run_claude_agent_sdk` (매번 spawn) | `session.rs::ClaudeTeamSession` (long-running) |
+| `routing.rs::parse_pm_routing` + marker | MCP tool call structured data |
+| `EventSink::apply_pm_routing` | MCP server 가 trial-app API 직접 |
+| `EventSink::cleanup_stuck_cards` | agent 가 `transition_issue` 일괄 호출 |
+| `build_echo_*` stub | unused (session 안에서 agent 가 진짜 작업) |
+| D-029a/b, D-035, D-036, D-037, D-038, D-041 fix 들 | 자연 해소 (parsing 자체 없음) |
+
 ### M-v6.0.2 — 모든 role agent SDK + Edit/Write/Bash tool 부여
 
 - `genasis example prd` 는 **PRD.md 만 생성** (요구사항 텍스트). 코드 scaffold 생성 안 함 — 그건 agent 의 일.

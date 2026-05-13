@@ -1,0 +1,13 @@
+{
+  "name": "@genasis/mcp-trial-app",
+  "version": "0.1.0",
+  "description": "MCP server — trial-app REST API (sim_posts / sim_issues / sim_teams) wrapper for the genasis listen daemon.",
+  "type": "module",
+  "main": "index.mjs",
+  "bin": {
+    "genasis-mcp-trial-app": "index.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

@@ -24,6 +24,7 @@ pub mod lifecycle;
 pub mod mattermost_ws;
 pub mod routing;
 pub mod sdk;
+pub mod session;
 pub mod trial_sse;
 
 /// 사람이 채팅 채널에 올린 메시지 → `claude --print` 입력으로 변환할

@@ -259,7 +259,7 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
-## 알려진 한계 (v0.6.0-alpha.2)
+## 알려진 한계 (v0.6.0-alpha.3)
 
 - **시나리오 = 기존 앱 수정** (사용자 §"엉뚱하게 다른 앱이 배포" 시나리오 거부). 트라이얼 쇼케이스는 `genasis example prd` 결과물 (Claude Code 전문가 진단 퀴즈) 로 배포되어 있고, 채팅 사람 요청은 그 기존 앱에 대한 **시각 변경 / 기능 추가** 로 해석. 예: "퀴즈 시작 버튼 색상을 빨간색으로 바꿔줘", "다크 테마 적용해줘", "공유 버튼 추가해줘". PM 이 `[FEATURES: accent-red, dark-mode, share-button]` 마커 응답 → app_features 누적 → QuizApp 실 반영.
 
