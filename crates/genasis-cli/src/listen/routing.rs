@@ -305,11 +305,13 @@ pub fn parse_pm_routing(pm_response: &str) -> PmRouting {
         }
     }
 
-    // [CARD: <title> → <state>]  (또는 -> ASCII)
-    for cap in regex_all_captures(
-        pm_response,
-        r"\[CARD:\s*([^→\->\]]+?)\s*(?:→|->)\s*([a-z]+)\s*\]",
-    ) {
+    // [CARD: <title> → <state>]  (또는 -> ASCII).
+    // D-038: 이전 정규식 `[^→\->\]]+?` 가 character class 에 `-` 를 포함해서
+    // title 의 하이픈 (예 "accent-yellow") 에서 매칭이 끊겨 title 이 잘림.
+    // 결과적으로 ensureIssue dedup 실패 → 카드 transition 안 되고 In Progress
+    // 에 stuck. 이제 separator (`→` 또는 ` -> ` 좌우 공백) 까지를 non-greedy
+    // 로 캡처 — 하이픈 포함 자연어 title 정상 매치.
+    for cap in regex_all_captures(pm_response, r"\[CARD:\s*(.+?)\s*(?:→|->)\s*([a-z]+)\s*\]") {
         let title = cap.0.trim_matches('"').trim().to_string();
         let to_state = cap.1.trim().to_string();
         if !title.is_empty() {
