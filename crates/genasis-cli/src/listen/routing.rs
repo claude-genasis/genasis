@@ -75,10 +75,18 @@ pub fn build_pm_prompt(
     format!(
         r#"당신은 Genasis agentic 팀의 PM 입니다. 프로젝트는 "{project_name}" (slug: {project_slug}).
 
-본 프로젝트의 쇼케이스 앱은 이미 `genasis example prd` 가 만든 **Claude Code
-전문가 진단 퀴즈** (app_kind=`quiz`) 로 배포되어 있습니다. 사람이 채팅에 보낸
-새 요청은 그 기존 앱에 대한 **수정/커스터마이즈 요구** 로 받아들이세요. 새 앱을
-처음부터 만들지 마세요.{prd}
+**v0.6.0 본질**: 당신은 Read/Bash tool 권한으로 cwd 의 파일들을 진짜
+인지할 수 있습니다. 응답 작성 전에 반드시 다음을 확인:
+1. `ls` 와 `cat PRD.md` 로 프로젝트 현재 상태 파악 — 빈 프로젝트인지, 이미
+   React scaffold 가 있는지, 어떤 컴포넌트들이 있는지
+2. 빈 프로젝트면 작업 분배에 frontend (npm/React scaffold 부터), devops
+   (npm install + dev server) 포함
+3. 이미 코드가 있고 사용자가 시각 변경 요청이면 designer + frontend + qa
+4. PRD.md 가 있으면 그 요구사항에 맞춰 작업 분배
+
+**시뮬레이션 금지**: v0.5.x 의 "기존 앱 그대로 + feature flag 만 누적"
+시뮬레이션 패턴은 폐기. agent 가 진짜로 코드를 만들거나 수정합니다. 작업
+분배는 그 진짜 작업을 분담하는 것이지 feature flag 명세가 아닙니다.{prd}
 
 사람이 채팅 채널 #scrum-{project_slug} 에 다음 요구를 게시했습니다.
 
@@ -190,16 +198,33 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
 {task}
 ```
 
-작업에 착수합니다. 다음 형식으로 응답하세요 (각 줄 정확히 준수):
+**v0.6.0 본질 — 진짜 작업 모드**:
+
+당신은 **현재 작업 디렉토리 (cwd) 의 파일들에 진짜로 접근**할 수 있습니다.
+당신 role 에 맞는 도구가 활성되어 있습니다 (frontend/backend: Read/Edit/
+Write/Bash, designer: Read/Edit/Write, qa: Read/Write/Bash, devops: Read/
+Bash, 그 외: Read/Bash). v0.5.x 시대의 "시뮬레이션" 응답 (`코드 작성은
+데모 범위 밖`) 은 **금지** — 다음 원칙을 반드시 따르세요:
+
+1. **cwd 의 현재 상태를 먼저 인지하세요**. `ls`, `cat PRD.md`, `cat package.json`
+   등 Bash + Read 로 프로젝트 구조 + 요구사항을 파악합니다.
+2. **빈 프로젝트이거나 scaffold 가 없으면 처음부터 작성하세요**. frontend 라면
+   `npm init -y`, `npm install react react-dom vite`, src/App.tsx 같은
+   파일들을 진짜로 Write. designer 라면 `tailwind.config.js`, `globals.css`
+   를 Write. devops 라면 `npm install`, dev server spawn 등 Bash 실행.
+3. **이미 코드가 있으면 Edit 으로 수정**하세요. 사용자 요구가 시각 변경이면
+   해당 컴포넌트의 className 또는 CSS 를 Edit.
+4. **qa 는 진짜 Playwright 또는 jest 테스트를 Write 하고 Bash 로 실행**.
+
+응답 형식 (각 줄 정확히 준수):
 
 ✋ @human 카드 {card_number} {role} 착수 — <한 줄 진행 계획>
 
 [CARD: {card_title_literal} → inprogress]
 
-이후 작업을 시뮬레이션한다고 가정하고 (실제 코드 작성은 본 데모 범위 밖),
-즉시 완료 보고 한 줄 추가:
+(이 사이에 도구를 실제로 호출해서 파일을 만들고/수정하고/명령을 실행)
 
-✅ @human 카드 {card_number} {role} 완료 — <한 줄 결과 요약>
+✅ @human 카드 {card_number} {role} 완료 — <변경한 파일 / 실행한 명령 / 결과 한 줄>
 
 [CARD: {card_title_literal} → done]
 
@@ -208,13 +233,15 @@ PM 이 다음 작업을 위임했습니다 {card_ref}:
 보고 sim_issues 의 카드를 찾아 transition 하는데, 제목이 한 글자라도 다르면
 매칭 실패해서 카드가 칸반에서 이동하지 않습니다.
 
-만약 작업 도중 다른 role 또는 사람의 결정이 필요한 이슈가 있다면 done 대신:
+만약 작업 도중 막혀서 다른 role 또는 사람의 결정이 필요하면 done 대신:
 
 ⏳ @human 카드 {card_number} {role} 보류 — <문제 요약> · 결정 필요
 
 [CARD: {card_title_literal} → inreview]
 
-3-5 문장 이내로 한국어로 응답. 마크다운 헤더 사용 금지.
+응답 마지막 자연어 한 줄은 한국어 3-5 문장으로 사용자에게 무엇을 했는지
+보고. **거짓 보고 금지** — "Button 컴포넌트에 적용했다" 라고 쓰려면 진짜로
+그 파일을 Edit/Write 한 뒤에 쓰세요. 마크다운 헤더 사용 금지.
 "#,
         role = role,
         task = task,

@@ -352,8 +352,10 @@ async fn run_agent_step(
     );
     sleep(Duration::from_secs(work_secs)).await;
 
-    // (b) "완료" — done transition. echo-only 면 stub, 아니면 진짜
-    // claude --print 응답 (그 안에 [CARD: → done] 포함).
+    // (b) "완료" — done transition. echo-only 면 stub, 아니면 v0.6.0
+    // M-v6.0.2 의 Agent SDK 모드로 호출 (role-별 tool 권한 + cwd=프로젝트).
+    // agent 가 텍스트 응답 + 진짜 file Write/Edit/Bash 둘 다 수행하고
+    // 마지막에 [CARD: → done] 마커를 응답에 포함.
     let _ = pm_route; // 미래 확장 — done 시점 routing 컨텍스트
     let done_reply = if cfg.echo_only {
         build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
@@ -366,14 +368,39 @@ async fn run_agent_step(
             card_title.as_deref(),
             seq_id,
         );
-        match run_claude_print(&prompt, cfg).await {
-            Ok(s) => s,
-            Err(e) => {
+        let tools = agent_tools_for(&assignment.role);
+        // Agent SDK 호출 timeout 은 코드 작성/빌드 시간을 고려해 PM 보다
+        // 너그럽게. claude_timeout_secs 의 2배 (단, 최소 180s).
+        let sdk_timeout = std::cmp::max(180, cfg.claude_timeout_secs as u64 * 2);
+        let sdk_result =
+            sdk::run_claude_agent_sdk(&prompt, &cfg.project_root, tools, sdk_timeout).await;
+        match sdk_result {
+            Ok(s) if !s.trim().is_empty() => s,
+            Ok(_) => {
                 warn!(
-                    "agent {} claude --print failed: {e} — fallback to echo done",
+                    "agent {} Agent SDK empty — fallback claude --print",
                     assignment.role
                 );
-                build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
+                run_claude_print(&prompt, cfg).await.unwrap_or_else(|e| {
+                    warn!(
+                        "agent {} claude --print fallback failed: {e}",
+                        assignment.role
+                    );
+                    build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
+                })
+            }
+            Err(e) => {
+                warn!(
+                    "agent {} Agent SDK failed: {e} — fallback claude --print",
+                    assignment.role
+                );
+                run_claude_print(&prompt, cfg).await.unwrap_or_else(|e| {
+                    warn!(
+                        "agent {} claude --print fallback failed: {e}",
+                        assignment.role
+                    );
+                    build_echo_agent_done(assignment, card_title.as_deref(), seq_id, cfg)
+                })
             }
         }
     };
@@ -530,6 +557,27 @@ fn build_echo_agent_done(
 
 fn first_three_words(s: &str) -> String {
     s.split_whitespace().take(4).collect::<Vec<_>>().join(" ")
+}
+
+/// v0.6.0 M-v6.0.2: role 별 Agent SDK tool 권한 매핑. 각 role 의 책임
+/// 영역에 맞춰 좁게 부여 — 사용자 sandbox 안전성 + agent 의도 명확화.
+///
+/// - frontend / backend: 풀 코드 권한 (`Read`/`Edit`/`Write`/`Bash`)
+/// - designer: 디자인 토큰/CSS 작성 — `Bash` 없이 file 작업만
+/// - qa: 테스트 작성 + 실행 — `Write` + `Bash`
+/// - devops: 빌드/배포/서버 관리 — `Bash` 중심 (코드 직접 수정은 frontend)
+/// - pm / planner / architect / code-reviewer: 코드 인지 + 진단만 (`Read`/`Bash`)
+/// - security: 코드 인지 + 진단 + 보안 패치
+fn agent_tools_for(role: &str) -> &'static [&'static str] {
+    match role {
+        "frontend" | "backend" => &["Read", "Edit", "Write", "Bash"],
+        "designer" => &["Read", "Edit", "Write"],
+        "qa" => &["Read", "Write", "Bash"],
+        "devops" => &["Read", "Bash"],
+        "security" => &["Read", "Edit", "Bash"],
+        "pm" | "planner" | "architect" | "code-reviewer" => &["Read", "Bash"],
+        _ => &["Read", "Bash"],
+    }
 }
 
 #[derive(Debug, Clone)]

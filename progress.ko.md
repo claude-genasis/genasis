@@ -1053,6 +1053,38 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.2 — 모든 role agent SDK + 진짜 코드 작성 검증 (M-v6.0.2 + M-v6.0.3 부분)**. 사용자 §"agent 가 프로젝트 코드를 알고 그 안에서 해결책을 찾아야 한다" 의 본질 검증 결정적 성공.
+
+  **코드 변경**:
+  - `mod.rs::run_agent_step` 의 done_reply 호출을 `claude --print` 에서 Agent SDK 모드로 전환 — role 별 tool 권한
+  - `agent_tools_for(role)` 헬퍼: frontend/backend = Read/Edit/Write/Bash, designer = Read/Edit/Write, qa = Read/Write/Bash, devops = Read/Bash, pm/planner/architect/code-reviewer = Read/Bash, security = Read/Edit/Bash
+  - SDK 호출 timeout = max(180, claude_timeout_secs × 2) — 코드 작업이 PM 응답보다 오래 걸려서 너그럽게
+  - fallback chain: SDK 실패 → `claude --print` → echo stub
+  - `routing.rs::build_agent_prompt` 본질 강화 — "텍스트 응답이 아닌 진짜 file Write/Edit/Bash 수행", "거짓 보고 금지", role 별 tool 사용 가이드 명시
+  - `routing.rs::build_pm_prompt` — "v0.5.x 의 기존 앱 + feature flag 누적 시뮬레이션 폐기", PM 이 `ls`/`cat PRD.md` 로 cwd 인지 + 빈 프로젝트면 frontend (scaffold) + devops (npm install) 포함 분배
+
+  **라이브 검증 (메시지 id=252)**: 사용자 sandbox `/work/agenteams/team-ex/v516-final/` 에 PRD.md 만 있는 빈 프로젝트. 메시지 "PRD.md 를 보고 진짜 React 앱을 처음부터 만들어줘 — frontend 가 scaffold, designer 가 디자인 토큰, qa 가 테스트, devops 가 npm install + dev server" → PM 이 33초 만에 응답:
+  - `assignments=4 / new_cards=4` (frontend + designer + qa + **devops**)
+  - `[DEPLOY: devops]` ← v0.5.x 의 features-only 시뮬레이션이 아닌 **devops 가 진짜 빌드/배포**
+  - 4 agent staggered 진입 → 진짜 작업
+
+  **sandbox 결과**:
+  - `package.json` (`name: "i-am-a-claude-code-expert"` — PRD 의 프로젝트명), Vite + TypeScript + React 18 + vitest + testing-library 의존성
+  - `src/App.tsx` 본문에 PRD §3, §3.5, §6 정확히 인용한 코드 (5문제 → 결과, restart 시 다른 시드 ≥7/10)
+  - `src/components/PhoneChassis.tsx` / `StartScreen.tsx` / `QuestionScreen.tsx` / `ResultScreen.tsx` ← PRD §1 의 phone frame 구조
+  - `src/lib/quiz-bank.ts` ← 문제 데이터
+  - `src/test/setup.ts` + `src/components/QuizApp.test.tsx` ← qa 가 진짜 테스트 작성
+  - **`npm run dev` 실제 실행** → `127.0.0.1:5173` 에서 Vite dev server listen (PID 205965)
+  - **사용자가 localhost:5173 접속 시 진짜 PRD 기반 React 앱 시각 확인 가능**
+
+  이게 시뮬레이션이 아니라 **진짜 agentic team 의 작업**. v0.5.x 의 모든 hard-coded 시각화 분기는 폐기 정당화 — agent 가 진짜 코드를 짜기 때문.
+
+  **다음 사이클 결함 (v0.6.0-alpha.3 의 검증·세부 보강)**:
+  - **D-043** (SDK timeout 180s 짧음): frontend 의 npm install + 5 컴포넌트 작성에 180s 초과 → fallback claude --print 발동. timeout 을 600s+ 로 늘리거나 진행 상태 stream 으로 받아 partial 보존
+  - **D-044** (timeout 시 fallback prompt wrapping 어색): claude --print fallback 이 agent prompt 를 PM 페르소나 + 사람 메시지로 wrapping — 의도 안 한 흐름. fallback 시 echo agent done 으로 바로 가는 게 깔끔
+  - **D-045** (devops 의 dev server URL 자동 announce 안 됨): 사용자가 직접 port 확인해야 함. devops agent 응답 끝에 또는 데몬의 deploy announce 에 "사용자는 http://localhost:5173 에서 확인" 자동 노출 필요
+  - **D-046** (vite dev server 가 127.0.0.1 only): 외부 접속 안 됨. devops agent prompt 에 `--host 0.0.0.0` 또는 vite.config 의 `host: true` 안내 또는 데몬이 host 옵션 자동 주입
+
 - 2026-05-13: **v0.6.0-alpha.1 — 본질 회복 시작: Agent SDK 통합 (M-v6.0.1)**. 사용자 §"agent 가 진짜 프로젝트 코드를 알고 그 안에서 해결책을 찾아야 함" 정확 지적. v0.5.x 사이클의 모든 fix (D-029b 색상 사전 / D-039 hard-coded CSS 분기 / D-040 announce 문구 / D-041 cleanup 휴리스틱) 가 시뮬레이션 외형 다듬기였음을 인정. v0.6.0 로 본질 회복 시작.
 
   **새 PLAN_v0.6.0.md**: per-team sandbox + agent code access 모델. 5개 마일스톤 (Agent SDK 통합 / example scaffold / 진짜 코드 변경 / per-team 격리 / 호스팅 trial-app 역할 재정의).
