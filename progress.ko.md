@@ -1053,6 +1053,32 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.14 — D-072 monitor 자동 sandbox 발견 + config_hint banner surface**. 사용자가 testbed root 에서 `genasis monitor` (no args) 실행 시 widget 들이 silently 비어 있던 UX 결함 fix.
+
+  **사용자 제기 의심**: testbed root `/work/agenteams/team-ex/` 에 `genasis.toml` / `.claude/agents/` 없는데 agentic team 이 진짜 trial-app 과 연동 중인지 의심.
+
+  **결과**: 의심은 testbed 구조의 한 단계 깊이 (sandbox sub-dir `alpha9-trial/`) 를 못 본 데서 비롯. 실제 결정적 검증:
+  - sandbox `/alpha9-trial/.claude/agents/` 에 10 개 agent .md (architect/backend/code-reviewer/designer/devops/frontend/planner/pm/qa/security) 모두 정상
+  - `genasis.toml` 의 `[trial]` 섹션 `enabled=true` + `team_token=76b03286…` 정상
+  - PM overlay 에 D-062 fix 들어 있음 (`자동 devops dispatch` 1 match)
+  - sandbox 안에 frontend 가 작성한 `src/components/QuizApp.tsx` (193 lines) + `src/lib/quiz-bank.ts` (237 lines) 진짜 코드 430 lines
+  - 사용자의 "Cyan 색으로 변경해" 메시지가 14:30:08 daemon 도착 → Agent Task → frontend → `src/styles.css:264` `.btn-primary` cyan `#06b6d4` 진짜 수정 → transition_issue done → post_message wrap-up까지 141 초 안에 자율 완료
+
+  **하지만 UX 결함은 별개 사실**: 사용자가 정확한 sandbox path 를 cd 또는 `--project <dir>` 로 지정해야만 monitor 가 trial 데이터 잡음. testbed root 에서 그냥 `genasis monitor` 하면 walk-up 으로 cfg 못 찾고 trial_mode=false → 모든 widget 비어 있음. D-058 fix 가 `state.config_hint` 까진 push 하지만 widget 어디서도 render 안 함 (D-058 incomplete).
+
+  **D-072 (Critical UX) 두 갈래 fix**:
+  - `genasis-core::Config::discover_or_descend` 신규 — walk-up 실패 시 cwd 의 자식 1 단계까지 search. `.` 시작 / `node_modules` / `target` 제외 + 정렬 결정성. testbed root 에서 monitor 띄우면 자동으로 `alpha9-trial/genasis.toml` 발견. 발견 시 사용자에게 banner hint ("ℹ Auto-discovered sandbox at …").
+  - `monitor::widgets::log_tail` 가 `state.config_hint` 를 widget 상단의 sticky 첫 줄로 surface — 노란색 (⚠ 미발견) / cyan (ℹ 자동 발견). log_tail 이 많이 차도 hint 안 밀려남.
+
+  **D-058 마무리**: 잘못된 dir 에서 monitor 실행 시 hint 가 silently state 에만 남고 화면에 안 보이던 결함 해결. 같은 fix bundle 에 묶음.
+
+  **단위 검증**:
+  - `discover_or_descend(/work/agenteams/team-ex)` → `…/alpha9-trial/genasis.toml` ✅
+  - `discover_or_descend(/work/agenteams/team-ex/alpha9-trial)` → 같은 path (walk-up zero-hop) ✅
+  - `discover_or_descend(/tmp)` → None (hint 띄울 준비) ✅
+
+  **사용자 안내 갱신**: 이제 `cd /work/agenteams/team-ex && genasis monitor` 만 해도 자동으로 sandbox 데이터 (Sprint 카드 카운트 + Log widget 의 listen.log follow) 표시. banner 라인에 자동 발견 path 명시. `--project <dir>` flag 는 여전히 지원 — 여러 sandbox 가 같은 testbed 에 공존할 때 명시적 선택용.
+
 - 2026-05-14: **v0.6.0-alpha.13 — D-061/062/063/065 bundle hotfix + agents-v1.0.3 catalog publish**. 사용자 지시 "남아 있던 오류 수정 모두 진행해" 따라 네 가지 결함 한 사이클에 묶어 ship.
 
   **D-062 (자율 dispatch chain) — overlay 3개 + system prompt 동시 강화**:

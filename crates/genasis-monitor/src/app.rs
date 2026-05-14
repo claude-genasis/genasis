@@ -259,14 +259,30 @@ fn load_trial_config(state: &mut AppState, project_root: Option<&Path>) {
             Err(_) => return,
         },
     };
-    let cfg_path = match Config::discover(&start) {
-        Some(p) => p,
+    let cfg_path = match Config::discover_or_descend(&start) {
+        Some(p) => {
+            // D-072: walk-down 으로 발견된 경우 사용자에게 명시 — testbed
+            // root 에서 monitor 를 띄웠을 때 자동으로 자식 sandbox 를 잡았다는
+            // 사실을 banner 로 알림. 동작은 정상이지만 사용자가 "왜 이 디렉토리
+            // 가 잡혔지?" 라고 헷갈리지 않게.
+            let parent_of_cfg = p.parent().unwrap_or(&p);
+            if parent_of_cfg != start {
+                let hint = format!(
+                    "ℹ Auto-discovered sandbox at {} (walked down from {}). Pass `--project <dir>` to pin a different one.",
+                    parent_of_cfg.display(),
+                    start.display()
+                );
+                state.log_tail.push(hint.clone());
+                state.config_hint = Some(hint);
+            }
+            p
+        }
         None => {
-            // D-058: 사용자에게 명확한 hint — silently 빈 widget 으로
+            // D-058 + D-072: 사용자에게 명확한 hint — silently 빈 widget 으로
             // 끝나지 않도록 log_tail 에 한 줄 남기고 state.config_hint 에도
-            // 보관 (Log widget 이 두 source 다 노출).
+            // 보관. log_tail widget 이 첫 줄로 surface (alert tinted).
             let hint = format!(
-                "⚠ genasis.toml not found walking up from {}. Run `genasis monitor` inside your project sandbox, or pass `--project <dir>`.",
+                "⚠ genasis.toml not found near {} (walked up and one level down). Run `genasis monitor` inside your project sandbox, or pass `--project <dir>`.",
                 start.display()
             );
             state.log_tail.push(hint.clone());

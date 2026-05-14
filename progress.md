@@ -886,6 +886,32 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 - 2026-05-10: **Human roster provisioning — humans as first-class team members (ADR-014)**. Until now `genasis init` / `bootstrap` only auto-provisioned the ten agent bot accounts; humans had to sign up separately, breaking both the "turnkey bootstrap" and "human/agent symmetry" missions. Added `genasis-core::config::HumanEntry` + a `[[humans]]` array in `genasis.toml`, with provisioning side-effects (Mattermost user_id, Plane user_id, temporary password) carved out into `.genasis/humans.lock.toml`. New trait method `MattermostProvider::ensure_human_user(spec, team_id)` with an upstream admin-create implementation (24-char high-entropy temp password covering Mattermost's strictest policy, force-change on first login, idempotent on email). Extended `provision-plane-users.mjs` `ProvisionInput` with `humans: HumanRequest[]` (Playwright UI is still a stub but echoes the humans payload). New CLI `genasis humans add | edit | remove | list | sync`; `cmd_init` now auto-runs `humans sync` when `[[humans]]` is non-empty (failures warn but do not fail init). TUI wizard grew from 6 to 7 steps (Env→Lang→Team→Connect→**Humans**→Overlay→Done) with `a / e / d / s / Enter` for add/edit/delete/sync/advance and a 5-field form modal; re-running the wizard reloads `[[humans]]` for in-place editing ("rerun is the editor"). `agents/GENASIS.md.tera` gains `## Human Roster` table and `### Requirement intake protocol` (registered = binding stakeholder, unregistered = `QUESTION` label + PM verification, bots = existing agent-to-agent flow); `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) and `commands/check-inbox.md.tera` mirror the protocol. ADR-014 written in EN/KO. New unit tests: `HumansLock` round-trip, upsert case-insensitive match, `derive_mm_username` normalisation, cmd_humans `truncate` / `now_iso`. `cargo test --workspace --lib` green. Out of scope (deferred to v2): invite-email mode for SMTP-enabled environments, Plane Playwright UI port to land real user_ids, OAuth/SSO integration.
 
 - 2026-05-10: **Trial bridge config SSOT cleanup (ADR-013)**. The previous code defined the `[trial]` section but never read it; routing actually used `[plane].url` / `[mattermost].url` plus `MM_ADMIN_TOKEN` / `PLANE_API_KEY` env vars, so `[trial].enabled = false` could not actually disable the bridge and `[trial].url` edits were silently ignored. Added `Option<&TrialConfig>` to `mattermost::factory::build()` / `plane::factory::build()`; trial flavor now sources URL + secret from `[trial]` and rejects `enabled = false`. Added `Config::validate_trial()` for cross-section enforcement at load time. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` skip the admin env-var requirement under trial flavor. New unit tests ×10 (factory `build_trial_*`, `validate_trial_*`) + integration `tests/trial_factory_e2e.rs` ×3 (2 `#[ignore]`-marked E2E + 1 negative-path). ADR-013 written in EN/KO. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.14 — D-072 monitor auto-sandbox discovery + config_hint banner**. Fixed the UX defect where `genasis monitor` from a testbed root silently returned empty widgets.
+
+  **User's suspicion**: testbed root `/work/agenteams/team-ex/` had no `genasis.toml` / `.claude/agents/`, so the user doubted whether the agentic team was actually wired to the trial-app.
+
+  **Reality**: the testbed structure has the sandbox **one level deeper** (`alpha9-trial/`). Live evidence:
+  - `.claude/agents/` holds all 10 agent files (architect / backend / code-reviewer / designer / devops / frontend / planner / pm / qa / security)
+  - `genasis.toml`'s `[trial]` section is `enabled=true`, `team_token=76b03286…`
+  - PM overlay carries the D-062 fix (`자동 devops dispatch` matches)
+  - `src/components/QuizApp.tsx` (193 lines) + `src/lib/quiz-bank.ts` (237 lines) are real code (430 lines total)
+  - The user's "change Start button to cyan" message at 14:30:08 reached the daemon → Agent Task → frontend → real edit to `src/styles.css:264` `.btn-primary` cyan `#06b6d4` → transition_issue done → wrap-up post_message — full autonomous chain in 141 s.
+
+  **But the UX defect is real**: the user had to know the exact sandbox path (cd or `--project <dir>`) before monitor showed any trial data. From the testbed root, `genasis monitor` walked up looking for `genasis.toml`, found none, set `trial_mode=false`, and every widget stayed empty. The D-058 fix did push a hint into `state.config_hint`, but no widget rendered it (D-058 was incomplete).
+
+  **D-072 (Critical UX) — two-part fix**:
+  - New `genasis-core::Config::discover_or_descend` — when walk-up fails, scans the immediate children of `start` for `genasis.toml`. Skips dot dirs / `node_modules` / `target`, sorts for determinism. Now `monitor` from a testbed root auto-discovers `alpha9-trial/genasis.toml`. The discovery is announced via a banner hint ("ℹ Auto-discovered sandbox at …").
+  - `monitor::widgets::log_tail` now surfaces `state.config_hint` as a sticky first row at the top of the widget — yellow (⚠ not found) or cyan (ℹ auto-discovered). Even when log_tail fills up, the hint doesn't scroll off.
+
+  **D-058 closeout**: the hint was previously pushed to state only and never rendered. Same fix bundle.
+
+  **Unit verification**:
+  - `discover_or_descend(/work/agenteams/team-ex)` → `…/alpha9-trial/genasis.toml` ✅
+  - `discover_or_descend(/work/agenteams/team-ex/alpha9-trial)` → same path (walk-up zero hop) ✅
+  - `discover_or_descend(/tmp)` → None (hint surfaced) ✅
+
+  **Updated user guidance**: `cd /work/agenteams/team-ex && genasis monitor` now Just Works™ — Sprint card counts + listen.log activity feed populate automatically, with a banner naming the auto-discovered sandbox. `--project <dir>` still supported for the multi-sandbox case.
+
 - 2026-05-14: **v0.6.0-alpha.13 — D-061/062/063/065 bundle hotfix + agents-v1.0.3 catalog publish**. Per user instruction "fix every outstanding defect", four defects shipped in one cycle.
 
   **D-062 (autonomous dispatch chain) — three overlays + system prompt strengthened together**:
