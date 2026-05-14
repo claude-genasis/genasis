@@ -3,6 +3,15 @@
 //! Scans running processes to find active Claude Code sessions,
 //! then matches them to project paths and agent roles.
 //!
+//! D-097 (근본 fix): 기존 `is_claude_process` 는 `cmd.contains("code")`
+//! substring 검사로 vscode-installed claude (`vscode-server-...`
+//! 또는 `claude-code-2.1.x` path) 만 catch 하고 daemon 이 spawn 한
+//! `/home/<user>/.npm-global/bin/claude -p --mcp-config ...` 는 놓쳤다.
+//! 그래서 사용자의 SESSIONS 가 vscode shell 만 5개 보이고 실제
+//! genasis daemon 이 띄운 claude 는 한 번도 안 보였다. 새 detection
+//! 은 argv[0] 의 basename 이 "claude" 인지 확인 + cmdline 의 `-p` +
+//! `--mcp-config` 패턴으로 daemon-spawn 여부까지 분류.
+//!
 //! Reference: `/work/secusy/scripts/agent_monitor.py` MonitorCollector.
 
 use std::path::Path;
@@ -75,7 +84,11 @@ pub fn detect_sessions(project_root: &Path, worktree_prefix: &str) -> Vec<Claude
             continue;
         }
 
-        let role = infer_role_from_path(&cwd, project_root, worktree_prefix);
+        // D-097: prefer launch-kind based labeling so the user sees
+        // "daemon" for genasis-spawned claude vs "session" for their
+        // own IDE-attached resume, instead of every row being "master".
+        let role = infer_role_from_path(&cwd, project_root, worktree_prefix)
+            .or_else(|| Some(classify_launch_kind(&cmd_str).to_string()));
 
         let start_time = process.start_time();
         let age = if start_time > 0 {
@@ -106,9 +119,37 @@ pub fn detect_sessions(project_root: &Path, worktree_prefix: &str) -> Vec<Claude
 }
 
 /// Check if a process command line looks like a Claude Code session.
+///
+/// D-097: argv[0] 의 basename 이 정확히 "claude" (또는 "claude-code")
+/// 인 경우만 catch. 기존 코드의 `cmd.contains("code")` 는
+/// `/home/<u>/.vscode-server-insiders/...` path 안의 "code" 만
+/// catch 해서 daemon 이 spawn 한 `/home/<u>/.npm-global/bin/claude
+/// -p --mcp-config ...` 를 놓쳤다.
 fn is_claude_process(cmd: &str) -> bool {
-    cmd.contains("claude")
-        && (cmd.contains("--session") || cmd.contains("code") || cmd.contains("claude-code"))
+    let first = cmd.split_whitespace().next().unwrap_or("");
+    let basename = Path::new(first)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    basename == "claude" || basename == "claude-code"
+}
+
+/// D-097: Distinguish how the claude session was launched so the
+/// SESSIONS widget can show a useful role label.
+///
+/// - `daemon`: spawned by `genasis listen` (carries `--mcp-config`
+///   and `--append-system-prompt` flags)
+/// - `interactive`: regular user `claude` invocation
+fn classify_launch_kind(cmd: &str) -> &'static str {
+    // The daemon always passes both -p (--print) and --mcp-config in
+    // a single argv list. Either signal alone is too weak.
+    if cmd.contains("--mcp-config") && (cmd.contains(" -p ") || cmd.contains("--print")) {
+        "daemon"
+    } else if cmd.contains("--session") || cmd.contains("--resume") {
+        "session"
+    } else {
+        "interactive"
+    }
 }
 
 /// D-073: project_root 가 빈 경로면 모든 claude 프로세스를 보여줌 (사용자가
@@ -133,7 +174,17 @@ fn is_project_path(cwd: &str, project_root: &Path, worktree_prefix: &str) -> boo
 ///
 /// Convention: worktrees are at `/tmp/{project}-{role}/` or
 /// the main project root is the `master` / `pm` role.
+///
+/// D-097: when `project_root` is empty (relaxed mode) we return None
+/// so the caller can fall back to launch-kind based labeling. The old
+/// code returned `Some("master")` for every absolute cwd in that
+/// branch (because `cwd.starts_with("/")` always holds), making the
+/// SESSIONS widget identical 5×"master" regardless of what each
+/// claude process actually was.
 fn infer_role_from_path(cwd: &str, project_root: &Path, worktree_prefix: &str) -> Option<String> {
+    if project_root.as_os_str().is_empty() {
+        return None;
+    }
     let root_str = project_root.to_string_lossy().to_string();
     if cwd == root_str || cwd.starts_with(&format!("{}/", root_str)) {
         return Some("master".into());
@@ -182,14 +233,46 @@ mod tests {
 
     #[test]
     fn is_claude_process_matches() {
+        // npm-global install
         assert!(is_claude_process(
-            "node /usr/bin/claude --session abc123 code"
+            "/home/bravo/.npm-global/bin/claude -p --input-format stream-json --mcp-config {...}"
         ));
+        // vscode native-binary install — D-097: previously the only thing
+        // the old function caught, falsely positioning vscode-spawned
+        // claudes as the only sessions worth showing.
         assert!(is_claude_process(
-            "/home/user/.local/bin/claude-code --session xyz"
+            "/home/bravo/.vscode-server-insiders/extensions/anthropic.claude-code-2.1.141-linux-x64/resources/native-binary/claude --output-format stream-json --verbose"
         ));
+        // bare invocation
+        assert!(is_claude_process("claude --permission-mode bypassPermissions"));
+        // claude-code symlink name
+        assert!(is_claude_process("/home/user/.local/bin/claude-code --session xyz"));
+        // NOT claude — node wrapper, vim editing a .md file, npm
         assert!(!is_claude_process("node /usr/bin/npm install"));
         assert!(!is_claude_process("vim claude.md"));
+        assert!(!is_claude_process("vim /home/.../claude/notes.md"));
+        // path containing "claude" in a subdir but argv[0] isn't claude
+        assert!(!is_claude_process("/home/me/.claude/scripts/helper.sh"));
+    }
+
+    #[test]
+    fn classify_launch_kind_works() {
+        assert_eq!(
+            classify_launch_kind(
+                "/home/bravo/.npm-global/bin/claude -p --input-format stream-json --mcp-config {...} --append-system-prompt foo"
+            ),
+            "daemon"
+        );
+        assert_eq!(
+            classify_launch_kind(
+                "/home/bravo/.vscode.../claude --output-format stream-json --resume b3f0ae"
+            ),
+            "session"
+        );
+        assert_eq!(
+            classify_launch_kind("claude --permission-mode bypassPermissions"),
+            "interactive"
+        );
     }
 
     #[test]
@@ -224,6 +307,18 @@ mod tests {
             infer_role_from_path("/tmp/myproject-qa/tests", root, "/tmp/myproject-"),
             Some("qa".into())
         );
+    }
+
+    #[test]
+    fn infer_role_returns_none_when_project_root_empty() {
+        // D-097: relaxed mode (empty project_root) must return None
+        // so callers fall back to launch-kind labeling. The old code
+        // accidentally returned Some("master") for every absolute cwd
+        // because `cwd.starts_with("/")` always holds.
+        let root = Path::new("");
+        assert_eq!(infer_role_from_path("/work/foo", root, ""), None);
+        assert_eq!(infer_role_from_path("/home/bravo", root, ""), None);
+        assert_eq!(infer_role_from_path("/", root, ""), None);
     }
 
     #[test]

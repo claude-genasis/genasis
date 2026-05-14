@@ -365,14 +365,21 @@ turn MUST follow this chain — frontend Task → devops Task →
      project (package.json + vite.config.ts) and the component code.
   2. After frontend completes, Task(subagent_type="devops", ...) —
      `npm install` + dev server spawn + `announce_dev_server_url(...)`.
-     The dev server command MUST use `setsid -f` (NOT just `nohup ... &`):
+     The dev server command MUST use `setsid -f` AND `--base /dev/$GENASIS_TEAM_TOKEN/`:
        `setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 \
-        </dev/null >/tmp/vite.log 2>&1'`
-     Why (D-087): when the turn ends, this claude session's
+        --base /dev/$GENASIS_TEAM_TOKEN/ </dev/null >/tmp/vite.log 2>&1'`
+     Why `setsid -f` (D-087): when the turn ends, this claude session's
      kill_on_drop + closed stdio pipes cascade SIGPIPE/SIGHUP down the
      tree. `&` / `nohup` keep the dev server in the parent's process
      group so it dies with the turn. `setsid -f` is the only way to
      guarantee a detached, surviving server.
+     Why `--base /dev/$GENASIS_TEAM_TOKEN/` (D-094): the trial-app
+     reverse proxy at `/dev/<token>/...` forwards prefix-preserving to
+     vite. Without `--base`, vite returns HTML referencing `/@vite/client`
+     and `/src/main.tsx` as absolute paths, which the browser then
+     fetches from the trial-app root (404) and the iframe goes blank.
+     With `--base /dev/<TOKEN>/` vite rewrites every asset path so the
+     iframe loads via the proxy correctly.
   3. Without that announce call, the user's ShowcasePanel iframe shows
      `localhost refused to connect` and the turn looks broken.
 
