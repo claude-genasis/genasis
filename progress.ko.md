@@ -1053,6 +1053,44 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-15: **v0.6.0-alpha.15 — monitor 의 전 widget 데이터 wiring 완성 + Log timestamp + 살아있는 LiveHeartbeat (agents-pool 측)**. 사용자 "Tokens/Network/SESSIONS 가 업데이트 안 됨 + Log 시각 안 보임 + 이미 완료된 카드가 done 안 됨" 보고 따른 monitor 전면 fix.
+
+  **D-073 — JSONL scan 의 root-cause fix** (alpha.14 빌드에 들어갔으나 사용자가 monitor 재시작 안 해서 효과 못 봤던 부분 재확인 + alpha.15 ship):
+  - `scan_sessions_dir()` 가 옛 `~/.claude/sessions/*.jsonl` (오늘은 per-PID JSON status 파일 위치) 가 아닌 `~/.claude/projects/<encoded-cwd>/<session>.jsonl` 재귀 스캔.
+  - `scan_single_file` 이 `assistant` event 의 `message.usage.{input/output/cache_read/cache_creation}_tokens` 와 `message.model` 추출. 옛 `usage`/`api_response` event 도 fallback.
+  - ISO 8601 timestamp (`2026-05-15T01:41:28.718Z`) → epoch 변환. 이전엔 string 을 u64 로 parse 시도해서 0 으로 떨어지고 모든 event 가 5h/7d window 의 from 보다 작아 0 토큰으로 집계.
+  - 라이브 검증: files_scanned=216, 5h_input=162K, 5h_output=848K, ctx_model=`claude-opus-4-7`.
+
+  **D-082 — counters never populated 결함 fix**:
+  - `state.mcp_calls` / `state.mcp_cache_hits` 가 alpha.14 까지 어디서도 할당 안 되어 영원 0. JSONL 의 `assistant` event 1 건당 mcp_calls +1, `cache_read_input_tokens > 0` 이면 mcp_cache_hits +1. 라이브: mcp_calls=663, hit=648, hit_pct=97.7%.
+  - `state.plane_calls` / `state.mm_calls` 도 같은 결함. 사용자 의도 ("trial-app 일 경우 칸반 / 채팅 데이터 기반") 반영: `collect_trial` 가 sim_issues 총합 = `plane_calls`, sim_posts 총합 = `mm_calls` (baseline 차감 — monitor 시작 후 delta). `network_bytes` 도 두 카운트의 합 * 256.
+  - `state.anthropic_cache_hit_pct` = cache_read / (cache_read + cache_create + input) 결정적 산식 적용.
+
+  **D-081 — Log widget HH:MM 24h prefix**:
+  - listen.log 의 verbose ISO timestamp (`2026-05-15T01:41:28.718972Z  INFO ...`) 를 local timezone 의 `01:41  INFO ...` 으로 reformat. `reformat_with_local_time` 헬퍼가 chrono::DateTime::parse_from_rfc3339 + `%H:%M` 포맷. ISO prefix 없는 line 은 verbatim.
+
+  **D-072 sessions detection 검증 + 재확인** (alpha.14 의 fix 가 사용자 monitor PID 649794 의 deleted-inode 옛 binary 메모리 image 때문에 효과 못 봤음):
+  - source 의 `is_project_path_relaxed` 가 빈 `project_root` 일 때 모든 claude 프로세스 표시. 라이브 검증: 165 sessions detected (`/work/genasis` 의 vscode-server claude 등 모두).
+  - 사용자 안내: monitor 재시작 (kill + 새 실행) 만 해도 alpha.14 의 D-073/D-072 가 즉시 적용. alpha.15 binary 도 같은 fix + counters wiring 까지 포함.
+
+  **카드 정리** (사용자 "이미 개발 완료인데 #6/#7/#8/#9 가 done 안 가 있어" 보고):
+  - sandbox 의 inprogress / inreview 카드 (#327/#328/#329 quiz + #342 scaffold) 를 `/api/trial/bootstrap` 으로 일괄 done 으로 transition. `#313 Test card 1` 만 todo 로 남김 (자가테스트 중 manual 로 만든 흔적).
+  - 자율 cleanup 결함 (overlay 에 "QA done 자동" enforce 부재) 은 별 사이클 (D-083).
+
+  **mmplane-trial.realstory.blog/trial-app 측 별 ship** (agents-pool repo commit `2837868`):
+  - D-074 ShowcasePanel localhost 입력란 제거.
+  - D-077 AppBar 토큰 persistence (URL > cookie > localStorage 3중).
+  - D-078 LiveHeartbeat — 3초 폴링 + pulse animation + agent activity surface.
+  - D-079 sim_posts / transitionIssue / setTeamApp / announce_dev_server_url 가 sim_agent_activity 로 mirror — heartbeat 가 agent 의 모든 trial-app 흔적 즉시 surface.
+  - submit → RealStoryBlog 팀의 `#genasis-cowork-rental` 채널 (genasis-trial-bot + PAT + .env 의 MM_BOT_TOKEN / MM_TRIAL_CHANNEL_ID 갱신).
+
+  **`cargo build --workspace` 0 errors, runtime smoke (files_scanned=216 / mcp_calls_5h=663 / detect_sessions=165) 통과**.
+
+  **다음 사이클 후보**:
+  - D-083 — QA / PM overlay 에 "in-review 카드 자동 done transition" enforce.
+  - D-075-Rust — daemon `SessionEvent::ToolUse` 직접 `/api/trial/agent-activity` POST forward (sim mirror 보다 더 풍부한 internal Bash / Edit / Read 도 surface).
+  - testbed clean reset → README §Quick Path 1-5 새 사용자 시점 재검증.
+
 - 2026-05-14: **v0.6.0-alpha.14 — D-072 monitor 자동 sandbox 발견 + config_hint banner surface**. 사용자가 testbed root 에서 `genasis monitor` (no args) 실행 시 widget 들이 silently 비어 있던 UX 결함 fix.
 
   **사용자 제기 의심**: testbed root `/work/agenteams/team-ex/` 에 `genasis.toml` / `.claude/agents/` 없는데 agentic team 이 진짜 trial-app 과 연동 중인지 의심.

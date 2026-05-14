@@ -210,7 +210,14 @@ async fn run_loop<B: ratatui::backend::Backend>(
 }
 
 fn collect_sessions(state: &mut AppState) {
-    let project_root = std::env::current_dir().unwrap_or_default();
+    // D-073: prefer the discovered sandbox over cwd. When neither yields
+    // a real project dir, hand an empty path so detect_sessions's relaxed
+    // filter shows every running claude session — the operator wants to
+    // see "what's running on my box" rather than a silent "0 sessions".
+    let project_root = state
+        .project_root
+        .clone()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
     let project_name = project_root
         .file_name()
         .and_then(|n| n.to_str())
@@ -234,6 +241,20 @@ fn collect_sessions(state: &mut AppState) {
 
 fn collect_jsonl(state: &mut AppState) {
     state.usage = collector::jsonl::scan_sessions_dir();
+    // D-073: Anthropic prompt-cache hit rate over the 5h window.
+    // Hit = cache_read_input_tokens / (cache_read + cache_creation + input).
+    // High percentages (typically 80-95%) signal healthy caching; near-zero
+    // means caching is misconfigured or every call is a cold start.
+    let usage = &state.usage;
+    let denom = usage.five_h_cache_read + usage.five_h_cache_create + usage.five_h_input_tokens;
+    state.anthropic_cache_hit_pct = if denom > 0 {
+        (usage.five_h_cache_read as f64 / denom as f64) * 100.0
+    } else {
+        0.0
+    };
+    // D-082: MCP calls 5h + cache hits — populated from JSONL scan above.
+    state.mcp_calls = usage.mcp_calls_5h;
+    state.mcp_cache_hits = usage.mcp_cache_hits_5h;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -354,6 +375,22 @@ fn load_trial_config(state: &mut AppState, project_root: Option<&Path>) {
     }
 }
 
+/// D-082: snapshot counts of `sim_issues` (Plane equivalent) and
+/// `sim_posts` (Mattermost equivalent) seen on the trial-app since the
+/// monitor started. We persist the previous totals on AppState so the
+/// "Plane / MM calls" Network widget counts the delta since startup
+/// — that matches the operator's mental model ("how active has the
+/// team been since I opened the monitor").
+fn refresh_trial_network_counters(state: &mut AppState, issues_total: u64, posts_total: u64) {
+    if state.trial_baseline_issues == 0 && state.trial_baseline_posts == 0 {
+        state.trial_baseline_issues = issues_total;
+        state.trial_baseline_posts = posts_total;
+    }
+    state.plane_calls = issues_total.saturating_sub(state.trial_baseline_issues);
+    state.mm_calls = posts_total.saturating_sub(state.trial_baseline_posts);
+    state.network_bytes = (issues_total + posts_total) * 256; // rough display heuristic
+}
+
 /// D-025: Hit the trial-app sim endpoints once and update state.
 /// Best-effort — on transport error, leaves stale data in place and
 /// pushes the error onto `log_tail` so the operator can see it.
@@ -371,6 +408,13 @@ async fn collect_trial(state: &mut AppState) {
         .unwrap_or(0);
     match snap {
         Ok(s) => {
+            // D-082: derive Network widget counts from sim totals BEFORE
+            // overwriting state.sprint. plane = total issues seen,
+            // mm = total posts seen (delta from baseline).
+            let issues_total =
+                (s.sprint.todo + s.sprint.in_progress + s.sprint.in_review + s.sprint.done) as u64;
+            let posts_total = s.posts_total as u64;
+            refresh_trial_network_counters(state, issues_total, posts_total);
             state.sprint = s.sprint;
             state.agent_issues = s.agent_issues;
             state.log_tail = s.log_tail;

@@ -23,6 +23,9 @@ pub struct TrialSnapshot {
     /// which demo (Quiz / Todo / …) is currently published.
     pub app_kind: String,
     pub app_features: Vec<String>,
+    /// D-082: total posts seen on the scrum channel — feeds the
+    /// Network widget's MM call counter.
+    pub posts_total: usize,
 }
 
 /// Fetch sprint + agents + log tail from a trial-app instance.
@@ -45,6 +48,9 @@ pub async fn poll_trial(
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
     let base = base_url.trim_end_matches('/');
+    // D-082: posts_total 은 sim_posts 응답의 array length — Network 위젯
+    // MM 카운터 채움에 사용. 200 으로 캡하지 않고 raw 길이 그대로.
+    let mut posts_total: usize = 0;
 
     // (1) sim_issues — sprint counts + per-assignee AgentIssue rows
     let issues_url = format!("{base}/api/plane/issues?project_slug={project_slug}");
@@ -133,6 +139,7 @@ pub async fn poll_trial(
         Ok(r) if r.status().is_success() => {
             if let Ok(body) = r.json::<serde_json::Value>().await {
                 if let Some(arr) = body.get("posts").and_then(|p| p.as_array()) {
+                    posts_total = arr.len();
                     for post in arr.iter().rev().take(40).collect::<Vec<_>>().iter().rev() {
                         let actor = post.get("actor").and_then(|a| a.as_str()).unwrap_or("?");
                         let message = post
@@ -192,6 +199,7 @@ pub async fn poll_trial(
         log_tail,
         app_kind,
         app_features,
+        posts_total,
     })
 }
 

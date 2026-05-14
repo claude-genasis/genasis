@@ -1,12 +1,20 @@
 //! JSONL session file parser.
 //!
-//! Scans `~/.claude/sessions/` for `.jsonl` files and extracts:
-//! - Token usage per 5-hour window and 7-day window
-//! - Rate limit events (status, reset time)
-//! - Context window usage for active sessions
-//! - Cost tracking (USD)
+//! D-073: Updated to current Claude Code layout. The previous code looked
+//! at `~/.claude/sessions/*.jsonl` (which today contains per-PID *JSON*
+//! status files, not JSONL transcripts) and parsed flat `{"type":"usage",
+//! "input_tokens":...}` events. The real format is:
 //!
-//! Reference: Python `agent_monitor.py` MonitorCollector._scan_jsonl_files()
+//!   ~/.claude/projects/<encoded-cwd>/<session-uuid>.jsonl
+//!     ├── {"type":"assistant","message":{"model":"...","usage":{...}},
+//!     │    "timestamp":"2026-05-14T14:29:13.052Z", ...}
+//!     ├── {"type":"user", ...}
+//!     └── {"type":"queue-operation", ...}
+//!
+//! So the scan needs to (a) recurse one level into per-project sub-dirs,
+//! (b) extract tokens from `message.usage.*` of `type=assistant` events,
+//! (c) parse ISO 8601 timestamps, and (d) read the model from
+//! `message.model` (not from `usage.model`, which doesn't exist).
 
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -57,6 +65,13 @@ pub struct UsageSnapshot {
     // Scan metadata
     pub scanned_at: u64,
     pub files_scanned: usize,
+    /// D-082: tool_use events counted across the 5h window — feeds the
+    /// Tokens widget's "MCP calls" counter (which is really every tool
+    /// call the assistant made, MCP or built-in).
+    pub mcp_calls_5h: u64,
+    /// D-082: when an `assistant` event has cache_read_input_tokens > 0
+    /// we count it as a cache hit. Ratio surfaces as `cache hit %`.
+    pub mcp_cache_hits_5h: u64,
 }
 
 impl UsageSnapshot {
@@ -121,14 +136,16 @@ fn now_epoch() -> u64 {
 /// This is the expensive operation (~50-300ms depending on file count).
 /// Caller should cache results and re-scan at `JSONL_SCAN_TTL` intervals.
 pub fn scan_sessions_dir() -> UsageSnapshot {
-    let sessions_dir = match dirs::home_dir() {
-        Some(h) => h.join(".claude").join("sessions"),
+    let projects_dir = match dirs::home_dir() {
+        Some(h) => h.join(".claude").join("projects"),
         None => return UsageSnapshot::default(),
     };
-    scan_dir(&sessions_dir)
+    scan_dir(&projects_dir)
 }
 
-/// Scan a specific directory for JSONL files (testable).
+/// Scan `~/.claude/projects/` (recurse one level) for `.jsonl` files.
+/// D-073: real claude code layout is two levels deep —
+/// `projects/<encoded-cwd>/<session-uuid>.jsonl`.
 pub fn scan_dir(dir: &Path) -> UsageSnapshot {
     let mut snapshot = UsageSnapshot::default();
     snapshot.scanned_at = now_epoch();
@@ -142,21 +159,53 @@ pub fn scan_dir(dir: &Path) -> UsageSnapshot {
     let week_start = now.saturating_sub(7 * 24 * 3600);
     snapshot.five_h_window_start = five_h_start;
 
-    let entries = match fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return snapshot,
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
-            continue;
+    let mut jsonl_files: Vec<PathBuf> = Vec::new();
+    if let Ok(top) = fs::read_dir(dir) {
+        for entry in top.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Ok(inner) = fs::read_dir(&path) {
+                    for e in inner.flatten() {
+                        let p = e.path();
+                        if p.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                            jsonl_files.push(p);
+                        }
+                    }
+                }
+            } else if path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                // Tolerate flat layout too (legacy).
+                jsonl_files.push(path);
+            }
         }
+    }
+
+    // Newest first so the "latest active session" context-window snapshot
+    // is the most recent one.
+    jsonl_files.sort_by_cached_key(|p| {
+        fs::metadata(p)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| std::cmp::Reverse(d.as_secs()))
+            .unwrap_or(std::cmp::Reverse(0))
+    });
+
+    for path in &jsonl_files {
         snapshot.files_scanned += 1;
-        scan_single_file(&path, &mut snapshot, five_h_start, week_start);
+        scan_single_file(path, &mut snapshot, five_h_start, week_start);
     }
 
     snapshot
+}
+
+/// Parse an ISO 8601 timestamp like `2026-05-14T14:29:13.052Z` into an
+/// epoch seconds u64. Returns 0 on unparseable input — caller treats that
+/// as "outside any window" so unparseable events don't pollute counters.
+fn parse_iso8601_to_epoch(s: &str) -> u64 {
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.timestamp() as u64)
+        .unwrap_or(0)
 }
 
 /// Parse a single JSONL file and accumulate into the snapshot.
@@ -182,9 +231,15 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
         };
 
         let event_type = event.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        // D-073: claude code 의 JSONL timestamp 는 ISO 8601 string 이지
+        // u64 epoch 가 아님. 기존 코드 시도하던 u64 fallback 은 거의 항상
+        // 0 으로 떨어져서 모든 event 가 5h/7d window 의 from 보다 작아 0
+        // 토큰으로 집계됐다.
         let timestamp = event
             .get("timestamp")
-            .and_then(|t| t.as_u64())
+            .and_then(|t| t.as_str())
+            .map(parse_iso8601_to_epoch)
+            .or_else(|| event.get("timestamp").and_then(|t| t.as_u64()))
             .or_else(|| {
                 event
                     .get("timestampMs")
@@ -194,26 +249,49 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
             .unwrap_or(0);
 
         match event_type {
-            "usage" | "api_response" => {
-                let usage = event.get("usage").unwrap_or(&event);
-                let input = usage
+            // D-073: 진짜 claude code JSONL 의 token 정보는 `assistant`
+            // event 의 `message.usage` 안에 있다. 모델은 `message.model`.
+            // 옛 `usage`/`api_response` 형식도 fallback 으로 유지.
+            "assistant" | "usage" | "api_response" => {
+                let (usage_obj, model) = if event_type == "assistant" {
+                    let msg = event.get("message");
+                    let u = msg.and_then(|m| m.get("usage"));
+                    let m = msg
+                        .and_then(|m| m.get("model"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    (u.unwrap_or(&event), m)
+                } else {
+                    let u = event.get("usage").unwrap_or(&event);
+                    let m = u
+                        .get("model")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| event.get("model").and_then(|v| v.as_str()))
+                        .unwrap_or("");
+                    (u, m)
+                };
+                let input = usage_obj
                     .get("input_tokens")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let output = usage
+                let output = usage_obj
                     .get("output_tokens")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let cache_read = usage
+                let cache_read = usage_obj
                     .get("cache_read_input_tokens")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let cache_create = usage
+                let cache_create = usage_obj
                     .get("cache_creation_input_tokens")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let model = usage.get("model").and_then(|v| v.as_str()).unwrap_or("");
                 let is_sonnet = model.contains("sonnet");
+
+                if input + output + cache_read + cache_create == 0 {
+                    // assistant 메시지인데 usage 가 모두 0 — drop.
+                    continue;
+                }
 
                 // 5h window
                 if timestamp >= five_h_start {
@@ -221,6 +299,14 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
                     snapshot.five_h_output_tokens += output;
                     snapshot.five_h_cache_read += cache_read;
                     snapshot.five_h_cache_create += cache_create;
+                    // D-082: 매 assistant turn 을 "MCP call" 카운트로
+                    // 간주 — 진짜 MCP 호출만이 아니라 Bash / Edit / Read
+                    // 같은 built-in tool 도 포함하지만 사용자가 보기
+                    // 원하는 신호 ("팀이 얼마나 일했나") 와 부합.
+                    snapshot.mcp_calls_5h += 1;
+                    if cache_read > 0 {
+                        snapshot.mcp_cache_hits_5h += 1;
+                    }
                 }
 
                 // 7d window
@@ -238,13 +324,16 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
                     }
                 }
 
-                // Context window (keep latest)
-                snapshot.ctx_input = input;
-                snapshot.ctx_output = output;
-                snapshot.ctx_cache_read = cache_read;
-                snapshot.ctx_cache_create = cache_create;
-                if !model.is_empty() {
-                    snapshot.ctx_model = model.to_string();
+                // Context window (keep latest seen — files are scanned
+                // newest-first so the first assistant event wins).
+                if snapshot.ctx_input + snapshot.ctx_output == 0 {
+                    snapshot.ctx_input = input;
+                    snapshot.ctx_output = output;
+                    snapshot.ctx_cache_read = cache_read;
+                    snapshot.ctx_cache_create = cache_create;
+                    if !model.is_empty() {
+                        snapshot.ctx_model = model.to_string();
+                    }
                 }
             }
             "rate_limit_event" => {

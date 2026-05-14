@@ -92,6 +92,11 @@ pub struct AppState {
     /// D-065: listen.log 의 byte offset — 같은 line 을 두 번 안 emit 하기
     /// 위해 tick 사이에 기억.
     pub listen_log_offset: u64,
+    /// D-082: trial-app sim_issues / sim_posts 의 baseline count (monitor
+    /// 시작 시점 또는 첫 trial poll 시점). 이후 polling 마다 delta 를
+    /// state.plane_calls / state.mm_calls 로 표시.
+    pub trial_baseline_issues: u64,
+    pub trial_baseline_posts: u64,
 }
 
 /// Snapshot of the active design system.

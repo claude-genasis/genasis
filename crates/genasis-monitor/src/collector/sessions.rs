@@ -67,8 +67,11 @@ pub fn detect_sessions(project_root: &Path, worktree_prefix: &str) -> Vec<Claude
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // Filter to project-related sessions
-        if !is_project_path(&cwd, project_root, worktree_prefix) {
+        // Filter to project-related sessions (D-073: relaxed — empty
+        // project_root means "show everything", so the user always sees
+        // running claude sessions even before cfg discovery picks a
+        // sandbox).
+        if !is_project_path_relaxed(&cwd, project_root, worktree_prefix) {
             continue;
         }
 
@@ -106,6 +109,16 @@ pub fn detect_sessions(project_root: &Path, worktree_prefix: &str) -> Vec<Claude
 fn is_claude_process(cmd: &str) -> bool {
     cmd.contains("claude")
         && (cmd.contains("--session") || cmd.contains("code") || cmd.contains("claude-code"))
+}
+
+/// D-073: project_root 가 빈 경로면 모든 claude 프로세스를 보여줌 (사용자가
+/// monitor 를 어디서 띄웠든 "지금 머신에서 도는 claude 세션" 을 확인할 수
+/// 있게). 그렇지 않으면 기존 strict path match 유지.
+fn is_project_path_relaxed(cwd: &str, project_root: &Path, worktree_prefix: &str) -> bool {
+    if project_root.as_os_str().is_empty() {
+        return true;
+    }
+    is_project_path(cwd, project_root, worktree_prefix)
 }
 
 /// Check if a path belongs to this project (main dir or worktree).

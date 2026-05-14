@@ -65,7 +65,7 @@ pub fn poll(state: &mut AppState, project_root: &Path) {
         if stripped.trim().is_empty() {
             continue;
         }
-        new_lines.push(stripped);
+        new_lines.push(reformat_with_local_time(&stripped));
     }
     state.listen_log_offset = size;
 
@@ -75,6 +75,41 @@ pub fn poll(state: &mut AppState, project_root: &Path) {
     if state.log_tail.len() > TAIL_LINES {
         let overflow = state.log_tail.len() - TAIL_LINES;
         state.log_tail.drain(..overflow);
+    }
+}
+
+/// D-081: turn the daemon's verbose ISO-8601 timestamp prefix (e.g.
+/// `2026-05-15T01:41:28.718972Z  INFO …`) into a compact 24h `HH:MM`
+/// prefix in the operator's local timezone, so the Log widget reads
+/// like `01:41  INFO …`. Lines without an ISO prefix are kept verbatim.
+fn reformat_with_local_time(line: &str) -> String {
+    let trimmed = line.trim_start();
+    // Look for the typical `YYYY-MM-DDTHH:MM:SS.fffZ` prefix.
+    if trimmed.len() < 20 || trimmed.as_bytes().get(10) != Some(&b'T') {
+        return line.to_string();
+    }
+    // Find the end of the timestamp (Z, +HH:MM, or whitespace).
+    let mut end = 19; // YYYY-MM-DDTHH:MM:SS
+    let bytes = trimmed.as_bytes();
+    if bytes.get(end) == Some(&b'.') {
+        end += 1;
+        while end < bytes.len() && bytes[end].is_ascii_digit() {
+            end += 1;
+        }
+    }
+    if bytes.get(end) == Some(&b'Z') {
+        end += 1;
+    } else if bytes.get(end) == Some(&b'+') || bytes.get(end) == Some(&b'-') {
+        end += 6; // ±HH:MM
+    }
+    let ts_str = &trimmed[..end.min(trimmed.len())];
+    let rest = trimmed[end.min(trimmed.len())..].trim_start();
+    let local_hm = chrono::DateTime::parse_from_rfc3339(ts_str)
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Local).format("%H:%M").to_string());
+    match local_hm {
+        Some(hm) => format!("{hm}  {rest}"),
+        None => line.to_string(),
     }
 }
 
