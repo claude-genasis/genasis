@@ -146,13 +146,19 @@ async fn run_loop<B: ratatui::backend::Backend>(
                 // Row 1: Agents
                 widgets::agents::render(frame, main[1], state);
 
-                // Row 2: Deploy + Network + Design
+                // Row 2: Deploy + Network + Design.
+                // D-101: shrink Network to ~3/5 of its previous share
+                // (30% → 18%) per user feedback — the network panel
+                // only carries three integer counters (Plane / MM / GH)
+                // and didn't need a third of the row. Give the freed
+                // width back to Deploy + Design so the [1-7] focus
+                // legend and the Design source path don't truncate.
                 let mid_row = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Percentage(35),
-                        Constraint::Percentage(30),
-                        Constraint::Percentage(35),
+                        Constraint::Percentage(41),
+                        Constraint::Percentage(18),
+                        Constraint::Percentage(41),
                     ])
                     .split(main[2]);
                 widgets::deploy::render(frame, mid_row[0], state);
