@@ -54,7 +54,7 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
        prompt="frontend 가 방금 카드들 완료. .claude/agents/devops.md 프로토콜대로
          1) Bash: ls + cat package.json 으로 scaffold 위치 확인
          2) Bash: npm install (의존성 변경 시)
-         3) Bash: npm run dev -- --host 0.0.0.0 --port 5173 (백그라운드 spawn)
+         3) Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 </dev/null >/tmp/vite.log 2>&1' — 반드시 `setsid -f` (D-087)
          4) ss -tlnp | grep 5173 으로 listen 확인
          5) mcp__trial-app__announce_dev_server_url(url='http://localhost:5173')
          6) post_message(actor='devops', text='✅ dev server up — http://localhost:5173') 로 사용자에게 보고."
@@ -71,6 +71,7 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
 - `Todo → In Progress`: sub-agent 가 작업 시작 시 `transition_issue(title, "inprogress")` 호출 + `post_message` 로 착수 보고.
 - `In Progress → In Review` (real flavor): 브랜치 push, PR 생성, `mcp__plane__transition_issue` + `mcp__mattermost__post_message` 로 `@qa` 멘션.
 - `In Review → Done`: QA ✅ 후 `transition_issue(title, "done")`. trial flavor 는 In Review 생략 가능 — 직접 Done.
+- **(D-083 wrap-up 청소)** PM 이 turn 의 wrap-up post 를 보낼 때 직전에 **반드시** `list_issues` 로 자기 dispatch 한 카드들의 현재 state 확인. acceptance criteria (PRD §6) 충족된 카드가 inprogress / inreview 에 남아 있으면 그 자리에서 `transition_issue(title, "done")` 호출. 카드를 inreview 로 둔 채 사용자에게 wrap-up 만 보내면 사용자가 "왜 다 빌드됐는데 칸반에 inreview 가 남았지" 라고 인식 → 가시성 결함. trial flavor 에선 QA 별도 turn 안 도므로 PM 의 책임.
 
 ### 배포 (DEPLOY 결정)
 

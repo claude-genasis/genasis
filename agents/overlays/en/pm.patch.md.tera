@@ -54,7 +54,7 @@ Then:
      prompt="Frontend just finished its cards. Follow .claude/agents/devops.md:
        1) Bash: ls + cat package.json to confirm scaffold location
        2) Bash: npm install (if deps changed)
-       3) Bash: npm run dev -- --host 0.0.0.0 --port 5173 (background)
+       3) Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 </dev/null >/tmp/vite.log 2>&1' — must use `setsid -f` (D-087)
        4) ss -tlnp | grep 5173 to confirm listening
        5) mcp__trial-app__announce_dev_server_url(url='http://localhost:5173')
        6) post_message(actor='devops', text='✅ dev server up — http://localhost:5173') so the user knows."
@@ -71,6 +71,7 @@ If the sender is in `GENASIS.md § Human roster`, treat as **binding stakeholder
 - `Todo → In Progress`: the sub-agent calls `transition_issue(title, "inprogress")` on start + posts a "started" line.
 - `In Progress → In Review` (real flavor): push branch, open PR, `mcp__plane__transition_issue` + `mcp__mattermost__post_message` mentioning `@qa`.
 - `In Review → Done`: after QA ✅, `transition_issue(title, "done")`. Trial flavor may skip `inreview` and go straight to `done`.
+- **(D-083 wrap-up cleanup)** Right before posting the turn's wrap-up message, PM MUST call `list_issues` and check every card it dispatched this turn. For any card whose acceptance criteria (PRD §6) are met but the state is still `inprogress` / `inreview`, PM transitions it to `done` then and there. Leaving cards stuck in inreview while the wrap-up claims the work is finished creates the visibility defect users complain about ("왜 다 빌드됐는데 카드가 inreview?"). In trial flavor there's no separate QA turn, so PM owns this closure.
 
 ### Deploy routing
 

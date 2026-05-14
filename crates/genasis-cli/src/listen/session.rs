@@ -364,10 +364,25 @@ turn MUST follow this chain — frontend Task → devops Task →
   1. Task(subagent_type="frontend", ...) — writes a standalone Node
      project (package.json + vite.config.ts) and the component code.
   2. After frontend completes, Task(subagent_type="devops", ...) —
-     `npm install` + `npm run dev -- --host 0.0.0.0 --port 5173 &` and
-     then `mcp__trial-app__announce_dev_server_url(url=...)`.
+     `npm install` + dev server spawn + `announce_dev_server_url(...)`.
+     The dev server command MUST use `setsid -f` (NOT just `nohup ... &`):
+       `setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 \
+        </dev/null >/tmp/vite.log 2>&1'`
+     Why (D-087): when the turn ends, this claude session's
+     kill_on_drop + closed stdio pipes cascade SIGPIPE/SIGHUP down the
+     tree. `&` / `nohup` keep the dev server in the parent's process
+     group so it dies with the turn. `setsid -f` is the only way to
+     guarantee a detached, surviving server.
   3. Without that announce call, the user's ShowcasePanel iframe shows
      `localhost refused to connect` and the turn looks broken.
+
+Before posting the wrap-up message (D-083): call `list_issues` and
+transition every card you dispatched this turn whose work is now
+finished from `inprogress` / `inreview` to `done`. trial flavor has no
+separate QA turn — PM owns the closure. Leaving in-review cards while
+claiming the work is done is the most common "왜 다 빌드됐는데 카드가
+inreview?" complaint.
+
 PM stays out of infra/server-survival — that's devops's job — but PM is
 responsible for dispatching devops as part of every code-changing turn.
 

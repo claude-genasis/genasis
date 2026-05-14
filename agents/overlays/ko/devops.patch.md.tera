@@ -27,10 +27,10 @@
 1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ 빌드/배포 착수")`.
 2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` 로 scaffold 위치 확인. **package.json 이 없으면** dev server 띄울 standalone Node project 가 아니라는 뜻 — frontend agent 가 PRD 잘못 따라 fragment 만 작성한 것이니 즉시 `post_message(actor="devops", text="⚠ package.json 없음 — frontend 가 standalone scaffold 미작성. PM 재요청 필요")` 보고 후 turn 종료.
 3. `Bash: npm install` (의존성 변경 시).
-4. `Bash: npm run dev -- --host 0.0.0.0 --port <port> &` (백그라운드 spawn — foreground 면 turn 이 멈춰서 안 됨).
+4. `Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port <port> </dev/null >/tmp/vite-{{ project_slug | default(value="trial") }}.log 2>&1'` — **반드시 `setsid -f`** 로 새 process group 분리. (D-087) 단순 `&` / `nohup` 만으로는 daemon turn 종료 시 claude session 의 cleanup cascade 가 dev server 까지 죽이는 증상 (`kill_on_drop` + stdio pipe 종료 SIGPIPE) 이 있어, 사용자가 ShowcasePanel iframe 열면 `localhost refused` 가 다시 보인다. `setsid -f` 만이 fork 직후 새 session leader + detach 를 보장.
    - port: env `GENASIS_DEV_PORT` 또는 default `5173` (Vite) / `3000` (Next).
-   - **반드시 `--host 0.0.0.0`** + 백그라운드 `&` — 외부 접속 위해.
-5. `Bash: ss -tlnp | grep <port>` 로 listen 확인 (3 초 대기 후 retry 가능).
+   - 다른 sandbox 의 dev server 와 충돌 안 나도록 port 점유 먼저 확인 (`ss -tlnp | grep <port>`); 점유 시 `5174` / `5175` 로 fallback.
+5. `Bash: sleep 3 && ss -tlnp | grep <port>` 로 listen 확인.
 6. **(D-062 필수)** `mcp__trial-app__announce_dev_server_url(url="http://localhost:<port>")` 호출 — 사용자 ShowcasePanel 의 LocalDevServerOrFallback 가 그 URL 을 iframe 으로 prefill. 이걸 빼먹으면 사용자 화면이 `localhost refused to connect` 그대로.
 7. `post_message(actor="devops", text="✅ dev server up — http://localhost:<port> (ShowcasePanel 자동 갱신). 변경 사항: <한 줄>")`.
 8. `transition_issue(...,done)`.
@@ -43,6 +43,7 @@
 
 - 거짓 배포 보고 — 진짜 `ss -tlnp` listen 확인 후에만 "완료".
 - `announce_dev_server_url` 빼먹기 — 사용자가 결과를 못 봄.
-- `npm run dev` 를 foreground 로 실행 — turn 이 영원히 안 끝남. 반드시 `&` 또는 `nohup ... &`.
+- `npm run dev` 를 foreground 로 실행 — turn 이 영원히 안 끝남.
+- **(D-087)** `nohup ... &` 만 사용 — process group 이 부모 따라가서 daemon turn 끝나면 dev server 도 같이 죽음. **반드시 `setsid -f`** 사용.
 
 > `GENASIS.md`.

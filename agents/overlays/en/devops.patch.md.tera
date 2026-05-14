@@ -27,10 +27,10 @@
 1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ Build/deploy started")`.
 2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` to confirm scaffold location. **If no `package.json` exists** the directory is not a standalone Node project — frontend followed PRD wrong and only wrote a fragment. Report `post_message(actor="devops", text="⚠ no package.json — frontend didn't scaffold a standalone project. PM must reroute")` and end the turn.
 3. `Bash: npm install` (only if deps changed).
-4. `Bash: npm run dev -- --host 0.0.0.0 --port <port> &` (background spawn — foreground would freeze the turn).
+4. `Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port <port> </dev/null >/tmp/vite-{{ project_slug | default(value="trial") }}.log 2>&1'` — **must use `setsid -f`** to break the dev server into a new process group / session. (D-087) `&` or `nohup ... &` alone is not enough: when the daemon's claude session ends the turn its `kill_on_drop` cleanup + closed stdio pipes propagate SIGPIPE/SIGHUP down the tree and kill the dev server. The user then opens the ShowcasePanel and sees `localhost refused` again. `setsid -f` is the only invocation that guarantees a detached, surviving process.
    - Port: env `GENASIS_DEV_PORT` or default `5173` (Vite) / `3000` (Next).
-   - **Must include `--host 0.0.0.0`** + trailing `&` for the background.
-5. `Bash: ss -tlnp | grep <port>` to confirm listening (sleep 3s and retry if needed).
+   - If the port is taken by another sandbox, fall back to `5174` / `5175`. Confirm via `ss -tlnp | grep <port>` first.
+5. `Bash: sleep 3 && ss -tlnp | grep <port>` to confirm listening.
 6. **(D-062 mandatory)** Call `mcp__trial-app__announce_dev_server_url(url="http://localhost:<port>")` — the user's ShowcasePanel `LocalDevServerOrFallback` will prefill that URL into the iframe. Skip this and the user just sees `localhost refused to connect`.
 7. `post_message(actor="devops", text="✅ dev server up — http://localhost:<port> (ShowcasePanel will auto-refresh). Change: <one line>")`.
 8. `transition_issue(...,done)`.
@@ -43,6 +43,7 @@ No code → no devops. PM calls `set_app_features` directly (frontend skips too)
 
 - False deploy reports — only "done" after the real `ss -tlnp` listen check.
 - Skipping `announce_dev_server_url` — the user can't see the result.
-- Running `npm run dev` in foreground — the turn never ends. Always `&` or `nohup ... &`.
+- Running `npm run dev` in foreground — the turn never ends.
+- **(D-087)** Using only `nohup ... &` — the process group still tracks the parent, so when the daemon turn ends the dev server dies with it. **Always use `setsid -f`** (or wrap with `setsid` in a subshell).
 
 > `GENASIS.md`.
