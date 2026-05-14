@@ -65,11 +65,16 @@ impl ClaudeTeamSession {
     /// 새 session spawn. `cwd` = team sandbox 디렉토리, `mcp_config` =
     /// MCP server 들이 정의된 in-memory JSON config 또는 file path.
     /// `append_system_prompt` = 데몬이 PM 에게 알려줄 컨텍스트 (channel
-    /// 이름, team_token, role 분배 가능 목록 등).
+    /// 이름, team_token, role 분배 가능 목록 등). `env_vars` = 자식 claude
+    /// 프로세스가 상속받을 env (그 안에서 spawn 되는 Bash subprocess 까지
+    /// 전파됨). D-098: devops agent 가 `--base /dev/$GENASIS_TEAM_TOKEN/`
+    /// 같은 shell 변수 expansion 명령을 실행했을 때 token 이 채워지도록
+    /// `GENASIS_TEAM_TOKEN` 등을 여기서 넘긴다.
     pub async fn spawn(
         cwd: &Path,
         mcp_config_json: &str,
         append_system_prompt: &str,
+        env_vars: &[(String, String)],
     ) -> Result<(Self, mpsc::Receiver<SessionEvent>)> {
         let claude_path = which::which("claude").context("claude CLI 가 PATH 에 없음")?;
         let mut cmd = Command::new(claude_path);
@@ -91,6 +96,9 @@ impl ClaudeTeamSession {
             .arg(mcp_config_json);
         if !append_system_prompt.trim().is_empty() {
             cmd.arg("--append-system-prompt").arg(append_system_prompt);
+        }
+        for (k, v) in env_vars {
+            cmd.env(k, v);
         }
         cmd.current_dir(cwd)
             .stdin(std::process::Stdio::piped())

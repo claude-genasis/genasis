@@ -174,7 +174,25 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
                 &project_name,
             );
             let mcp_config_str = serde_json::to_string(&mcp_config)?;
-            session::ClaudeTeamSession::spawn(&project_root, &mcp_config_str, &append).await
+            // D-098: pass team identity through env so any Bash subprocess
+            // the agent spawns (e.g. `vite --base /dev/$GENASIS_TEAM_TOKEN/`)
+            // expands correctly. Without these the orchestrator claude
+            // inherits the daemon's env which only had GENASIS_TEAM_TOKEN
+            // defined for the MCP subprocess, not the parent.
+            let env_vars = vec![
+                ("GENASIS_TEAM_TOKEN".to_string(), team_token.clone()),
+                ("GENASIS_PROJECT_SLUG".to_string(), project_slug.clone()),
+                ("GENASIS_PROJECT_NAME".to_string(), project_name.clone()),
+                ("GENASIS_FLAVOR".to_string(), flavor.clone()),
+                ("GENASIS_TRIAL_URL".to_string(), trial_url.clone()),
+            ];
+            session::ClaudeTeamSession::spawn(
+                &project_root,
+                &mcp_config_str,
+                &append,
+                &env_vars,
+            )
+            .await
         })
     });
 
