@@ -1053,6 +1053,23 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.11 — D-059 `bypassPermissions` hotfix**. alpha.10 ship 직후 사용자 라이브 검증에서 새로운 blocker 발견.
+
+  **D-059 (Critical) — PM 이 MCP tool 호출 권한을 거부당해서 chat 패널에 답 못 함**:
+  - 사용자가 "D-059 검증 — TODO 앱 만들어줘" 메시지 보냄. daemon log 보니 PM 이 `mcp__trial-app__post_message`, `set_app_kind`, `set_app_features` 를 호출하려 하는데 PM 의 최종 assistant text 가 "trial-app MCP 도구 권한이 필요합니다 (`post_message`, `set_app_kind`, ...)". 결과: PM 의 호출은 전부 reject 됨, sim_posts / sim_issues 에 흔적 안 남음.
+  - 원인: `session.rs::spawn` 이 `--permission-mode acceptEdits` 로 claude 띄움. 이 모드는 Edit/Write 같은 file tool 만 자동 허용 — MCP tool 호출은 prompt 흐름으로 빠지는데 stream-json non-interactive 모드라 응답할 곳이 없어 **자동 거부**.
+  - Fix — `--permission-mode bypassPermissions`. agentic team 의 cwd 는 사용자 sandbox 로 제한돼 있고 어차피 진짜 코드를 작성하는 게 본 임무라 surface 통제 가능. 한 줄 변경.
+  - 라이브 재검증: 같은 메시지 패턴 ("D-059 검증 — TODO 앱 …") 으로 daemon restart 후 재테스트. 결과:
+    - 02:54:18 사용자 메시지 수신
+    - 02:54:29 PM 이 `post_message` 호출 → sim_posts id=304 actor=pm "ack — TODO 앱(다크모드 + i18n) 작업 시작합니다. 카드 생성 후 프론트엔드로 디스패치." 정상 INSERT
+    - 02:54:30 `set_app_kind(kind="todo")` + `set_app_features(["dark-mode","i18n"])` 정상
+    - 02:54:31 `create_issue(title="TODO 앱: 다크모드 + i18n", assignee="frontend", state="inprogress")` → sim_issues id=320 inprogress 카드 생성
+    - 02:54:33 turn complete success=true duration_ms=12960 (12.9초)
+    - `/api/trial/team-app/status` 응답: `{"app_kind":"todo","app_features":["dark-mode","i18n"],"app_status":"complete"}` — ShowcasePanel toggle 이 unlocked 상태로 전환
+  - **결정적 검증** — PM 이 채팅 패널, 칸반, 쇼케이스 토글 셋 다 MCP tool 로 정상 갱신.
+
+  **남은 후속 (D-060, 다음 사이클)**: PM 이 카드를 생성하고 frontend 에 assign 했지만, 실제로 Task tool 로 frontend sub-agent 를 invoke 하지는 않음 → 코드 작성 / dev server 띄우기 단계 진입 안 함. overlay 의 "Hand each subordinate role off via Task tool sub-agent invocation" 조항이 enforce 안 되는 듯. 다음 사이클에서 PM prompt 보강 + Task tool 흐름 검증.
+
 - 2026-05-14: **v0.6.0-alpha.10 — D-057 MCP path baking hotfix + D-058 monitor `--project` flag**. alpha.9 ship 직후 자가테스트 + 사용자 채팅에서 두 가지 blocker 발견 → 한 사이클에 hotfix.
 
   **D-057 (Critical) — MCP server 경로가 CI 머신 경로로 박혀 사용자 환경에서 안 떴다**:

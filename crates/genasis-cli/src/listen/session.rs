@@ -79,8 +79,14 @@ impl ClaudeTeamSession {
             .arg("--output-format")
             .arg("stream-json")
             .arg("--verbose")
+            // D-059: `acceptEdits` 만으론 부족 — file edit 만 자동 허용,
+            // MCP tool 호출 (mcp__trial-app__post_message 등) 은 prompt
+            // 흐름으로 빠지는데 stream-json non-interactive 모드라 응답할
+            // 곳이 없어 자동 거부. 결과: PM 이 ack 게시조차 못 함.
+            // `bypassPermissions` 가 모든 tool 자동 허용 — agentic team 의
+            // cwd 가 사용자 sandbox 로 제한돼 있어 surface 통제 가능.
             .arg("--permission-mode")
-            .arg("acceptEdits")
+            .arg("bypassPermissions")
             .arg("--mcp-config")
             .arg(mcp_config_json);
         if !append_system_prompt.trim().is_empty() {
