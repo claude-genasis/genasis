@@ -90,16 +90,44 @@ Code를 다룬다면 자기 문제를 생성해도 좋다.)
 대해 결정적 (시드 자체는 세션마다 무작위지만, 향후 "결과 공유"
 기능을 원하면 재현 가능). 로그인 없음, 저장 없음, 텔레메트리 없음.
 
-## 5. trial-app 통합
+## 5. trial-app 통합 (v0.6.0 model)
 
-에이전트 팀이 이 앱을 별도로 호스팅하지 않는다. 구현은 trial-app
-소스 트리 안에 산다 — `agents-pool/trial-app/app/components/QuizApp.tsx`
-(React 컴포넌트) + `agents-pool/trial-app/lib/quiz-bank.ts` (문제
-은행). PRD를 끝내는 에이전트는 `genasis trial publish`로 완료를
-신호하며, 이는 팀의 `sim_teams` 행에서 `app_status = 'complete'`로
-설정한다. trial-app의 `ShowcasePanel`이 그 팀에게 활성화되고 —
-LiveBoard의 버튼이 패널을 좌측에서 슬라이드 인하며 안에서 퀴즈를
-렌더한다.
+에이전트 팀이 **사용자 sandbox 안에 standalone 실행 가능한 React
+앱** 을 짓고, `announce_dev_server_url` 로 trial-app 의 showcase
+패널에 노출시킨다.
+
+요구 scaffold 구조 (frontend 가 없으면 만들어야 함):
+
+```
+<sandbox-root>/
+├── package.json            # vite + react-ts 의존성
+├── vite.config.ts          # default export 에서 --host 0.0.0.0
+├── index.html
+├── src/
+│   ├── main.tsx
+│   ├── App.tsx             # QuizApp 마운트
+│   ├── components/
+│   │   └── QuizApp.tsx     # §3 + §4 따른 quiz 컴포넌트
+│   └── lib/
+│       └── quiz-bank.ts    # 문제 은행
+```
+
+워크플로우 (PM 이 순서대로 dispatch):
+
+1. **frontend** Task — 위 scaffold 작성 (npm create vite + npm install)
+   + §3-§4 따라 `QuizApp.tsx` / `quiz-bank.ts` 작성 + typecheck.
+2. **devops** Task — `npm install` (idempotent) + `npm run dev --
+   --host 0.0.0.0 --port 5173 &` 백그라운드 spawn + `ss -tlnp |
+   grep 5173` 확인 + `mcp__trial-app__announce_dev_server_url(url=
+   "http://localhost:5173")` 호출.
+3. trial-app 의 `ShowcasePanel.LocalDevServerOrFallback` 가
+   `sim_teams.dev_server_url` 을 읽어 사용자 localhost dev server
+   를 iframe 으로 렌더. URL 이 안 도착하면 호스팅 시뮬레이션 demo
+   fallback (경고 notice 표시).
+
+agent 가 trial-app 소스 트리에 직접 PR 하는 v0.5.x 모델은
+ADR-016 참고. v0.6.0 부터는 localhost iframe 흐름이 우선 —
+사용자가 호스팅 재현물이 아니라 agent 가 실제로 짠 코드를 본다.
 
 ## 6. 수용 기준
 

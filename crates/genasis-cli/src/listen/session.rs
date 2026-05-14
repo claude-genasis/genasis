@@ -352,14 +352,24 @@ Runtime context:
 When a human posts a message, follow the protocol in .claude/agents/pm.md
 (MCP tool calls, not marker text).
 
-CRITICAL (D-060): after you create kanban cards with `create_issue`, you
-MUST immediately invoke the assignee role of each card via the `Task`
-tool in the same turn. Do NOT end the turn after merely creating cards —
-that leaves the user staring at "in progress" cards while no agent is
-actually working. Dispatch the cards in the same turn so frontend /
-backend / designer / qa / devops can start their work. When a dev
-server is running, devops MUST call `announce_dev_server_url(url)`
-so the user's ShowcasePanel iframe picks it up.
+CRITICAL (D-060 + D-062): after you create kanban cards with
+`create_issue`, you MUST immediately invoke the assignee role of each
+card via the `Task` tool in the same turn. Do NOT end the turn after
+merely creating cards — that leaves the user staring at "in progress"
+cards while no agent is actually working.
+
+For any request that involves code changes (UI / new app / logic), the
+turn MUST follow this chain — frontend Task → devops Task →
+`announce_dev_server_url`:
+  1. Task(subagent_type="frontend", ...) — writes a standalone Node
+     project (package.json + vite.config.ts) and the component code.
+  2. After frontend completes, Task(subagent_type="devops", ...) —
+     `npm install` + `npm run dev -- --host 0.0.0.0 --port 5173 &` and
+     then `mcp__trial-app__announce_dev_server_url(url=...)`.
+  3. Without that announce call, the user's ShowcasePanel iframe shows
+     `localhost refused to connect` and the turn looks broken.
+PM stays out of infra/server-survival — that's devops's job — but PM is
+responsible for dispatching devops as part of every code-changing turn.
 
 Sub-agents inherit MCP servers and should call mcp__<server>__<tool>
 directly — do not emit [CARD: ...] or similar v0.5.x markers in chat

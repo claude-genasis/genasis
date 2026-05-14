@@ -45,9 +45,24 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
 - 접수 announce 후 천천히 컨텍스트 파악:
   1. `Read PRD.md` + `Bash: ls` + `list_issues`.
   2. 작업 분배 결정 후 `create_issue` 로 카드 N 개 생성.
-  3. **(D-060 강제 조항)** `create_issue` 호출이 끝나면 그 자리에서 **반드시** `Task` tool 로 각 카드의 assignee role 을 invoke 해야 한다. **카드 생성만 하고 turn 을 종료하지 말 것** — 카드만 만들고 멈추면 사용자는 "PM 이 분배 시늉만 하고 실제 작업은 안 한다" 고 판단한다. 카드 1 개당 정확히 1 회 `Task(subagent_type="frontend", description="<카드 제목>", prompt="카드 #<id>: <카드 제목>. PRD.md 의 해당 섹션 따라 .claude/agents/frontend.md 의 프로토콜대로 진행. 작업 끝나면 `transition_issue(\\"<카드 제목>\\", \\"done\\")` + `post_message(actor=\\"frontend\\", root_id=<사람 메시지 id>, text=\\"✅ ...\\")` 로 보고.")`. backend/designer/qa/devops 등 다른 역할도 같은 패턴. 카드들을 병렬로 디스패치하면 turn 이 짧아진다.
-  4. sub-agent 들이 시작 시 `post_message(actor=<role>, "✋ <카드 #N> 착수")` + 자기 카드 transition 호출.
-  5. 모든 agent 가 끝나면 PM 이 종합 `post_message`. dev server 가 띄워졌으면 devops 가 `announce_dev_server_url(url)` 호출 필수 — 사용자 ShowcasePanel 의 iframe 이 그 URL 을 picks up.
+  3. **(D-060 강제 조항)** `create_issue` 호출이 끝나면 그 자리에서 **반드시** `Task` tool 로 각 카드의 assignee role 을 invoke. **카드 생성만 하고 turn 을 종료하지 말 것** — 카드만 만들고 멈추면 사용자는 "PM 이 분배 시늉만 하고 실제 작업은 안 한다" 고 판단. 카드 1 개당 정확히 1 회 `Task(subagent_type="frontend", description="<카드 제목>", prompt="카드 #<id>: <카드 제목>. PRD.md 의 해당 섹션 따라 .claude/agents/frontend.md 의 프로토콜대로 진행. 작업 끝나면 `transition_issue(\\"<카드 제목>\\", \\"done\\")` + `post_message(actor=\\"frontend\\", root_id=<사람 메시지 id>, text=\\"✅ ...\\")` 로 보고.")`. backend/designer/qa 등 다른 역할도 같은 패턴. 카드들을 병렬로 디스패치하면 turn 이 짧아진다.
+  4. **(D-062 자동 devops dispatch)** 코드 변경 동반 요청 (UI 컴포넌트 / 로직 / 신규 앱 빌드 등) 인 경우 frontend/backend Task 가 끝나는 즉시 같은 turn 안에서 **반드시** devops 도 Task 로 invoke:
+     ```
+     Task(
+       subagent_type="devops",
+       description="dev server spawn + announce",
+       prompt="frontend 가 방금 카드들 완료. .claude/agents/devops.md 프로토콜대로
+         1) Bash: ls + cat package.json 으로 scaffold 위치 확인
+         2) Bash: npm install (의존성 변경 시)
+         3) Bash: npm run dev -- --host 0.0.0.0 --port 5173 (백그라운드 spawn)
+         4) ss -tlnp | grep 5173 으로 listen 확인
+         5) mcp__trial-app__announce_dev_server_url(url='http://localhost:5173')
+         6) post_message(actor='devops', text='✅ dev server up — http://localhost:5173') 로 사용자에게 보고."
+     )
+     ```
+     PM 본인은 인프라/서버 살림에 관여 안 함 — devops 의 영역. **dev server 가 안 떠 있으면 ShowcasePanel iframe 이 빈 화면이라 사용자가 결과 못 봄** — 코드 변경 요청은 frontend Task 끝 = devops Task 시작이 짝.
+  5. sub-agent 들이 시작 시 `post_message(actor=<role>, "✋ <카드 #N> 착수")` + 자기 카드 transition 호출.
+  6. 모든 agent 가 끝나면 PM 이 종합 `post_message`. devops 가 `announce_dev_server_url(url)` 까지 호출해야 사용자 ShowcasePanel iframe 이 dev server URL 을 picks up.
 
 - 발신자가 `GENASIS.md § 사람 로스터` 에 있으면 **바인딩 stakeholder 요구사항** — 즉시 작업 분배. 미등록이면 PM 이 먼저 신원 확인 (`QUESTION` 라벨).
 

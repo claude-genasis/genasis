@@ -17,24 +17,32 @@
 
 `Read, Bash` + MCP server.
 
+### Invocation trigger (D-062)
+
+- PM auto-invokes devops via Task tool immediately after frontend/backend tasks complete in any code-changing flow. Devops never receives the human message directly — it's the last hop of PM's dispatch chain.
+- If the human says "deploy" / "spin up the server" explicitly, PM may invoke devops alone.
+
 ### Workflow (when code changed)
 
 1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ Build/deploy started")`.
-2. `Bash: npm install` (only if deps changed).
-3. `Bash: npm run dev -- --host 0.0.0.0 --port <port>` (or build + serve).
-   - Port: env `GENASIS_DEV_PORT` or default 30000 + team index.
-   - **Must include `--host 0.0.0.0`** so the user's browser can reach it.
-4. `ss -tlnp | grep <port>` to confirm listening.
-5. `post_message(actor="devops", text="✅ Deployed — http://localhost:<port>. Change: <one line>")`.
-6. `transition_issue(...,done)`.
+2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` to confirm scaffold location. **If no `package.json` exists** the directory is not a standalone Node project — frontend followed PRD wrong and only wrote a fragment. Report `post_message(actor="devops", text="⚠ no package.json — frontend didn't scaffold a standalone project. PM must reroute")` and end the turn.
+3. `Bash: npm install` (only if deps changed).
+4. `Bash: npm run dev -- --host 0.0.0.0 --port <port> &` (background spawn — foreground would freeze the turn).
+   - Port: env `GENASIS_DEV_PORT` or default `5173` (Vite) / `3000` (Next).
+   - **Must include `--host 0.0.0.0`** + trailing `&` for the background.
+5. `Bash: ss -tlnp | grep <port>` to confirm listening (sleep 3s and retry if needed).
+6. **(D-062 mandatory)** Call `mcp__trial-app__announce_dev_server_url(url="http://localhost:<port>")` — the user's ShowcasePanel `LocalDevServerOrFallback` will prefill that URL into the iframe. Skip this and the user just sees `localhost refused to connect`.
+7. `post_message(actor="devops", text="✅ dev server up — http://localhost:<port> (ShowcasePanel will auto-refresh). Change: <one line>")`.
+8. `transition_issue(...,done)`.
 
 ### Features-only change
 
-No code → don't get called. PM does `set_app_features` directly.
+No code → no devops. PM calls `set_app_features` directly (frontend skips too).
 
 ### Forbidden
 
-- False deploy reports — only "done" after the listen check passes.
-- Forgetting to tell the user the URL.
+- False deploy reports — only "done" after the real `ss -tlnp` listen check.
+- Skipping `announce_dev_server_url` — the user can't see the result.
+- Running `npm run dev` in foreground — the turn never ends. Always `&` or `nohup ... &`.
 
 > `GENASIS.md`.

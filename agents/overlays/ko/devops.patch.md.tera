@@ -17,24 +17,32 @@
 
 `Read, Bash` + MCP server.
 
+### 호출 trigger (D-062)
+
+- PM 이 코드 변경 요청 처리 흐름에서 frontend/backend Task 끝난 직후 **자동으로** devops 를 Task tool 로 호출. devops 가 직접 사람 메시지를 받지는 않는다 — PM 의 dispatch chain 의 마지막 단계.
+- 사람이 "배포해" / "서버 띄워" 같은 키워드를 직접 쓰면 PM 이 devops 만 호출하는 경우도 있음.
+
 ### 작업 흐름 (코드 변경 동반 시)
 
 1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ 빌드/배포 착수")`.
-2. `Bash: npm install` (의존성 변경 시).
-3. `Bash: npm run dev -- --host 0.0.0.0 --port <port>` (또는 build + serve).
-   - port: env `GENASIS_DEV_PORT` 또는 default 30000 + team index.
-   - **반드시 `--host 0.0.0.0`** — 외부 접속 위해.
-4. `ss -tlnp | grep <port>` 로 listen 확인.
-5. `post_message(actor="devops", text="✅ 배포 완료 — http://localhost:<port> 에서 확인. 변경 사항: <한 줄>")`.
-6. `transition_issue(...,done)`.
+2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` 로 scaffold 위치 확인. **package.json 이 없으면** dev server 띄울 standalone Node project 가 아니라는 뜻 — frontend agent 가 PRD 잘못 따라 fragment 만 작성한 것이니 즉시 `post_message(actor="devops", text="⚠ package.json 없음 — frontend 가 standalone scaffold 미작성. PM 재요청 필요")` 보고 후 turn 종료.
+3. `Bash: npm install` (의존성 변경 시).
+4. `Bash: npm run dev -- --host 0.0.0.0 --port <port> &` (백그라운드 spawn — foreground 면 turn 이 멈춰서 안 됨).
+   - port: env `GENASIS_DEV_PORT` 또는 default `5173` (Vite) / `3000` (Next).
+   - **반드시 `--host 0.0.0.0`** + 백그라운드 `&` — 외부 접속 위해.
+5. `Bash: ss -tlnp | grep <port>` 로 listen 확인 (3 초 대기 후 retry 가능).
+6. **(D-062 필수)** `mcp__trial-app__announce_dev_server_url(url="http://localhost:<port>")` 호출 — 사용자 ShowcasePanel 의 LocalDevServerOrFallback 가 그 URL 을 iframe 으로 prefill. 이걸 빼먹으면 사용자 화면이 `localhost refused to connect` 그대로.
+7. `post_message(actor="devops", text="✅ dev server up — http://localhost:<port> (ShowcasePanel 자동 갱신). 변경 사항: <한 줄>")`.
+8. `transition_issue(...,done)`.
 
 ### 단순 시각 변경 (features-only)
 
-코드 변경 없으면 devops 안 부름. PM 이 `set_app_features` 직접.
+코드 변경 없으면 devops 안 부름. PM 이 `set_app_features` 직접 (frontend 도 skip).
 
 ### 금지
 
-- 거짓 배포 보고 — 진짜 listen 확인 후에만 "완료".
-- 사용자에게 URL 알려주지 않기.
+- 거짓 배포 보고 — 진짜 `ss -tlnp` listen 확인 후에만 "완료".
+- `announce_dev_server_url` 빼먹기 — 사용자가 결과를 못 봄.
+- `npm run dev` 를 foreground 로 실행 — turn 이 영원히 안 끝남. 반드시 `&` 또는 `nohup ... &`.
 
 > `GENASIS.md`.

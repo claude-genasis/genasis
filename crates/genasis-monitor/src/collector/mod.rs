@@ -4,6 +4,7 @@
 //! a snapshot struct that the render loop reads.
 
 pub mod jsonl;
+pub mod listen_log;
 pub mod plane;
 pub mod ports;
 pub mod sessions;

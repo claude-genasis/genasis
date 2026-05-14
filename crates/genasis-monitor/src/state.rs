@@ -86,6 +86,12 @@ pub struct AppState {
     /// D-058: 사용자가 잘못된 디렉터리에서 `genasis monitor` 를 실행해
     /// `genasis.toml` 을 못 찾았을 때 띄울 가이드 (banner / log_tail).
     pub config_hint: Option<String>,
+    /// D-065: 발견된 project root (config_dir 의 부모). listen_log collector
+    /// 가 `<project_root>/.genasis/listen.log` 를 tail follow 한다.
+    pub project_root: Option<std::path::PathBuf>,
+    /// D-065: listen.log 의 byte offset — 같은 line 을 두 번 안 emit 하기
+    /// 위해 tick 사이에 기억.
+    pub listen_log_offset: u64,
 }
 
 /// Snapshot of the active design system.

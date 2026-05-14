@@ -102,17 +102,45 @@ deterministic on a per-session seed (the seed itself is random per
 session, but reproducible if a future feature wants "share my result").
 No login, no storage, no telemetry.
 
-## 5. Trial-app integration
+## 5. Trial-app integration (v0.6.0 model)
 
-The agentic team does NOT host this app independently. The
-implementation lives inside the trial-app's source tree at
-`agents-pool/trial-app/app/components/QuizApp.tsx` (the React
-component) and `agents-pool/trial-app/lib/quiz-bank.ts` (the
-question bank). Agents finishing the PRD signal completion via
-`genasis trial publish`, which sets `app_status = 'complete'` on
-the team's `sim_teams` row. The trial-app's `ShowcasePanel` becomes
-enabled for that team — a button on the LiveBoard slides the panel
-in from the left and renders the quiz inside it.
+The agentic team builds **a standalone, runnable React app inside
+the user's own sandbox**, then exposes it back to the trial-app's
+showcase panel through `announce_dev_server_url`.
+
+Required scaffold layout (frontend creates it if absent):
+
+```
+<sandbox-root>/
+├── package.json            # vite + react-ts deps
+├── vite.config.ts          # exports default with --host 0.0.0.0
+├── index.html
+├── src/
+│   ├── main.tsx
+│   ├── App.tsx             # mounts QuizApp
+│   ├── components/
+│   │   └── QuizApp.tsx     # the quiz from §3 + §4
+│   └── lib/
+│       └── quiz-bank.ts    # the question bank
+```
+
+Workflow (PM dispatches in order):
+
+1. **frontend** Task — scaffold above (npm create vite + npm install)
+   + write `QuizApp.tsx` and `quiz-bank.ts` per §3-§4 + typecheck.
+2. **devops** Task — `npm install` (idempotent) + spawn
+   `npm run dev -- --host 0.0.0.0 --port 5173 &` in the background +
+   verify `ss -tlnp | grep 5173` + call
+   `mcp__trial-app__announce_dev_server_url(url="http://localhost:5173")`.
+3. The trial-app's `ShowcasePanel.LocalDevServerOrFallback` reads
+   `sim_teams.dev_server_url` and renders the user's localhost dev
+   server inside its iframe. If the URL never lands, the panel falls
+   back to a hosted simulation demo with a warning notice.
+
+For the legacy v0.5.x model where agents PR the trial-app source tree
+directly, see ADR-016. v0.6.0 onwards prefers the localhost iframe
+flow above — the user sees the actual code the agents wrote, not a
+hosted recreation.
 
 ## 6. Acceptance criteria
 

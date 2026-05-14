@@ -1053,6 +1053,36 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.13 — D-061/062/063/065 bundle hotfix + agents-v1.0.3 catalog publish**. 사용자 지시 "남아 있던 오류 수정 모두 진행해" 따라 네 가지 결함 한 사이클에 묶어 ship.
+
+  **D-062 (자율 dispatch chain) — overlay 3개 + system prompt 동시 강화**:
+  - `pm.patch.md.tera (ko/en)` Step 3 옆 신규 Step 4 — "코드 변경 동반 요청이면 frontend Task 끝난 직후 같은 turn 안에서 **반드시** devops Task 도 호출". 본문에 구체적 Task() 예시 (npm install → npm run dev `&` → ss verify → announce_dev_server_url → post_message). "PM 본인은 인프라 / server-survival 에 관여 안 함 — devops 의 영역" 명시.
+  - `devops.patch.md.tera (ko/en)` — "호출 trigger" 섹션 신설 (PM 의 dispatch chain 마지막 hop), 작업 흐름에 `ls package.json` 사전 확인 + foreground `npm run dev` 금지 + `&` 백그라운드 강제 + `mcp__trial-app__announce_dev_server_url` 호출 명시. 금지 조항에 "announce_dev_server_url 빼먹기" 추가.
+  - `frontend.patch.md.tera (ko/en)` — "standalone scaffold 보장" 조항 신설. PRD 가 sub-path 를 가리켜도 그 path 에 `package.json` + `vite.config.ts` 까지 완성. `npm run dev` 는 frontend 본인 안 띄움 (devops 영역) 명시. 작업 완료 보고에 `cwd=<abs path>` 명시 — devops 가 그 path 에서 시작.
+  - `session.rs::build_append_system_prompt` — CRITICAL 블록 확장. frontend Task → devops Task → announce_dev_server_url chain 명시 + "Without that announce call, the user's ShowcasePanel iframe shows `localhost refused to connect` and the turn looks broken" failure cost 명시.
+
+  **D-061 (Critical) — `genasis example prd` PRD §5 를 v0.6.0 model 로 재작성**:
+  - `crates/genasis-cli/templates/examples/prd.{en,ko}.md` §5 ("Trial-app integration") 전면 rewrite. v0.5.x 의 "agents-pool/trial-app/ source tree 안에 작성" 모델 폐기, v0.6.0 의 "사용자 sandbox 안에 standalone Vite scaffold (package.json + vite.config.ts + src/main.tsx + components/QuizApp.tsx + lib/quiz-bank.ts) + devops 가 `npm run dev` 백그라운드 spawn + `announce_dev_server_url` 호출 → ShowcasePanel iframe 자동 prefill" 흐름으로 변경.
+  - 결과: 다음 사이클부터 `genasis example prd` 가 생성하는 PRD 가 dev server 띄울 수 있는 standalone scaffold 를 가리킴 → frontend agent 가 그대로 따르면 devops 가 spawn 가능 → ShowcasePanel iframe 에 진짜 결과 표시.
+  - 기존 v0.5.x model 은 ADR-016 참조 안내로 fallback 만 유지.
+
+  **D-063 — trial-app `set_app_features([])` 가 LRU-append 시맨틱 때문에 reset 안 되던 버그**:
+  - `app/api/trial/team-app/status/route.ts` 의 조건문 `app_features && app_features.length > 0` → `app_features !== undefined` 로 변경. 빈 배열 명시 시 update 트리거.
+  - `db/sim.ts::setTeamApp` 시그니처 `add_features: string[]` → `string[] | null` 로 확장. **null = preserve, [] = explicit reset, [...] = LRU-append** 세 가지 시맨틱 분기 추가.
+  - `app/api/trial/bootstrap/route.ts` 호출자도 동일 시맨틱으로 정렬.
+  - typecheck PASS. 운영자 trial-app 재배포 필요 (npm run build + restart).
+
+  **D-065 (partial) — `genasis monitor` Log widget 이 daemon listen.log 를 follow 못 해 비어 있던 문제**:
+  - 신규 `crates/genasis-monitor/src/collector/listen_log.rs` 작성 — `<project_root>/.genasis/listen.log` 의 마지막 80 줄 (16KB) 을 3 초 tick 으로 read, ANSI escape 제거 후 `state.log_tail` 로 push. 첫 호출은 file 의 끝쪽 16KB 부터 시작 (장기 daemon 의 한 번에 수천 줄 dump 방지). 이후 offset 기억하여 새 line 만 emit.
+  - `state.rs` 에 `project_root: Option<PathBuf>` + `listen_log_offset: u64` 추가. `load_trial_config` 가 cfg 발견 시 `cfg_path.parent()` 를 project_root 로 저장.
+  - `app.rs` run_loop 에 `LISTEN_LOG_TICK = 3s` 추가.
+  - 결과: 사용자가 `genasis monitor --project /path/to/sandbox` 실행 + daemon 떠 있으면 Log widget 에 "session tool_use tool=mcp__trial-app__post_message ..." 같은 실시간 활동이 흐름.
+  - Agents widget 의 "wire SessionStart hook" hint + RTK/JSONL/Network counters 는 별개 결함 (**D-066** 다음 사이클).
+
+  **agents-v1.0.3 catalog publish** — `agents-pool/scripts/publish-overlays-only.sh 1.0.3 --from 1.0.2`. `agents-v1.0.3.tar.gz` GitHub Releases 업로드 완료. 사용자 sandbox 에선 `genasis agents update` 또는 `genasis upgrade` 로 새 overlay 받음.
+
+  **빌드 검증**: `cargo build --workspace` 0 errors, trial-app `npx tsc --noEmit` PASS, overlay 6파일 + session.rs + PRD template 2 + monitor 3파일 + trial-app 3파일 변경.
+
 - 2026-05-14: **v0.6.0-alpha.12 — D-060 Task tool dispatch enforce + 추가 결함 D-061/D-062 발굴**. alpha.11 라이브에서 PM 이 카드만 만들고 frontend 호출 안 하는 D-060 증상 확인 → overlay + append_system_prompt 강제 조항 추가. 사용자 라이브 follow-up 으로 검증.
 
   **D-060 — PM 이 create_issue 후 Task tool 로 sub-agent invoke 안 함**:

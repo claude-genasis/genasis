@@ -32,6 +32,7 @@ const SESSION_TICK: Duration = Duration::from_secs(1);
 const JSONL_TICK: Duration = Duration::from_secs(60);
 const PORT_TICK: Duration = Duration::from_secs(5);
 const TRIAL_TICK: Duration = Duration::from_secs(5);
+const LISTEN_LOG_TICK: Duration = Duration::from_secs(3);
 
 pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
     let mut state = AppState::default();
@@ -90,6 +91,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
     let mut last_jsonl = Instant::now();
     let mut last_port = Instant::now();
     let mut last_trial = Instant::now();
+    let mut last_listen_log = Instant::now();
 
     loop {
         // Collect data on schedule
@@ -108,6 +110,13 @@ async fn run_loop<B: ratatui::backend::Backend>(
         if state.trial_mode && last_trial.elapsed() >= TRIAL_TICK {
             collect_trial(state).await;
             last_trial = Instant::now();
+        }
+        // D-065: tail .genasis/listen.log into log_tail widget.
+        if last_listen_log.elapsed() >= LISTEN_LOG_TICK {
+            if let Some(root) = state.project_root.clone() {
+                collector::listen_log::poll(state, &root);
+            }
+            last_listen_log = Instant::now();
         }
 
         // Render
@@ -322,6 +331,11 @@ fn load_trial_config(state: &mut AppState, project_root: Option<&Path>) {
     state.team_token = team_token;
     state.project_slug = project_slug;
     state.scrum_channel = scrum_channel;
+    // D-065: remember project_root so collector::listen_log can tail
+    // `<project_root>/.genasis/listen.log`.
+    if let Some(parent) = cfg_path.parent() {
+        state.project_root = Some(parent.to_path_buf());
+    }
 }
 
 /// D-025: Hit the trial-app sim endpoints once and update state.

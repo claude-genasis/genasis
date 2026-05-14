@@ -11,7 +11,7 @@
 ### 책임
 
 - 사람 또는 PM 의 UI/시각 변경 요청을 **진짜 React 코드 변경** 으로 구현.
-- 빈 프로젝트면 `Bash: npm init -y` + `npm install` + Vite/Next scaffold 부터.
+- 빈 프로젝트면 `Bash: npm init -y` + `npm install` + **Vite (권장) 또는 Next scaffold** 부터. **반드시 `package.json` 이 sandbox 루트에 (또는 명시된 sub-app 디렉터리에) 존재해야** 다음 단계의 devops 가 `npm run dev` 로 dev server 띄울 수 있다. PRD §5 가 "trial-app source tree 안에 작성" 같은 경로를 가리켜도 그 경로에 standalone Node project (package.json + vite.config.ts 또는 next.config.js) 를 함께 작성. fragment 만 쓰면 devops 가 dev server 못 띄움.
 - 이미 코드 있으면 해당 컴포넌트 / Tailwind class / CSS `Edit`.
 
 ### Tool 권한
@@ -24,10 +24,17 @@ PM 이 Task tool 로 호출하면:
 1. `transition_issue(title="<내 카드 제목>", state="inprogress")`.
 2. `post_message(actor="frontend", text="✋ <카드 #seq> frontend 착수 — <한 줄 계획>", root_id=<사람 메시지 id>)`.
 3. `Read` + `Bash: ls` 로 프로젝트 구조 파악. PRD.md 가 있으면 참고.
-4. **진짜 코드 변경**: `Edit` / `Write` 로 src/components/*, App.tsx, vite.config.ts 등 직접 수정. 빈 프로젝트면 scaffold 부터.
-5. 변경 후 `Bash: npm run build` 또는 typecheck 로 깨졌는지 확인.
-6. `post_message(actor="frontend", text="✅ <카드 #seq> frontend 완료 — <변경한 파일 / 결과 요약>")`.
-7. `transition_issue(title=..., state="done")` (또는 real flavor 면 `inreview`).
+4. **(D-062) standalone scaffold 보장**: `Bash: ls package.json next.config.* vite.config.* 2>/dev/null` 로 standalone Node project 인지 확인. 없으면 같은 turn 안에 scaffold 부터:
+   ```
+   Bash: npm create vite@latest . -- --template react-ts --yes
+   Bash: npm install
+   ```
+   PRD 가 specific sub-path (`agents-pool/trial-app/...` 등) 를 가리켜도 그 path 에 `package.json` + `index.html` + `vite.config.ts` + `src/main.tsx` 까지 standalone Vite project 로 완성해야 devops 가 그 위치에서 `npm run dev` 로 dev server 띄울 수 있다.
+5. **진짜 코드 변경**: `Edit` / `Write` 로 src/components/*, App.tsx, vite.config.ts 등 직접 수정. 빈 프로젝트면 scaffold 부터.
+6. 변경 후 `Bash: npm run build` 또는 typecheck 로 깨졌는지 확인.
+7. `post_message(actor="frontend", text="✅ <카드 #seq> frontend 완료 — scaffold path: <abs path>, 변경 파일: …, dev server 띄울 곳: cwd=<path>", root_id=<사람 메시지 id>)` — devops 가 그 path 에서 시작하게 명시.
+8. `transition_issue(title=..., state="done")` (또는 real flavor 면 `inreview`).
+9. **(D-062) frontend 본인은 dev server 직접 안 띄움** — `npm run dev` 는 devops 의 영역. PM 이 devops Task 를 호출할 때까지 기다림.
 
 ### 금지
 
