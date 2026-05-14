@@ -432,7 +432,33 @@ async fn collect_trial(state: &mut AppState) {
             }
             state.trial_app_kind = s.app_kind;
             state.trial_app_features = s.app_features;
+            state.trial_latest_actor = s.latest_actor;
+            state.trial_latest_kind = s.latest_kind;
             state.last_plane_poll = now;
+            // D-099: rewrite daemon orchestrator's role to the latest
+            // actor so the user sees who is currently doing work. The
+            // OS still only has one claude process per team (Task tool
+            // dispatches subagents inside the same process), so this
+            // is the only place we can surface per-role activity into
+            // the SESSIONS widget.
+            if !state.trial_latest_actor.is_empty() {
+                let project_root_str = state
+                    .project_root
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                for session in state.sessions.iter_mut() {
+                    let role = session.role.as_deref().unwrap_or("");
+                    let belongs = project_root_str.is_empty()
+                        || session.cwd == project_root_str
+                        || session
+                            .cwd
+                            .starts_with(&format!("{}/", project_root_str));
+                    if role == "daemon" && belongs {
+                        session.role = Some(state.trial_latest_actor.clone());
+                    }
+                }
+            }
         }
         Err(e) => {
             let now_hm = chrono::Local::now().format("%H:%M").to_string();

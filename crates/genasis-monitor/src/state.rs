@@ -97,6 +97,13 @@ pub struct AppState {
     /// state.plane_calls / state.mm_calls 로 표시.
     pub trial_baseline_issues: u64,
     pub trial_baseline_posts: u64,
+    /// D-099: 최근 sim_agent_activity 의 actor (pm, frontend, devops,
+    /// designer, qa, ...). SESSIONS widget 의 daemon row 의 role 컬럼을
+    /// 이 값으로 override 한다 (v0.6 trial 에선 orchestrator 1개 + Task
+    /// tool 가상 subagent 구조라 OS 레벨에선 daemon 1개만 보임 — 사용자
+    /// 가 기대하는 "agent 이름" 을 surface 하는 유일한 경로).
+    pub trial_latest_actor: String,
+    pub trial_latest_kind: String,
 }
 
 /// Snapshot of the active design system.

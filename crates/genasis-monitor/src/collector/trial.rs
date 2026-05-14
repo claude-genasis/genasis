@@ -26,6 +26,13 @@ pub struct TrialSnapshot {
     /// D-082: total posts seen on the scrum channel — feeds the
     /// Network widget's MM call counter.
     pub posts_total: usize,
+    /// D-099: latest agent_activity row's `actor` (pm, frontend,
+    /// devops, designer, qa, ...) and `kind` (tool_use, post_message,
+    /// transition_issue, ...). When non-empty the SESSIONS widget
+    /// rewrites the daemon orchestrator's role from "daemon" to this
+    /// actor so users see who is currently doing work.
+    pub latest_actor: String,
+    pub latest_kind: String,
 }
 
 /// Fetch sprint + agents + log tail from a trial-app instance.
@@ -193,6 +200,41 @@ pub async fn poll_trial(
         }
     }
 
+    // (4) D-099: sim_agent_activity — daemon orchestrator 가 "지금" 어떤
+    // role 을 dispatch 중인지 SESSIONS 패널에서 표시할 수 있게 최신 actor
+    // 1개를 pull. v0.6 trial 에선 orchestrator claude 1개 + Task tool 로
+    // 가상 subagent 호출 구조이므로 OS 레벨에선 daemon 1개만 보이지만
+    // 사용자 기대는 "role 별로 누가 일하는지". 최근 actor 를 row 의
+    // role 컬럼에 surface 하면 그 기대에 가까워진다.
+    let activity_url = format!("{base}/api/trial/agent-activity?team={team_token}&limit=1");
+    let mut latest_actor = String::new();
+    let mut latest_kind = String::new();
+    if let Ok(r) = client
+        .get(&activity_url)
+        .header("X-Genasis-Team-Token", team_token)
+        .send()
+        .await
+    {
+        if r.status().is_success() {
+            if let Ok(body) = r.json::<serde_json::Value>().await {
+                if let Some(arr) = body.get("activity").and_then(|a| a.as_array()) {
+                    if let Some(first) = arr.first() {
+                        latest_actor = first
+                            .get("actor")
+                            .and_then(|a| a.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        latest_kind = first
+                            .get("kind")
+                            .and_then(|k| k.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                    }
+                }
+            }
+        }
+    }
+
     Ok(TrialSnapshot {
         sprint,
         agent_issues,
@@ -200,6 +242,8 @@ pub async fn poll_trial(
         app_kind,
         app_features,
         posts_total,
+        latest_actor,
+        latest_kind,
     })
 }
 

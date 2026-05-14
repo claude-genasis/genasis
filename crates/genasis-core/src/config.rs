@@ -424,41 +424,64 @@ impl Config {
         None
     }
 
-    /// D-072: walk-up + 1-step walk-down. The plain `discover` only walks
-    /// up the directory chain; that matches the typical "I'm somewhere
-    /// inside the sandbox" workflow but breaks the **testbed pattern**
-    /// where the user does `mkdir testbed && cd testbed && genasis init
-    /// --trial example-app` and then runs commands (`genasis monitor`,
-    /// `genasis listen`) from the testbed root. The sandbox is one
-    /// directory down at `testbed/example-app/genasis.toml`, which
-    /// walk-up never reaches.
+    /// D-072 + D-095: walk-up + BFS walk-down (up to depth 2). The
+    /// plain `discover` only walks up the directory chain; that matches
+    /// the typical "I'm somewhere inside the sandbox" workflow but
+    /// breaks the **testbed pattern** where the user does `mkdir testbed
+    /// && cd testbed && genasis init --trial example-app` and runs
+    /// commands (`genasis monitor`, `genasis listen`) from the testbed
+    /// root — the sandbox is one directory down at
+    /// `testbed/example-app/genasis.toml` which walk-up never reaches.
     ///
-    /// This helper first tries `discover` (walk-up). On a miss it scans
-    /// the **immediate children of `start`** for any directory that
-    /// contains a `genasis.toml` and returns the first match (sorted by
-    /// directory name for determinism). If multiple sandboxes coexist,
-    /// the caller is told which one was picked via the returned path.
+    /// D-095 extends the walk-down from 1 step to 2 steps so the user
+    /// can run `genasis monitor` from `/work/agenteams` (grand-parent
+    /// of the sandbox) and still find `team-ex/quiz-21/genasis.toml`.
+    /// We BFS so the shallower sandbox always wins on ties (closer to
+    /// where the user actually invoked the command).
     pub fn discover_or_descend(start: &Path) -> Option<PathBuf> {
         if let Some(found) = Self::discover(start) {
             return Some(found);
         }
-        let entries = std::fs::read_dir(start).ok()?;
-        let mut child_dirs: Vec<PathBuf> = entries
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.is_dir())
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| !n.starts_with('.') && n != "node_modules" && n != "target")
-                    .unwrap_or(false)
-            })
-            .collect();
-        child_dirs.sort();
-        for child in child_dirs {
-            let candidate = child.join(CONFIG_FILE_NAME);
-            if candidate.is_file() {
-                return Some(candidate);
+        const MAX_DEPTH: usize = 2;
+        let mut queue: std::collections::VecDeque<(PathBuf, usize)> =
+            std::collections::VecDeque::new();
+        queue.push_back((start.to_path_buf(), 0));
+        while let Some((dir, depth)) = queue.pop_front() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            let mut child_dirs: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .filter(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| {
+                            !n.starts_with('.')
+                                && n != "node_modules"
+                                && n != "target"
+                                && n != "build"
+                                && n != "dist"
+                                && n != ".next"
+                        })
+                        .unwrap_or(false)
+                })
+                .collect();
+            child_dirs.sort();
+            // Pass 1: any immediate child with a config wins (shallowest).
+            for child in &child_dirs {
+                let candidate = child.join(CONFIG_FILE_NAME);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+            // Pass 2: enqueue children for deeper search if depth allows.
+            if depth + 1 < MAX_DEPTH {
+                for child in child_dirs {
+                    queue.push_back((child, depth + 1));
+                }
             }
         }
         None

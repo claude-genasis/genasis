@@ -53,7 +53,14 @@ pub struct Args {
     pub default_actor: String,
 
     /// `claude --print` per-call timeout (초).
-    #[arg(long, default_value_t = 120u32, global = true)]
+    ///
+    /// D-093: default 600s — cold `npm install` (2~4 분) 이 들어가는 trial
+    /// flavor 의 frontend → devops chain 이 120s 안에 못 끝나서 turn 이
+    /// silently killed 되는 케이스가 빈번. devops 의 `announce_dev_server_url`
+    /// 호출 전 끊기면 사용자 iframe 이 "에이전트가 빌드 중…" 무한 대기.
+    /// CI / smoke-test 가 더 짧은 값을 원하면 `--claude-timeout-secs 120`
+    /// 명시로 override.
+    #[arg(long, default_value_t = 600u32, global = true)]
     pub claude_timeout_secs: u32,
 
     /// 처리할 이벤트 최대 개수. 0 = 무한 (default). 자가테스트에서 명시
