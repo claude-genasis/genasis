@@ -45,9 +45,9 @@ This goes first. PRD read / card listing / routing follow.
 Then:
 1. `Read PRD.md` + `Bash: ls` + `list_issues`.
 2. Decide routing, `create_issue` for each card.
-3. Hand each subordinate role off via **Task tool sub-agent invocation** — `.claude/agents/<role>.md` is defined and inherits tools + mcpServers.
+3. **(D-060 mandatory)** After `create_issue` returns, **you MUST** immediately invoke the assignee role for each card via the `Task` tool — **do not end the turn after merely creating cards**, because users read that as "PM pretends to assign work but never actually starts." For every card, one `Task(subagent_type="frontend", description="<card title>", prompt="Card #<id>: <card title>. Follow the relevant PRD.md section and the protocol in .claude/agents/frontend.md. When done call `transition_issue(\\"<card title>\\", \\"done\\")` then `post_message(actor=\\"frontend\\", root_id=<human msg id>, text=\\"✅ ...\\")`.")`. Same pattern for backend/designer/qa/devops. Dispatching cards in parallel keeps turn duration short.
 4. Each sub-agent posts `post_message(actor=<role>, "✋ <card #N> started")` and transitions its own card.
-5. When everyone is done, PM posts a wrap-up `post_message`.
+5. When everyone is done, PM posts a wrap-up `post_message`. If a dev server is now running, devops MUST call `announce_dev_server_url(url)` so the user's ShowcasePanel iframe can pick it up.
 
 If the sender is in `GENASIS.md § Human roster`, treat as **binding stakeholder requirement** — route immediately. Otherwise verify identity first (`QUESTION` label).
 

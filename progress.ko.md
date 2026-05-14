@@ -1053,6 +1053,32 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.12 — D-060 Task tool dispatch enforce + 추가 결함 D-061/D-062 발굴**. alpha.11 라이브에서 PM 이 카드만 만들고 frontend 호출 안 하는 D-060 증상 확인 → overlay + append_system_prompt 강제 조항 추가. 사용자 라이브 follow-up 으로 검증.
+
+  **D-060 — PM 이 create_issue 후 Task tool 로 sub-agent invoke 안 함**:
+  - 사용자가 "@pm — 카드 #327/#328/#329 를 frontend 에게 Task tool 로 디스패치해서 코드 작성 시작" 요청 직접 발송 → PM 이 정상 응답 + Frontend 호출 + **실제 코드 작성**.
+  - 산출물 (frontend agent 가 사용자 sandbox 안에 진짜 작성한 파일):
+    - `/work/agenteams/team-ex/alpha9-trial/agents-pool/trial-app/app/components/QuizApp.tsx` (503줄, "use client" + useReducer + mulberry32 seed + 3-screen 플로우)
+    - `/work/agenteams/team-ex/alpha9-trial/agents-pool/trial-app/lib/quiz-bank.ts` (423줄, 17개 질문 beginner/intermediate/advanced)
+  - 카드 #327/#328/#329 → inreview 로 transition. PM 의 wrap-up post (id=310) 가 산출물 경로 + 스코프 충족 항목 자세히 보고.
+  - **Fix bundle**:
+    - `agents/overlays/{en,ko}/pm.patch.md.tera` 의 §"요구사항 인테이크" Step 3 을 강제 조항으로 재작성 — "create_issue 다음엔 **반드시** Task tool 로 각 카드 assignee 를 invoke. 카드만 만들고 turn 종료 금지. 카드 1 개당 정확히 1 회 `Task(subagent_type=...)`. devops 가 dev server 띄우면 `announce_dev_server_url` 호출 필수."
+    - `session.rs::build_append_system_prompt` 에 별도 CRITICAL 블록 추가 — overlay 가 stale 인 환경에서도 system prompt 만으로 enforce.
+
+  **D-061 (Critical) — `genasis example prd` 가 생성하는 PRD §5 가 v0.5.x 시대 경로 가정**:
+  - PRD.md §5 본문: "The implementation lives inside the trial-app's source tree at `agents-pool/trial-app/app/components/QuizApp.tsx` … and `agents-pool/trial-app/lib/quiz-bank.ts`". 이건 운영자의 trial-app 본체 source tree path 를 가정. frontend agent 가 PRD 충실하게 따랐고 사용자 sandbox 안 `agents-pool/trial-app/...` subdir 에 그대로 작성. 하지만 그 경로엔 `package.json` / `next.config.js` 가 없어서 standalone Node project 가 아님 → `npm install` + `npm run dev` 가 가능한 위치가 아님 → dev server 안 뜸 → ShowcasePanel iframe `localhost:5173 refused to connect`.
+  - 근본 원인: v0.5.x 까지는 trial-app 호스팅 인스턴스가 `QuizApp.tsx` 를 hard-coded 으로 임포트해서 렌더링 → agentic team 이 trial-app 본체 PR 보내는 모델. v0.6.0 부턴 ShowcasePanel 의 LocalDevServerOrFallback 가 사용자 컴퓨터 localhost dev server 를 iframe 으로 받는 모델. **PRD template 이 새 모델과 불일치**.
+  - 다음 사이클 fix: `genasis example prd` template 을 수정. PRD §5 가 "사용자 sandbox 안에 standalone Next.js (또는 Vite) scaffold 생성 + dev server (예 `http://localhost:5173`) 띄움 + devops 가 `announce_dev_server_url` 호출" 모델로 재작성.
+
+  **D-062 — PM 이 frontend 완료 후 devops 호출 안 함**:
+  - alpha.12 검증 turn 에서 PM 이 frontend Task 까진 했지만 devops agent (`npm install` + `npm run dev` 책임) 호출 안 함. PM wrap-up: "다음 단계: QA 가 inreview 3건 검토 후 done 으로 이행." — dev server / devops 부재.
+  - overlay 의 §"배포 (DEPLOY 결정)" 조항이 색상 변경 vs 코드 변경 분기를 명시하지만 PM 이 자동 실행 안 함. D-060 fix 흐름에 devops 호출 강제 1조항 추가 (D-060 fix 안에 포함됨 — `announce_dev_server_url` 필수 명시).
+  - 다음 사이클 검증: PRD §5 fix (D-061) 후 frontend → devops 자동 흐름이 실제 도는지 라이브 확인.
+
+  **D-063 — `set_app_features([])` 가 LRU-append 시맨틱이라 reset 안 됨**:
+  - PM 이 이전 잘못된 `["dark-mode","i18n"]` 을 비우려 `set_app_features({features:[]})` 호출했지만 trial-app 백엔드의 처리 시맨틱이 LRU-append 라서 빈 배열이 노op 처럼 동작. `/api/trial/team-app/status` 응답에 `["dark-mode","i18n"]` 그대로 남음.
+  - 우선순위 낮음 (시각적 우선순위는 "가장 최근 set" 이라 ShowcasePanel 렌더에 영향 작음). trial-app 백엔드에 명시적 reset 엔드포인트 추가 또는 features 빈 배열 시 DELETE 시맨틱으로 보정 필요. 다음 사이클 잡일.
+
 - 2026-05-14: **v0.6.0-alpha.11 — D-059 `bypassPermissions` hotfix**. alpha.10 ship 직후 사용자 라이브 검증에서 새로운 blocker 발견.
 
   **D-059 (Critical) — PM 이 MCP tool 호출 권한을 거부당해서 chat 패널에 답 못 함**:

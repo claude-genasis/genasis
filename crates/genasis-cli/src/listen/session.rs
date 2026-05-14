@@ -350,10 +350,20 @@ Runtime context:
 - MCP servers available: trial-app (if trial) | mattermost+plane (if real)
 
 When a human posts a message, follow the protocol in .claude/agents/pm.md
-(MCP tool calls, not marker text). Use the Task tool to invoke sub-agents
-defined in .claude/agents/<role>.md. Sub-agents inherit MCP servers and
-should call mcp__<server>__<tool> directly — do not emit [CARD: ...] or
-similar v0.5.x markers in chat text."#,
+(MCP tool calls, not marker text).
+
+CRITICAL (D-060): after you create kanban cards with `create_issue`, you
+MUST immediately invoke the assignee role of each card via the `Task`
+tool in the same turn. Do NOT end the turn after merely creating cards —
+that leaves the user staring at "in progress" cards while no agent is
+actually working. Dispatch the cards in the same turn so frontend /
+backend / designer / qa / devops can start their work. When a dev
+server is running, devops MUST call `announce_dev_server_url(url)`
+so the user's ShowcasePanel iframe picks it up.
+
+Sub-agents inherit MCP servers and should call mcp__<server>__<tool>
+directly — do not emit [CARD: ...] or similar v0.5.x markers in chat
+text."#,
         flavor = flavor,
         project_name = project_name,
         project_slug = project_slug,

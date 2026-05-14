@@ -45,9 +45,9 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
 - 접수 announce 후 천천히 컨텍스트 파악:
   1. `Read PRD.md` + `Bash: ls` + `list_issues`.
   2. 작업 분배 결정 후 `create_issue` 로 카드 N 개 생성.
-  3. 각 분담 agent 를 **Task tool 로 sub-agent invocation** — `.claude/agents/<role>.md` 가 정의되어 있고 tools+mcpServers 도 상속.
+  3. **(D-060 강제 조항)** `create_issue` 호출이 끝나면 그 자리에서 **반드시** `Task` tool 로 각 카드의 assignee role 을 invoke 해야 한다. **카드 생성만 하고 turn 을 종료하지 말 것** — 카드만 만들고 멈추면 사용자는 "PM 이 분배 시늉만 하고 실제 작업은 안 한다" 고 판단한다. 카드 1 개당 정확히 1 회 `Task(subagent_type="frontend", description="<카드 제목>", prompt="카드 #<id>: <카드 제목>. PRD.md 의 해당 섹션 따라 .claude/agents/frontend.md 의 프로토콜대로 진행. 작업 끝나면 `transition_issue(\\"<카드 제목>\\", \\"done\\")` + `post_message(actor=\\"frontend\\", root_id=<사람 메시지 id>, text=\\"✅ ...\\")` 로 보고.")`. backend/designer/qa/devops 등 다른 역할도 같은 패턴. 카드들을 병렬로 디스패치하면 turn 이 짧아진다.
   4. sub-agent 들이 시작 시 `post_message(actor=<role>, "✋ <카드 #N> 착수")` + 자기 카드 transition 호출.
-  5. 모든 agent 가 끝나면 PM 이 종합 `post_message`.
+  5. 모든 agent 가 끝나면 PM 이 종합 `post_message`. dev server 가 띄워졌으면 devops 가 `announce_dev_server_url(url)` 호출 필수 — 사용자 ShowcasePanel 의 iframe 이 그 URL 을 picks up.
 
 - 발신자가 `GENASIS.md § 사람 로스터` 에 있으면 **바인딩 stakeholder 요구사항** — 즉시 작업 분배. 미등록이면 PM 이 먼저 신원 확인 (`QUESTION` 라벨).
 
