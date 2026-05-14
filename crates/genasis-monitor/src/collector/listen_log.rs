@@ -115,23 +115,35 @@ fn reformat_with_local_time(line: &str) -> String {
 
 /// Strip ANSI escape sequences (the daemon writes `tracing` colour
 /// codes that would otherwise render as garbage in the TUI).
+///
+/// D-103: iterate by `char`, not by `byte`. The previous implementation
+/// did `out.push(bytes[i] as char)` which casts one UTF-8 byte to a
+/// Latin-1 codepoint, splitting every Korean glyph (3 bytes) into
+/// three nonsense Latin-1 chars. End result was widget rows like
+/// "ëŠ 01분ï[pm]" instead of "08:01  [pm]" — exactly the mojibake the
+/// user reported in their monitor screenshot. Iterating by `char` is
+/// both UTF-8 safe and lets the alphabetic-check below work on the
+/// real terminator character rather than a single byte.
 fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == 0x1B && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-            i += 2;
-            while i < bytes.len() && !(bytes[i] as char).is_alphabetic() {
-                i += 1;
-            }
-            if i < bytes.len() {
-                i += 1;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1B' && chars.peek() == Some(&'[') {
+            chars.next(); // consume '['
+            // Consume parameter bytes until we hit the terminator
+            // (any alphabetic char). Non-alphabetic Korean chars are
+            // safe to pass through here because ANSI param bytes are
+            // always ASCII 0x30..=0x3F per ECMA-48.
+            while let Some(&p) = chars.peek() {
+                if p.is_alphabetic() {
+                    chars.next(); // consume terminator
+                    break;
+                }
+                chars.next();
             }
             continue;
         }
-        out.push(bytes[i] as char);
-        i += 1;
+        out.push(c);
     }
     out
 }
