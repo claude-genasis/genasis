@@ -22,6 +22,7 @@ mod cmd_upgrade;
 mod cmd_version;
 mod lang_prompt;
 mod listen;
+mod mcp_bundle;
 mod tui_attach;
 
 #[derive(Parser)]

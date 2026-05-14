@@ -132,22 +132,21 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
         .as_ref()
         .map(|t| t.url.clone())
         .unwrap_or_default();
-    let mcp_server_dir = std::env::var("GENASIS_MCP_SERVER_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(|p| p.parent())
-                .map(|p| p.join("mcp-servers"))
-                .unwrap_or_else(|| std::path::PathBuf::from("mcp-servers"))
-        });
+    // D-057: bundled MCP server + SDK runtime unpack. release 바이너리는 CI
+    // 머신 경로 (`/home/runner/...`) 가 박힌 채 ship 되고, 사용자 머신엔
+    // `@modelcontextprotocol/sdk` 도 보통 글로벌 설치 안 되어 있다 → 두
+    // 문제를 mcp_bundle 이 한 번에 해결. 첫 호출에서 `~/.cache/genasis/`
+    // 에 .mjs 임베드 본문을 풀고 `npm install` 로 SDK 도 받아둔다.
+    let mcp_bundle = crate::mcp_bundle::ensure_mcp_servers()
+        .context("preparing bundled MCP server scripts + SDK runtime")?;
 
     let project_root_owned = project_root.to_path_buf();
     let project_slug = cfg.project_slug.clone();
     let project_name = cfg.project_name.clone();
     let flavor_owned = flavor.to_string();
     let trial_url_owned = trial_url;
-    let mcp_dir_owned = mcp_server_dir;
+    let mcp_dir_owned = mcp_bundle.server_dir;
+    let node_modules_owned = mcp_bundle.node_modules;
 
     let factory: SessionFactory = Box::new(move |team_token: &str| {
         let project_root = project_root_owned.clone();
@@ -156,6 +155,7 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
         let flavor = flavor_owned.clone();
         let trial_url = trial_url_owned.clone();
         let mcp_dir = mcp_dir_owned.clone();
+        let node_modules = node_modules_owned.clone();
         let team_token = team_token.to_string();
         Box::pin(async move {
             let mcp_config = session::build_mcp_config(
@@ -165,6 +165,7 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
                 &project_slug,
                 &project_name,
                 &mcp_dir,
+                &node_modules,
             );
             let append = session::build_append_system_prompt(
                 &flavor,

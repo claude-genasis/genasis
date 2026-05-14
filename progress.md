@@ -886,6 +886,33 @@ acceptance criterion in `trial-app/ralph/prd.json` US-001..US-022.
 - 2026-05-10: **Human roster provisioning — humans as first-class team members (ADR-014)**. Until now `genasis init` / `bootstrap` only auto-provisioned the ten agent bot accounts; humans had to sign up separately, breaking both the "turnkey bootstrap" and "human/agent symmetry" missions. Added `genasis-core::config::HumanEntry` + a `[[humans]]` array in `genasis.toml`, with provisioning side-effects (Mattermost user_id, Plane user_id, temporary password) carved out into `.genasis/humans.lock.toml`. New trait method `MattermostProvider::ensure_human_user(spec, team_id)` with an upstream admin-create implementation (24-char high-entropy temp password covering Mattermost's strictest policy, force-change on first login, idempotent on email). Extended `provision-plane-users.mjs` `ProvisionInput` with `humans: HumanRequest[]` (Playwright UI is still a stub but echoes the humans payload). New CLI `genasis humans add | edit | remove | list | sync`; `cmd_init` now auto-runs `humans sync` when `[[humans]]` is non-empty (failures warn but do not fail init). TUI wizard grew from 6 to 7 steps (Env→Lang→Team→Connect→**Humans**→Overlay→Done) with `a / e / d / s / Enter` for add/edit/delete/sync/advance and a 5-field form modal; re-running the wizard reloads `[[humans]]` for in-place editing ("rerun is the editor"). `agents/GENASIS.md.tera` gains `## Human Roster` table and `### Requirement intake protocol` (registered = binding stakeholder, unregistered = `QUESTION` label + PM verification, bots = existing agent-to-agent flow); `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) and `commands/check-inbox.md.tera` mirror the protocol. ADR-014 written in EN/KO. New unit tests: `HumansLock` round-trip, upsert case-insensitive match, `derive_mm_username` normalisation, cmd_humans `truncate` / `now_iso`. `cargo test --workspace --lib` green. Out of scope (deferred to v2): invite-email mode for SMTP-enabled environments, Plane Playwright UI port to land real user_ids, OAuth/SSO integration.
 
 - 2026-05-10: **Trial bridge config SSOT cleanup (ADR-013)**. The previous code defined the `[trial]` section but never read it; routing actually used `[plane].url` / `[mattermost].url` plus `MM_ADMIN_TOKEN` / `PLANE_API_KEY` env vars, so `[trial].enabled = false` could not actually disable the bridge and `[trial].url` edits were silently ignored. Added `Option<&TrialConfig>` to `mattermost::factory::build()` / `plane::factory::build()`; trial flavor now sources URL + secret from `[trial]` and rejects `enabled = false`. Added `Config::validate_trial()` for cross-section enforcement at load time. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` skip the admin env-var requirement under trial flavor. New unit tests ×10 (factory `build_trial_*`, `validate_trial_*`) + integration `tests/trial_factory_e2e.rs` ×3 (2 `#[ignore]`-marked E2E + 1 negative-path). ADR-013 written in EN/KO. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.10 — D-057 MCP path baking hotfix + D-058 monitor `--project` flag**. Two blockers found via post-alpha.9 self-test + user chat reproduction, hotfixed in one cycle.
+
+  **D-057 (Critical) — MCP server path baked to CI machine**:
+  - daemon log showed `claude` argv with `"args":["/home/runner/work/genasis/genasis/mcp-servers/trial-app/index.mjs"]` — the GitHub Actions build path.
+  - Cause: `cmd_listen.rs` default `mcp_server_dir` came from `env!("CARGO_MANIFEST_DIR")`, which is resolved **at compile time**. release musl binaries shipped with `/home/runner/work/genasis/genasis/...` baked in → user machines don't have that path → `node` fails with `Cannot find module` → claude session never registers `mcp__trial-app__*` tools → PM has no way to post back to the user.
+  - Secondary problem: if the user hasn't `npm install -g @modelcontextprotocol/sdk`, NODE_PATH points somewhere without the SDK and the MCP server fails for the same reason.
+  - Fix — new `crates/genasis-cli/src/mcp_bundle.rs`:
+    - Embeds each MCP server's `index.mjs` into the binary via `include_str!` (~30KB total).
+    - On first call, unpacks to `~/.cache/genasis/mcp-servers/<name>/index.mjs` (skips when sha256 matches).
+    - Writes a `package.json` in the same cache root and runs `npm install --prefix <cache>` to fetch `@modelcontextprotocol/sdk` (once; subsequent calls skip).
+    - Returns `McpBundle { server_dir, node_modules }`.
+  - `build_mcp_config` signature gains `node_modules: &Path`. NODE_PATH is now pinned to the cache's `node_modules` (previously came from `npm root -g`).
+  - `GENASIS_MCP_SERVER_DIR` env still overrides for dev / debug.
+  - Local release smoke: `~/.cache/genasis/mcp-servers/` populated by npm install (~10s), claude session init log shows `mcp_servers=["trial-app", ...]`, node MCP child process visible, user message answered in 3 s (`session turn complete success=true duration_ms=2999`).
+  - Known follow-up (D-059): PM emits the response only as `assistant text` and never calls `mcp__trial-app__post_message`, so the chat panel still doesn't show the reply. The overlay's 5-second ack rule isn't enforced in practice — next cycle to track.
+
+  **D-058 — `genasis monitor` empty when run from the wrong directory**:
+  - User ran `genasis monitor` from `/work/agenteams/team-ex` → every widget empty (Sprint Todo:0 In:0 Review:0 Done:0, Agents "no agent activity collected", Log "no log lines yet"), even though the live trial-app shows 4 cards + 2 chat messages.
+  - Cause: `monitor::app::run` calls `Config::discover` against `std::env::current_dir()`. discover only walks up — never down — so the testbed root, which doesn't itself contain `genasis.toml`, silently early-returns from `load_trial_config`. trial_mode stays false and all trial widgets render empty.
+  - Fix:
+    - `cmd_monitor::Args` gains `--project <DIR>` flag.
+    - `monitor::app::run(project_root: Option<PathBuf>)`; when Some, discover walks up from there.
+    - When discover fails, push a clear hint to `state.log_tail` + new `state.config_hint` field: "⚠ genasis.toml not found walking up from ... Run `genasis monitor` inside your project sandbox, or pass `--project <dir>`."
+    - `AppState` gets `pub config_hint: Option<String>`.
+
+  **Build verification**: `cargo build --workspace` 0 errors, `cargo fmt --check` clean, end-to-end smoke confirmed daemon → MCP child → claude session init → tool registration → PM reply turn.
+
 - 2026-05-14: **v0.6.0-alpha.9 — D-054 cleanup + beta real MCP servers + M-v6.0.4 multi-team session map**. Three pending items from alpha.8 shipped in one cycle.
 
   **D-054 cleanup — simulation-era residue removed**:

@@ -8,6 +8,7 @@
 //! - Render: every 250ms
 
 use std::io;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -32,7 +33,7 @@ const JSONL_TICK: Duration = Duration::from_secs(60);
 const PORT_TICK: Duration = Duration::from_secs(5);
 const TRIAL_TICK: Duration = Duration::from_secs(5);
 
-pub async fn run() -> Result<()> {
+pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
     let mut state = AppState::default();
 
     // Load configuration from env
@@ -49,10 +50,9 @@ pub async fn run() -> Result<()> {
     // Load design state
     state.design = load_design_state();
 
-    // D-025: Load `genasis.toml` and detect trial flavor so the
-    // run-loop can populate the sprint / agents / log-tail widgets
-    // from the trial-app's sim endpoints.
-    load_trial_config(&mut state);
+    // D-025 + D-058: Load `genasis.toml`. project_root 가 명시적이면 그
+    // 디렉터리부터 walk-up 검색 (--project flag), 없으면 cwd.
+    load_trial_config(&mut state, project_root.as_deref());
 
     // Initial data collection
     collect_sessions(&mut state);
@@ -242,14 +242,28 @@ fn collect_ports(state: &mut AppState) {
 /// `AppState`. Best-effort — when no config exists or trial is not
 /// configured, leaves `trial_mode = false` so the run-loop skips the
 /// trial collector entirely.
-fn load_trial_config(state: &mut AppState) {
-    let cwd = match std::env::current_dir() {
-        Ok(p) => p,
-        Err(_) => return,
+fn load_trial_config(state: &mut AppState, project_root: Option<&Path>) {
+    let start = match project_root {
+        Some(p) => p.to_path_buf(),
+        None => match std::env::current_dir() {
+            Ok(p) => p,
+            Err(_) => return,
+        },
     };
-    let cfg_path = match Config::discover(&cwd) {
+    let cfg_path = match Config::discover(&start) {
         Some(p) => p,
-        None => return,
+        None => {
+            // D-058: 사용자에게 명확한 hint — silently 빈 widget 으로
+            // 끝나지 않도록 log_tail 에 한 줄 남기고 state.config_hint 에도
+            // 보관 (Log widget 이 두 source 다 노출).
+            let hint = format!(
+                "⚠ genasis.toml not found walking up from {}. Run `genasis monitor` inside your project sandbox, or pass `--project <dir>`.",
+                start.display()
+            );
+            state.log_tail.push(hint.clone());
+            state.config_hint = Some(hint);
+            return;
+        }
     };
     let mut cfg = match Config::load(&cfg_path) {
         Ok(c) => c,

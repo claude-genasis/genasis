@@ -219,6 +219,7 @@ pub fn build_mcp_config(
     project_slug: &str,
     project_name: &str,
     mcp_server_dir: &Path,
+    node_modules: &Path,
 ) -> serde_json::Value {
     let channel_name = format!("scrum-{}", project_slug);
     let trial_index = mcp_server_dir
@@ -227,19 +228,13 @@ pub fn build_mcp_config(
         .display()
         .to_string();
     let mut servers = serde_json::Map::new();
-    // D-052: NODE_PATH 자동 탐지 — 사용자별로 npm root -g 결과가 다름.
-    // GENASIS_NODE_PATH env 가 있으면 override, 없으면 `npm root -g`
-    // 호출. 실패 시 마지막 fallback default.
-    let node_path = std::env::var("GENASIS_NODE_PATH").unwrap_or_else(|_| {
-        std::process::Command::new("npm")
-            .args(["root", "-g"])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "/usr/lib/node_modules".to_string())
-    });
+    // D-057: NODE_PATH 는 mcp_bundle 이 만든 cache 의 node_modules 를 사용.
+    // GENASIS_NODE_PATH env override 는 유지 (디버깅 / 자체 npm 설치 환경).
+    // 이전엔 `npm root -g` 였지만 사용자가 `@modelcontextprotocol/sdk` 를
+    // 글로벌 설치하지 않은 경우 SDK 가 안 잡혔다 — D-057 가 cache 디렉터리
+    // 안에 lazy npm install 로 SDK 를 받아두므로 그 경로를 우선 사용.
+    let node_path =
+        std::env::var("GENASIS_NODE_PATH").unwrap_or_else(|_| node_modules.display().to_string());
     if flavor == "trial" || flavor == "auto" {
         servers.insert(
             "trial-app".to_string(),

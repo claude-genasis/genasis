@@ -83,6 +83,9 @@ pub struct AppState {
     /// which showcase the agents have published.
     pub trial_app_kind: String,
     pub trial_app_features: Vec<String>,
+    /// D-058: 사용자가 잘못된 디렉터리에서 `genasis monitor` 를 실행해
+    /// `genasis.toml` 을 못 찾았을 때 띄울 가이드 (banner / log_tail).
+    pub config_hint: Option<String>,
 }
 
 /// Snapshot of the active design system.

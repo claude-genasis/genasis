@@ -1053,6 +1053,33 @@ PRD: `agents-pool/prd/trial-webapp.md` (v2). 22개 user story 모두 `passes: tr
 - 2026-05-10: **사람 로스터 프로비저닝 — 사람을 일급 팀원으로 (ADR-014)**. 기존 `genasis init`/`bootstrap`은 에이전트 봇 계정 10개만 자동 생성하고 사람은 별도 가입이 필요했음 → "turnkey bootstrap" + "사람-에이전트 대칭" 미션 위배. `genasis-core::config::HumanEntry` + `[[humans]]` 배열 도입, `.genasis/humans.lock.toml` (Mattermost user_id, Plane user_id, 임시 비번) 분리. `MattermostProvider::ensure_human_user(spec, team_id)` 트레잇 메서드 + 업스트림 admin-create 구현 (24자 고엔트로피 임시 비번 + 첫 로그인 시 변경 강제, idempotent on email). `provision-plane-users.mjs`의 `ProvisionInput`에 `humans: HumanRequest[]` 추가 (Playwright 자동화는 stub 유지 + humans echo). `genasis humans add | edit | remove | list | sync` CRUD CLI 신설, `cmd_init`이 `[[humans]]` 비어있지 않으면 자동 sync 호출 (실패는 warning, init 자체는 성공). TUI wizard 6단계 → 7단계 (Env→Lang→Team→Connect→**Humans**→Overlay→Done), `a/e/d/s/Enter` 키로 add/edit/delete/sync/advance + 5필드 form 모달, wizard 재실행 시 `[[humans]]` 자동 로드해 in-place 편집 ("rerun is the editor"). `agents/GENASIS.md.tera`에 `## 사람 로스터` 표 + `### 요구사항 수신 프로토콜` (등록자 = binding stakeholder, 미등록자 = QUESTION 라벨 + PM 검증, 봇 = 기존 에이전트-에이전트). `pm.patch.md.tera` / `planner.patch.md.tera` (en/ko) + `commands/check-inbox.md.tera`도 동일 프로토콜 mirror. ADR-014 EN/KO 작성. 신규 단위 테스트: HumansLock 라운드트립, upsert 케이스 무시 매칭, derive_mm_username 정상화, cmd_humans truncate/now_iso. `cargo test --workspace --lib` 통과. 미구현으로 남기는 영역: invite-email 모드 (SMTP 활성 환경 대상, v2), Plane Playwright UI 포트로 실제 user_id 연결, OAuth/SSO 인테그레이션.
 
 - 2026-05-10: **Trial 브릿지 설정 SSOT 정리 (ADR-013)**. 기존 코드는 `[trial]` 섹션을 정의만 해두고 실제 라우팅에는 `[plane].url` / `[mattermost].url` + `MM_ADMIN_TOKEN` / `PLANE_API_KEY` 환경변수를 사용해, `[trial].enabled = false`로 trial-app을 끌 수 없거나 `[trial].url` 변경이 무시되는 등 죽은 설정 문제. `mattermost::factory::build()` / `plane::factory::build()` 시그니처에 `Option<&TrialConfig>` 추가, `flavor = Trial`일 때 `[trial].url` / `[trial].shared_secret` 사용 + `enabled = true` 강제. `Config::load()`에 `validate_trial()` cross-section 검증 추가. `cmd_init` / `cmd_mm` / `cmd_plane` / `cmd_humans` 모두 trial flavor에서 admin 환경변수 요구 면제. 신규 단위 테스트 10개 (factory build_trial_*, validate_trial_*) + integration `tests/trial_factory_e2e.rs` 3개(2개 #[ignore]ed E2E + 1개 negative path). ADR-013 EN/KO 양쪽 작성. `cargo test --workspace` 245 passed, 4 ignored.
+- 2026-05-14: **v0.6.0-alpha.10 — D-057 MCP path baking hotfix + D-058 monitor `--project` flag**. alpha.9 ship 직후 자가테스트 + 사용자 채팅에서 두 가지 blocker 발견 → 한 사이클에 hotfix.
+
+  **D-057 (Critical) — MCP server 경로가 CI 머신 경로로 박혀 사용자 환경에서 안 떴다**:
+  - daemon log 의 `claude` argv 에 `"args":["/home/runner/work/genasis/genasis/mcp-servers/trial-app/index.mjs"]` — release CI 머신의 경로.
+  - 원인: `cmd_listen.rs` 의 default mcp_server_dir 가 `env!("CARGO_MANIFEST_DIR")` 였는데, 이 매크로는 **컴파일 타임** 의 manifest 경로를 박는다. release 바이너리는 GitHub Actions 의 `/home/runner/work/genasis/genasis/...` 가 박힌 채 ship 된다 → 사용자 머신엔 그 경로 없음 → `node` 가 `Cannot find module` 으로 실패 → claude session 의 `mcp__trial-app__*` tool 미등록 → PM 이 사용자에게 답할 수단 자체가 사라짐.
+  - 추가 문제: 사용자가 `@modelcontextprotocol/sdk` 를 npm-global 에 설치 안 한 경우 NODE_PATH 가 가리키는 곳에 SDK 가 없어서 같은 증상.
+  - Fix — 신규 `crates/genasis-cli/src/mcp_bundle.rs`:
+    - 3 개 MCP server 의 `index.mjs` 본문을 `include_str!` 로 바이너리에 임베드 (총 ~30KB)
+    - 첫 호출 때 `~/.cache/genasis/mcp-servers/<name>/index.mjs` 로 unpack (sha256 hash 일치하면 skip)
+    - 같은 cache 디렉터리에 `package.json` 작성 + `npm install --prefix <cache>` 로 `@modelcontextprotocol/sdk` 받기 (첫 호출만, 그 후 skip)
+    - `McpBundle { server_dir, node_modules }` 반환
+  - `build_mcp_config` 시그니처에 `node_modules: &Path` 추가 — NODE_PATH 를 cache 의 node_modules 로 고정 (이전엔 `npm root -g` 였음).
+  - `GENASIS_MCP_SERVER_DIR` env 는 여전히 override 로 동작 (개발 / 디버깅).
+  - 로컬 release 빌드 smoke: `~/.cache/genasis/mcp-servers/` 에 npm install 정상 (~10s), claude session init log 에 `mcp_servers=["trial-app", ...]` 등장, node MCP child PID spawn 확인, 사용자 메시지 받은 후 3 초 만에 PM 응답 (`session turn complete success=true duration_ms=2999`).
+  - 남은 후속 (D-058 별개): PM 이 응답 텍스트를 assistant text 로만 emit 하고 `mcp__trial-app__post_message` 호출은 안 함 — chat 패널에 안 보임. overlay 의 5초 ack rule 가 실제로 enforce 안 됨. 다음 사이클에서 D-059 로 추적.
+
+  **D-058 — `genasis monitor` 가 잘못된 디렉터리에서 실행되면 모든 widget 이 빈 상태**:
+  - 사용자가 `/work/agenteams/team-ex` 에서 `genasis monitor` 실행 → Sprint Todo:0 In:0 Review:0 Done:0, Agents "no agent activity collected", Log "no log lines yet". 실제 라이브 trial-app 은 카드 4 + 채팅 2 가 보임.
+  - 원인: `monitor::app::run` 가 `std::env::current_dir()` 에서 `Config::discover` 호출 → walk-up 으로만 검색 → testbed 루트엔 `genasis.toml` 없음 → silently `load_trial_config` 가 early return → trial_mode=false → 모든 trial widget 빈 상태.
+  - Fix:
+    - `cmd_monitor::Args` 에 `--project <DIR>` flag 추가.
+    - `monitor::app::run(project_root: Option<PathBuf>)` 시그니처 — Some(p) 이면 그 디렉터리부터 walk-up 검색.
+    - 검색 실패 시 silently early-return 대신 `state.config_hint` + `state.log_tail` 에 명확한 hint ("⚠ genasis.toml not found walking up from ... Run `genasis monitor` inside your project sandbox, or pass `--project <dir>`.") 푸시.
+    - `AppState` 에 `pub config_hint: Option<String>` 추가.
+
+  **빌드 검증**: `cargo build --workspace` 0 errors, `cargo fmt --check` clean, smoke test 으로 daemon → MCP child → claude session init → tool 등록 → PM 응답 turn 전체 통과.
+
 - 2026-05-14: **v0.6.0-alpha.9 — D-054 마무리 + beta real MCP server + M-v6.0.4 multi-team session map**. alpha.8 이후 남아 있던 세 가지 pending 작업을 한 사이클에 ship.
 
   **D-054 마무리 — 시뮬레이션 시대 잔재 제거**:
