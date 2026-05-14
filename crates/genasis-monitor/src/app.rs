@@ -210,20 +210,16 @@ async fn run_loop<B: ratatui::backend::Backend>(
 }
 
 fn collect_sessions(state: &mut AppState) {
-    // D-073: prefer the discovered sandbox over cwd. When neither yields
-    // a real project dir, hand an empty path so detect_sessions's relaxed
-    // filter shows every running claude session — the operator wants to
-    // see "what's running on my box" rather than a silent "0 sessions".
-    let project_root = state
-        .project_root
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-    let project_name = project_root
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("project");
-    let wt_prefix = format!("/tmp/{}-", project_name);
-
+    // D-084: operator wants to see "every claude on this box" — not
+    // just the children of the discovered sandbox. Previously we passed
+    // state.project_root, which made is_project_path_relaxed take the
+    // strict-filter branch and drop vscode-server's master claude and
+    // any other unrelated session. We pass an empty path so the relaxed
+    // filter returns "show everything". project_root is still tracked
+    // on AppState for the listen.log collector (D-065) which uses it
+    // for the daemon log path, not for session filtering.
+    let project_root = std::path::PathBuf::new();
+    let wt_prefix = String::new();
     state.sessions = collector::sessions::detect_sessions(&project_root, &wt_prefix);
 
     for session in &mut state.sessions {
@@ -417,13 +413,30 @@ async fn collect_trial(state: &mut AppState) {
             refresh_trial_network_counters(state, issues_total, posts_total);
             state.sprint = s.sprint;
             state.agent_issues = s.agent_issues;
-            state.log_tail = s.log_tail;
+            // D-084: DO NOT overwrite state.log_tail wholesale here —
+            // listen_log collector pushes daemon events with HH:MM
+            // prefix into log_tail, and our previous `state.log_tail =
+            // s.log_tail` clobbered them every 5 s with sim_posts lines
+            // that have no timestamp. Now we merge: trial chat lines
+            // get the same HH:MM prefix (current local clock) and are
+            // appended, then we cap at 200 keeping newest entries.
+            let now_hm = chrono::Local::now().format("%H:%M").to_string();
+            for line in &s.log_tail {
+                if !state.log_tail.iter().any(|existing| existing.ends_with(line)) {
+                    state.log_tail.push(format!("{now_hm}  {line}"));
+                }
+            }
+            if state.log_tail.len() > 200 {
+                let overflow = state.log_tail.len() - 200;
+                state.log_tail.drain(..overflow);
+            }
             state.trial_app_kind = s.app_kind;
             state.trial_app_features = s.app_features;
             state.last_plane_poll = now;
         }
         Err(e) => {
-            state.log_tail.push(format!("(trial poll error: {e})"));
+            let now_hm = chrono::Local::now().format("%H:%M").to_string();
+            state.log_tail.push(format!("{now_hm}  (trial poll error: {e})"));
             if state.log_tail.len() > 200 {
                 let overflow = state.log_tail.len() - 200;
                 state.log_tail.drain(..overflow);
