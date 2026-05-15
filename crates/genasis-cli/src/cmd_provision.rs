@@ -26,6 +26,9 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::{Confirm, Input, MultiSelect};
+
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 

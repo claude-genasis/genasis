@@ -84,19 +84,42 @@ The command ends with a copy-friendly summary that prints the **team token** (32
 genasis example prd
 ```
 
-**4. Start your agentic team**
+**4. Publish to the showcase** — flips the trial-app's `app_status`
+to `complete` so the left-edge "결과보기" handle activates. Without
+this step the panel stays grayed out as "준비중" even after the
+agents finish their work.
 
 ```bash
-genasis init
+genasis publish
 ```
 
-**5. Monitor the sprint**
+**5. Start the reactive daemon** — subscribes to the trial-app SSE
+stream and spawns a Claude session whenever a human posts a chat
+message. The `--trial` flag is required so the daemon talks to the
+trial-app sim, not real Plane/Mattermost.
+
+```bash
+genasis listen start --trial
+```
+
+**6. Watch the sprint** (optional)
 
 ```bash
 genasis monitor
 ```
 
-> **🔍 Final sanity check** — refresh the Live Trial URL. After `genasis publish` (the last thing `genasis init` runs in trial mode) the kanban should show **5 cards total** (2 in Done including `🎉 Example app published`, 1 in In Progress, 1 in Todo) and the chat panel should show **2 messages** (init welcome + build-complete). The phone-frame icon (📱 "에이전트가 만든 앱 보기" / "View the app the agents built") becomes clickable and opens the showcase panel. If you saw the empty-state at step 2 and decided to skip the local-docker workaround, kanban + chat are expected to still be empty here — only the showcase handle activates because `app_status` flipped to `complete` regardless of seeding.
+> **🔍 Final sanity check** — refresh the Live Trial URL after step 4.
+> The kanban should show **5 cards total** (2 in Done including `🎉 Example
+> app published`, 1 in In Progress, 1 in Todo) and the chat panel should
+> show **2 messages** (init welcome + build-complete). The phone-frame
+> icon (📱 "에이전트가 만든 앱 보기" / "View the app the agents built")
+> becomes clickable and opens the showcase panel. If you saw the
+> empty-state at step 2 and decided to skip the local-docker workaround,
+> kanban + chat are expected to still be empty — only the showcase
+> handle activates because `app_status` flipped to `complete` regardless
+> of seeding. Type into the chat panel to trigger the daemon you started
+> in step 5; you should see PM / frontend / devops agents reply within
+> a minute.
 
 That's it. Your agentic team just ran a sprint from PRD to code.
 For hands-on exercises (design swap, PRD expansion, adding agents),
@@ -359,6 +382,46 @@ genasis debug status           # local drift summary
 genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
+
+## Troubleshooting
+
+### "결과보기" 핸들이 "준비중" 으로만 보임
+
+`genasis publish` (Quick Path step 4) 가 실행되지 않은 상태. 트라이얼
+team 의 `app_status` 가 `complete` 가 되면 핸들이 활성됩니다. 사용자
+sandbox 디렉터리로 이동 후:
+
+```bash
+cd <your-project-dir>
+genasis publish
+```
+
+새로고침하면 "결과보기" 로 바뀜.
+
+### 채팅에 메시지 보내도 응답이 오지 않음 / 칸반에도 안 보임
+
+세 가지 가능성을 순서대로 확인:
+
+1. **데몬이 떠 있나?**
+   ```bash
+   genasis listen status
+   # "실행 중 (PID NNN)" 이 나와야 함. 아니면:
+   cd <your-project-dir>
+   genasis listen start --trial
+   ```
+2. **데몬이 최신 binary 인가?** install.sh 의 캐시 / 옛 경로 이슈로
+   alpha.25 같은 옛 버전이 떠 있을 수 있음.
+   ```bash
+   /home/$USER/.local/bin/genasis --version
+   # alpha.30 이상이어야 함. 아니면 install.sh 재실행:
+   bash <(curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh)
+   genasis listen restart --trial
+   ```
+3. **운영자 인스턴스가 살아 있나?**
+   ```bash
+   curl -sS -o /dev/null -w "%{http_code}\n" https://mmplane-trial.realstory.blog/
+   # 200 이 안 나오면 운영자에게 문의.
+   ```
 
 ## Known limitations (v0.5.20)
 

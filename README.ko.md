@@ -84,19 +84,37 @@ genasis init --trial --name "Marketing Squad"
 genasis example prd
 ```
 
-**4. 에이전트 팀 가동**
+**4. 쇼케이스 활성화** — trial-app 의 `app_status` 를 `complete` 로
+바꿔서 좌측 가장자리 "결과보기" 핸들이 활성화됩니다. 이 단계 누락하면
+에이전트가 작업을 끝내도 패널이 회색 "준비중" 으로만 보입니다.
 
 ```bash
-genasis init
+genasis publish
 ```
 
-**5. 스프린트 모니터링**
+**5. Reactive 데몬 가동** — trial-app SSE 를 구독해서 사용자가 채팅
+패널에 메시지 입력할 때마다 Claude 세션을 spawn 합니다. `--trial`
+플래그 필수 (real Plane/MM 대신 trial-app sim 을 보도록).
+
+```bash
+genasis listen start --trial
+```
+
+**6. 스프린트 모니터링** (선택)
 
 ```bash
 genasis monitor
 ```
 
-> **🔍 최종 점검** — Live Trial URL 을 다시 새로고침. trial 모드의 `genasis init` 끝에서 `genasis publish` 가 자동 실행됐으므로 칸반에 **총 5 개 카드** (Done 2 개, `🎉 Example app published` 포함 / In Progress 1 / Todo 1) + 채팅에 **2 개 메시지** (init 환영 + 빌드 완료) 가 보여야 정상입니다. 휴대폰 아이콘 (📱 "에이전트가 만든 앱 보기") 이 클릭 가능 상태로 바뀌고 누르면 쇼케이스 패널이 펼쳐집니다. step 2 의 점검 단계에서 비어있는 상태였고 로컬 docker 회피를 건너뛴 경우, 여기서도 칸반·채팅은 비어있는 게 정상 — `app_status` 만 `complete` 로 flip 돼서 쇼케이스 핸들만 활성됩니다.
+> **🔍 최종 점검** — step 4 후 Live Trial URL 새로고침. 칸반에 **총
+> 5 개 카드** (Done 2 개, `🎉 Example app published` 포함 / In Progress 1
+> / Todo 1), 채팅에 **2 개 메시지** (init 환영 + 빌드 완료). 휴대폰
+> 아이콘 (📱 "에이전트가 만든 앱 보기") 이 활성화돼 누르면 쇼케이스
+> 패널이 펼쳐집니다. step 2 의 점검 단계에서 비어있는 상태였고 로컬
+> docker 회피를 건너뛴 경우, 여기서도 칸반·채팅은 비어있는 게 정상 —
+> `app_status` 만 flip 됐을 뿐 카드/포스트 seed 는 없는 상태. step 5
+> 의 데몬이 떠 있으면 채팅 패널에 메시지 입력 → 1 분 안에 PM /
+> frontend / devops 응답이 보여야 정상.
 
 끝입니다. 에이전트 팀이 PRD에서 코드까지 스프린트를 완주했습니다.
 디자인 교체, PRD 확장, 에이전트 추가 등 실습은
@@ -339,6 +357,46 @@ genasis design swap <ref>      # 디자인 시스템 교체
 genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
+
+## 문제 해결
+
+### "결과보기" 핸들이 "준비중" 으로 회색 표시
+
+`genasis publish` (Quick Path step 4) 가 실행 안 된 상태. 트라이얼 team
+의 `app_status` 가 `complete` 가 되면 핸들이 활성됩니다. 사용자 sandbox
+디렉터리로 이동 후:
+
+```bash
+cd <your-project-dir>
+genasis publish
+```
+
+새로고침하면 "결과보기" 로 바뀜.
+
+### 채팅 메시지에 응답이 없음 / 칸반이 비어 있음
+
+세 가지 순서로 확인:
+
+1. **데몬이 떠 있나?**
+   ```bash
+   genasis listen status
+   # "실행 중 (PID NNN)" 이어야 함. 아니면:
+   cd <your-project-dir>
+   genasis listen start --trial
+   ```
+2. **데몬이 최신 binary 인가?** install.sh 캐시 / 옛 경로로 alpha.25
+   같은 옛 버전이 떠있을 수 있음.
+   ```bash
+   ~/.local/bin/genasis --version
+   # alpha.30 이상. 아니면 install.sh 재실행:
+   bash <(curl -fsSL https://raw.githubusercontent.com/claude-genasis/genasis/main/install.sh)
+   genasis listen restart --trial
+   ```
+3. **운영자 인스턴스가 살아 있나?**
+   ```bash
+   curl -sS -o /dev/null -w "%{http_code}\n" https://mmplane-trial.realstory.blog/
+   # 200 이 아니면 운영자에게 문의.
+   ```
 
 ## 알려진 한계 (v0.6.0-alpha.5)
 
