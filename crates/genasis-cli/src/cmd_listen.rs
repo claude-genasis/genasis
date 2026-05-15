@@ -206,6 +206,47 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
     run_listen_loop_multi(stream, cfg, factory).await
 }
 
+/// Public entry — re-export of the daemon-start path for callers
+/// (`cmd_init` auto-starts the daemon after `init --trial` per
+/// ADR-019 §UX-simplification). Equivalent to running
+/// `genasis listen start` with default flags + the supplied trial
+/// override.
+pub fn start_daemon(project_root: &Path, trial: bool) -> Result<()> {
+    let args = Args {
+        project: None,
+        trial,
+        echo_only: false,
+        default_actor: "pm".to_string(),
+        claude_timeout_secs: 600,
+        max_events: 0,
+        agent_work_secs: 6,
+        agent_gap_secs: 3,
+        sub: Some(ListenCmd::Start),
+    };
+    cmd_start(project_root, &args)
+}
+
+/// Public entry — `genasis stop` top-level alias.
+pub fn stop_daemon_public(project_root: &Path) -> Result<()> {
+    stop_daemon(project_root)
+}
+
+/// Public entry — `genasis status` top-level alias.
+pub fn status_public(project_root: &Path) -> Result<()> {
+    status(project_root)
+}
+
+/// Public entry — `genasis logs` top-level alias.
+pub fn logs_public(project_root: &Path, follow: bool) -> Result<()> {
+    cmd_logs(project_root, follow)
+}
+
+/// Public entry — used by `cmd_init` to look up the project root the
+/// same way the listen subcommand does.
+pub fn resolve_project_root_public(project: Option<&Path>) -> Result<PathBuf> {
+    resolve_project_root(project)
+}
+
 fn cmd_start(project_root: &Path, args: &Args) -> Result<()> {
     match start_precheck(project_root)? {
         StartPrecheck::AlreadyRunning(pid) => {

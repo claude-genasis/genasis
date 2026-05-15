@@ -43,6 +43,13 @@ pub struct Args {
     /// `cmd_bootstrap`.
     #[arg(long, value_name = "LIST")]
     pub roles: Option<String>,
+
+    /// Skip the auto-publish + auto-daemon-start tail of
+    /// `init --trial` / `init` (alpha.36 UX simplification). Useful
+    /// when you want the bootstrap output but plan to run `publish`
+    /// / `listen start` yourself, or for CI / scripting.
+    #[arg(long)]
+    pub no_auto_start: bool,
 }
 
 pub async fn run(args: Args) -> Result<()> {
@@ -217,6 +224,34 @@ pub async fn run_with_globals(
     }
 
     println!("\n{}", tr("init.next_step"));
+
+    // alpha.36: try to auto-start the daemon for the real flavor as
+    // well. The real-flavor `listen` path is less well-trodden than
+    // the trial one (Mattermost is WebSocket rather than SSE), so
+    // any failure here surfaces a clear "what to run manually"
+    // message rather than aborting init.
+    if !args.no_auto_start {
+        println!();
+        print!("→ Auto: starting reactive daemon (background)… ");
+        match crate::cmd_listen::start_daemon(&project_root, false) {
+            Ok(()) => {
+                println!("✓");
+                println!();
+                println!("  Daemon running. Mattermost channel + Plane project");
+                println!("  are wired up. Stop with `genasis stop`, follow logs");
+                println!("  with `genasis logs -f`.");
+            }
+            Err(e) => {
+                println!("⚠ skipped");
+                eprintln!(
+                    "  Reason: {e}\n  Real-flavor daemon is still maturing — \
+                     run `genasis listen start` manually to retry. The \
+                     Plane/MM provisioning above completed successfully and \
+                     does not need re-running."
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -745,7 +780,59 @@ async fn run_trial(
     println!(
         "\nThe trial app is operator-hosted — no local install needed. To self-host instead, see\nhttps://github.com/claude-genasis/agents-pool/tree/main/trial-app (private repo)\nand point [trial].url in genasis.toml at your own deployment."
     );
+
+    // UX simplification (alpha.36): users were stuck running `init`
+    // → `publish` → `listen start` three times. `init --trial` now
+    // wraps the publish + daemon-start tail so the Quick Path is
+    // one command. `--no-auto-start` bypasses for power users.
+    if !args.no_auto_start {
+        auto_publish_and_start_daemon(&project_root).await;
+    }
     Ok(())
+}
+
+/// Run `genasis publish` + `genasis listen start --trial` in
+/// sequence, swallowing recoverable errors so the user still gets
+/// the trial-team-ready banner above even if one of the auto-steps
+/// fails. Failure messages get reported inline with an explicit
+/// "what to run yourself" hint.
+async fn auto_publish_and_start_daemon(project_root: &std::path::Path) {
+    println!();
+    print!("→ Auto: publishing trial app… ");
+    let publish_args = crate::cmd_trial::PublishArgs {
+        dry_run: false,
+        project: Some(project_root.to_path_buf()),
+    };
+    match crate::cmd_trial::run_publish_with_project(publish_args).await {
+        Ok(()) => println!("✓"),
+        Err(e) => {
+            println!("✗");
+            eprintln!(
+                "  ⚠ publish failed: {e}\n    Run `genasis publish` manually to retry."
+            );
+        }
+    }
+
+    print!("→ Auto: starting reactive daemon (background)… ");
+    match crate::cmd_listen::start_daemon(project_root, true) {
+        Ok(()) => {
+            println!("✓");
+            println!();
+            println!("  Daemon is running in the background. Open the Live Trial");
+            println!("  URL above and type into the chat panel — PM / frontend /");
+            println!("  devops agents will reply within a minute.");
+            println!();
+            println!("  Stop with:  genasis stop");
+            println!("  Logs:       genasis logs -f");
+            println!("  Status:     genasis status");
+        }
+        Err(e) => {
+            println!("✗");
+            eprintln!(
+                "  ⚠ daemon failed to start: {e}\n    Run `genasis listen start --trial` manually to retry."
+            );
+        }
+    }
 }
 
 fn pick_browser_opener() -> Option<&'static str> {

@@ -84,37 +84,36 @@ genasis init --trial --name "Marketing Squad"
 genasis example prd
 ```
 
-**4. 쇼케이스 활성화** — trial-app 의 `app_status` 를 `complete` 로
-바꿔서 좌측 가장자리 "결과보기" 핸들이 활성화됩니다. 이 단계 누락하면
-에이전트가 작업을 끝내도 패널이 회색 "준비중" 으로만 보입니다.
+**4. URL 열고 채팅 시작** — `init --trial` 가 이미 trial-app 의
+`app_status` 를 `complete` 로 바꾸고 reactive 데몬도 백그라운드로
+띄웠습니다. Live Trial URL 이 바로 준비된 상태. 채팅 패널에 메시지
+입력하면 1 분 안에 PM / frontend / devops 가 응답.
+
+**5. (선택) PRD 샘플 생성** — 에이전트에게 작업거리 주기
 
 ```bash
-genasis publish
+genasis example prd
 ```
 
-**5. Reactive 데몬 가동** — trial-app SSE 를 구독해서 사용자가 채팅
-패널에 메시지 입력할 때마다 Claude 세션을 spawn 합니다. `--trial`
-플래그 필수 (real Plane/MM 대신 trial-app sim 을 보도록).
+**6. (선택) 스프린트 모니터링**
 
 ```bash
-genasis listen start --trial
+genasis monitor       # sprint + tokens + agents + log TUI
+genasis status        # 데몬 상태 + URL + 최근 활동
+genasis logs -f       # 데몬 로그 follow
 ```
 
-**6. 스프린트 모니터링** (선택)
+**끝낼 때**
 
 ```bash
-genasis monitor
+genasis stop          # 백그라운드 데몬 종료
 ```
 
-> **🔍 최종 점검** — step 4 후 Live Trial URL 새로고침. 칸반에 **총
-> 5 개 카드** (Done 2 개, `🎉 Example app published` 포함 / In Progress 1
-> / Todo 1), 채팅에 **2 개 메시지** (init 환영 + 빌드 완료). 휴대폰
-> 아이콘 (📱 "에이전트가 만든 앱 보기") 이 활성화돼 누르면 쇼케이스
-> 패널이 펼쳐집니다. step 2 의 점검 단계에서 비어있는 상태였고 로컬
-> docker 회피를 건너뛴 경우, 여기서도 칸반·채팅은 비어있는 게 정상 —
-> `app_status` 만 flip 됐을 뿐 카드/포스트 seed 는 없는 상태. step 5
-> 의 데몬이 떠 있으면 채팅 패널에 메시지 입력 → 1 분 안에 PM /
-> frontend / devops 응답이 보여야 정상.
+> **🔍 점검** — `init --trial` 후 Live Trial URL 새로고침. 칸반에
+> seeded 카드들, 채팅 패널에 2 개 시스템 메시지, 좌측 가장자리
+> "결과보기" 핸들 클릭 가능 상태 (회색 "준비중" 아님). 회색이면
+> `init` 내부의 auto-publish 가 실패한 것 — `genasis publish` 직접
+> 실행으로 복구.
 
 끝입니다. 에이전트 팀이 PRD에서 코드까지 스프린트를 완주했습니다.
 디자인 교체, PRD 확장, 에이전트 추가 등 실습은

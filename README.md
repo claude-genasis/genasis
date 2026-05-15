@@ -84,42 +84,38 @@ The command ends with a copy-friendly summary that prints the **team token** (32
 genasis example prd
 ```
 
-**4. Publish to the showcase** — flips the trial-app's `app_status`
-to `complete` so the left-edge "결과보기" handle activates. Without
-this step the panel stays grayed out as "준비중" even after the
-agents finish their work.
+**4. Open the URL + start chatting** — `init --trial` already
+flipped the trial-app's `app_status` to `complete` *and* started the
+reactive daemon in the background, so the Live Trial URL is fully
+live. Type into the chat panel; PM / frontend / devops agents reply
+within a minute.
+
+**5. (Optional) Generate a sample PRD** for the agents to chew on
 
 ```bash
-genasis publish
+genasis example prd
 ```
 
-**5. Start the reactive daemon** — subscribes to the trial-app SSE
-stream and spawns a Claude session whenever a human posts a chat
-message. The `--trial` flag is required so the daemon talks to the
-trial-app sim, not real Plane/Mattermost.
+**6. (Optional) Watch the sprint**
 
 ```bash
-genasis listen start --trial
+genasis monitor       # sprint + tokens + agents + log TUI
+genasis status        # daemon status + URL + recent activity
+genasis logs -f       # follow the daemon log
 ```
 
-**6. Watch the sprint** (optional)
+**Stop when done**
 
 ```bash
-genasis monitor
+genasis stop          # background daemon stops
 ```
 
-> **🔍 Final sanity check** — refresh the Live Trial URL after step 4.
-> The kanban should show **5 cards total** (2 in Done including `🎉 Example
-> app published`, 1 in In Progress, 1 in Todo) and the chat panel should
-> show **2 messages** (init welcome + build-complete). The phone-frame
-> icon (📱 "에이전트가 만든 앱 보기" / "View the app the agents built")
-> becomes clickable and opens the showcase panel. If you saw the
-> empty-state at step 2 and decided to skip the local-docker workaround,
-> kanban + chat are expected to still be empty — only the showcase
-> handle activates because `app_status` flipped to `complete` regardless
-> of seeding. Type into the chat panel to trigger the daemon you started
-> in step 5; you should see PM / frontend / devops agents reply within
-> a minute.
+> **🔍 Sanity check** — refresh the Live Trial URL after `init --trial`.
+> The kanban should show seeded cards, the chat panel should show
+> 2 system messages, and the left-edge "결과보기" handle is
+> clickable (not grayed-out "준비중"). If the handle is gray, the
+> auto-publish step inside `init` failed — re-run `genasis publish`
+> manually.
 
 That's it. Your agentic team just ran a sprint from PRD to code.
 For hands-on exercises (design swap, PRD expansion, adding agents),

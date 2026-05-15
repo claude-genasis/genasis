@@ -137,6 +137,38 @@ enum Cmd {
     /// flow. Idempotent on both Plane and Mattermost; updates
     /// `genasis.toml` + `.env.local` in place.
     Team(cmd_team::Args),
+    /// Show daemon status + project URL + recent activity. Top-level
+    /// alias for `genasis listen status`.
+    Status(StatusArgs),
+    /// Stop the background listen daemon. Top-level alias for
+    /// `genasis listen stop` — added so users don't have to remember
+    /// the `listen` namespace.
+    Stop(StopArgs),
+    /// Follow daemon log output. Top-level alias for
+    /// `genasis listen logs [-f]`.
+    Logs(LogsArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct StatusArgs {
+    /// Project root. Defaults to current working directory.
+    #[arg(long, value_name = "DIR")]
+    project: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+struct StopArgs {
+    #[arg(long, value_name = "DIR")]
+    project: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+struct LogsArgs {
+    #[arg(long, value_name = "DIR")]
+    project: Option<std::path::PathBuf>,
+    /// Follow the log (`tail -f` style).
+    #[arg(short = 'f', long)]
+    follow: bool,
 }
 
 #[tokio::main]
@@ -216,6 +248,18 @@ async fn main() -> Result<()> {
         Cmd::Listen(a) => cmd_listen::run(a).await,
         Cmd::Provision(a) => cmd_provision::run(a).await,
         Cmd::Team(a) => cmd_team::run(a).await,
+        Cmd::Status(a) => {
+            let root = cmd_listen::resolve_project_root_public(a.project.as_deref())?;
+            cmd_listen::status_public(&root)
+        }
+        Cmd::Stop(a) => {
+            let root = cmd_listen::resolve_project_root_public(a.project.as_deref())?;
+            cmd_listen::stop_daemon_public(&root)
+        }
+        Cmd::Logs(a) => {
+            let root = cmd_listen::resolve_project_root_public(a.project.as_deref())?;
+            cmd_listen::logs_public(&root, a.follow)
+        }
     }
 }
 
