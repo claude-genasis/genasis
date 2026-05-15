@@ -17,6 +17,7 @@ mod cmd_listen;
 mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
+mod cmd_provision;
 mod cmd_trial;
 mod cmd_upgrade;
 mod cmd_version;
@@ -120,6 +121,15 @@ enum Cmd {
     /// card. Implements genesis §0 (Mattermost+Plane only) + §28
     /// Mattermost Bridge in the trial flavor.
     Listen(cmd_listen::Args),
+    /// Automate Plane + Mattermost setup for a real agentic team.
+    /// Reads `PLANE_URL`/`PLANE_ADMIN_TOKEN` and `MM_URL`/`MM_ADMIN_TOKEN`
+    /// from the environment, abbreviates the team / app names down to
+    /// 5-char slugs, then provisions the workspace, project, team,
+    /// scrum channel, agent users, and human invitations idempotently.
+    /// Writes `genasis.toml` (identifiers) + `.env.local` (per-agent
+    /// tokens, chmod 600). Same flow works against the operator
+    /// instance and against a self-host docker-compose stack.
+    Provision(cmd_provision::Args),
 }
 
 #[tokio::main]
@@ -197,6 +207,7 @@ async fn main() -> Result<()> {
             cmd_trial::run(a).await
         }
         Cmd::Listen(a) => cmd_listen::run(a).await,
+        Cmd::Provision(a) => cmd_provision::run(a).await,
     }
 }
 

@@ -11,5 +11,6 @@ pub mod frontmatter;
 pub mod fs;
 pub mod manifest;
 pub mod marker;
+pub mod slug;
 
 pub use error::{Error, Result};

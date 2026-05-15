@@ -20,6 +20,13 @@ indexmap.workspace = true
 regex.workspace = true
 tracing.workspace = true
 chrono.workspace = true
+# D-104: slug abbreviation for `genasis provision`. `deunicode` handles
+# Hangul → ASCII transliteration when the translation path (Claude CLI)
+# is unavailable; `slug` provides a base ASCII slugify used as the final
+# kebab-case normalization step.
+slug = "0.1"
+deunicode = "1.4"
+which = "6"
 
 [dev-dependencies]
 tempfile.workspace = true
