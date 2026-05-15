@@ -42,13 +42,13 @@ async fn main() -> Result<()> {
 
     println!("→ ensure project (GINT) — first call should Create…");
     let (proj, outcome) = c
-        .ensure_project("Genasis Integration Test", "GINT")
+        .ensure_project("Genasis Integration Test", "GINT", None)
         .await?;
     println!("  ✓ project = {} ({:?}) id={}", proj.name, outcome, proj.id);
 
-    println!("→ ensure project (GINT) — second call should Reuse…");
+    println!("→ ensure project (GINT) — second call with expected_id should Reuse…");
     let (_proj2, outcome2) = c
-        .ensure_project("Genasis Integration Test", "GINT")
+        .ensure_project("Genasis Integration Test", "GINT", Some(&proj.id))
         .await?;
     println!("  ✓ outcome = {:?}", outcome2);
     assert_eq!(

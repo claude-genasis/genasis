@@ -126,17 +126,46 @@ impl PlaneClient {
             .find(|m| m.display_name.eq_ignore_ascii_case(display_name)))
     }
 
-    /// GET-or-create the project. Idempotent on the `identifier` field
-    /// — Plane returns 409 if the same identifier already exists in
-    /// the workspace, in which case we re-fetch and return the
-    /// existing one.
+    /// GET-or-create the project. Idempotent on the `identifier`
+    /// field. Plane returns 409 if the identifier is already taken
+    /// in the workspace.
+    ///
+    /// `expected_id`: when present (provided by a prior
+    /// `genasis.toml.snapshot`), the caller asserts they own this
+    /// project. If the workspace already has a project with the same
+    /// identifier *but a different id*, we return
+    /// `Error::Provider(... slug collision ...)` instead of silently
+    /// reusing — that path is how multi-tenant `agentic` workspace
+    /// users would otherwise inherit each other's projects.
+    /// When `None` and a project with this identifier exists, we
+    /// likewise refuse: a first-time provision can't possibly
+    /// "reuse" something we never created.
     pub async fn ensure_project(
         &self,
         name: &str,
         identifier: &str,
+        expected_id: Option<&str>,
     ) -> Result<(ProjectRef, ProjectCreateOutcome)> {
         if let Some(existing) = self.find_project_by_identifier(identifier).await? {
-            return Ok((existing, ProjectCreateOutcome::Reused));
+            return match expected_id {
+                Some(id) if id == existing.id => {
+                    Ok((existing, ProjectCreateOutcome::Reused))
+                }
+                Some(other) => Err(Error::Provider(format!(
+                    "Plane project identifier {identifier:?} exists with id \
+                     {existing_id} but the local snapshot expected id {other}. \
+                     Another team is already using this identifier — pick a \
+                     different `--app-slug`.",
+                    existing_id = existing.id
+                ))),
+                None => Err(Error::Provider(format!(
+                    "Plane project identifier {identifier:?} already exists \
+                     (id={existing_id}). Pick a different `--app-slug`, or if \
+                     this is the same team re-run from the directory that \
+                     contains its `genasis.toml.snapshot`.",
+                    existing_id = existing.id
+                ))),
+            };
         }
         let body = serde_json::json!({
             "name": name,

@@ -22,23 +22,27 @@ async fn main() -> Result<()> {
     println!("  ✓ {} <{}> roles={}", me.username, me.email, me.roles);
 
     println!("→ ensure team team-genasis-smoke — should Create…");
-    let (team, o1) = c.ensure_team("team-genasis-smoke", "Genasis Smoke").await?;
+    let (team, o1) = c
+        .ensure_team("team-genasis-smoke", "Genasis Smoke", None)
+        .await?;
     println!("  ✓ team id={} outcome={:?}", team.id, o1);
 
-    println!("→ ensure team — should Reuse…");
-    let (_, o2) = c.ensure_team("team-genasis-smoke", "Genasis Smoke").await?;
+    println!("→ ensure team with matching expected_id — should Reuse…");
+    let (_, o2) = c
+        .ensure_team("team-genasis-smoke", "Genasis Smoke", Some(&team.id))
+        .await?;
     assert_eq!(o2, Outcome::Reused);
     println!("  ✓ outcome={:?}", o2);
 
     println!("→ ensure channel scrum-genasis-smoke — should Create…");
     let (chan, o3) = c
-        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN)
+        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN, None)
         .await?;
     println!("  ✓ channel id={} outcome={:?}", chan.id, o3);
 
-    println!("→ ensure channel — should Reuse…");
+    println!("→ ensure channel with matching expected_id — should Reuse…");
     let (_, o4) = c
-        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN)
+        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN, Some(&chan.id))
         .await?;
     assert_eq!(o4, Outcome::Reused);
     println!("  ✓ outcome={:?}", o4);

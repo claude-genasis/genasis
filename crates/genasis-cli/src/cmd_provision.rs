@@ -182,6 +182,34 @@ pub async fn run(args: Args) -> Result<()> {
         }
     }
 
+    // Try to load an existing snapshot at the target output dir so
+    // we can hand the REST adapters ownership-assertion ids
+    // (Option A in the slug-collision plan — a re-run from the
+    // same secrets dir reuses our own resources; a brand-new run
+    // with the same slug as somebody else's team rejects loudly).
+    let prior_snapshot = {
+        let snapshot_dir = if let Ok(root) = std::env::var("GENASIS_SECRETS_ROOT") {
+            std::path::PathBuf::from(root).join("teams").join(&plan.team_slug)
+        } else {
+            plan.output_dir.clone()
+        };
+        let snapshot_path = snapshot_dir.join("genasis.toml.snapshot");
+        if snapshot_path.is_file() {
+            match crate::provision_writer::load_snapshot(&snapshot_path) {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    eprintln!("⚠ existing snapshot at {} failed to parse — ignoring: {e}", snapshot_path.display());
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    };
+    let expected_plane_project_id = prior_snapshot.as_ref().map(|r| r.plane.project_id.clone());
+    let expected_mm_team_id = prior_snapshot.as_ref().map(|r| r.mattermost.team_id.clone());
+    let expected_mm_channel_id = prior_snapshot.as_ref().map(|r| r.mattermost.scrum_channel_id.clone());
+
     let plane = PlaneClient::new(
         &plan.plane.url,
         &plan.plane.admin_token,
@@ -211,7 +239,11 @@ pub async fn run(args: Args) -> Result<()> {
         "→ Plane: ensuring project {project_name:?} identifier={project_identifier}..."
     );
     let (project, p_outcome) = plane
-        .ensure_project(&project_name, &project_identifier)
+        .ensure_project(
+            &project_name,
+            &project_identifier,
+            expected_plane_project_id.as_deref(),
+        )
         .await?;
     println!(
         "  ✓ project_id={} ({:?})",
@@ -269,14 +301,26 @@ pub async fn run(args: Args) -> Result<()> {
     // Step 3 — Mattermost team + scrum channel.
     let mm_team_name = format!("team-{}", plan.team_slug);
     println!("→ Mattermost: ensuring team {mm_team_name:?}...");
-    let (team, t_o) = mm.ensure_team(&mm_team_name, &plan.team_name).await?;
+    let (team, t_o) = mm
+        .ensure_team(
+            &mm_team_name,
+            &plan.team_name,
+            expected_mm_team_id.as_deref(),
+        )
+        .await?;
     println!("  ✓ team_id={} ({:?})", team.id, t_o);
 
     let scrum_name = format!("scrum-{}", plan.app_slug);
     let scrum_display = format!("Scrum — {}", plan.app_name);
     println!("→ Mattermost: ensuring channel {scrum_name:?}...");
     let (channel, c_o) = mm
-        .ensure_channel(&team.id, &scrum_name, &scrum_display, CHANNEL_OPEN)
+        .ensure_channel(
+            &team.id,
+            &scrum_name,
+            &scrum_display,
+            CHANNEL_OPEN,
+            expected_mm_channel_id.as_deref(),
+        )
         .await?;
     println!("  ✓ channel_id={} ({:?})", channel.id, c_o);
 

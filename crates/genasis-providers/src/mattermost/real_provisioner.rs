@@ -90,13 +90,33 @@ impl MmClient {
     }
 
     /// GET-or-create the team. Idempotent on `name`.
+    ///
+    /// `expected_id`: when set, asserts ownership of the existing
+    /// team. Mismatch returns an explicit error so two tenants
+    /// can't silently inherit each other's MM team — see the Plane
+    /// twin for rationale.
     pub async fn ensure_team(
         &self,
         name: &str,
         display_name: &str,
+        expected_id: Option<&str>,
     ) -> Result<(MmTeam, Outcome)> {
         if let Some(existing) = self.team_by_name(name).await? {
-            return Ok((existing, Outcome::Reused));
+            return match expected_id {
+                Some(id) if id == existing.id => Ok((existing, Outcome::Reused)),
+                Some(other) => Err(Error::Provider(format!(
+                    "Mattermost team {name:?} exists with id={} but local \
+                     snapshot expected id={}. Another tenant owns this team \
+                     name — pick a different `--team-slug`.",
+                    existing.id, other
+                ))),
+                None => Err(Error::Provider(format!(
+                    "Mattermost team {name:?} already exists (id={}). Pick a \
+                     different `--team-slug`, or re-run from the snapshot \
+                     directory if this is the same team.",
+                    existing.id
+                ))),
+            };
         }
         let body = serde_json::json!({
             "name": name,
@@ -150,15 +170,35 @@ impl MmClient {
     }
 
     /// GET-or-create a channel in the given team.
+    ///
+    /// `expected_id`: ownership assertion — see `ensure_team`. A
+    /// channel is scoped to a team, so the collision risk is lower
+    /// (one team's channel name doesn't conflict with another
+    /// team's), but a re-run with a mismatched snapshot id is still
+    /// worth catching loudly rather than silently rebinding to the
+    /// wrong channel.
     pub async fn ensure_channel(
         &self,
         team_id: &str,
         name: &str,
         display_name: &str,
         channel_type: &str,
+        expected_id: Option<&str>,
     ) -> Result<(MmChannel, Outcome)> {
         if let Some(existing) = self.channel_by_name(team_id, name).await? {
-            return Ok((existing, Outcome::Reused));
+            return match expected_id {
+                Some(id) if id == existing.id => Ok((existing, Outcome::Reused)),
+                Some(other) => Err(Error::Provider(format!(
+                    "Mattermost channel {name:?} in team {team_id} exists \
+                     with id={} but local snapshot expected id={}.",
+                    existing.id, other
+                ))),
+                None => Err(Error::Provider(format!(
+                    "Mattermost channel {name:?} already exists in team \
+                     {team_id} (id={}). Pick a different `--app-slug`.",
+                    existing.id
+                ))),
+            };
         }
         let body = serde_json::json!({
             "team_id": team_id,

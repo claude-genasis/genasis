@@ -220,19 +220,36 @@ fn cmd_browse() -> Result<()> {
         .context("invalid index.json")?;
 
     let theme = ColorfulTheme::default();
+    let term_cols = console::Term::stdout()
+        .size_checked()
+        .map(|(_, c)| c as usize)
+        .unwrap_or(100);
 
-    // Step 1: Select category
-    let cat_labels: Vec<String> = categories
+    // Step 1 — Category table + select.
+    //
+    // Print a transparent (no border) two-column table first so the
+    // user can read full descriptions; the fuzzy-select below only
+    // needs the short name + first sentence of description as its
+    // item label.
+    println!();
+    println!("Categories:");
+    println!();
+    let cat_rows: Vec<(String, String)> = categories
         .iter()
         .map(|c| {
-            let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?");
-            let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("");
-            format!("{name:<24} {desc}")
+            let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string();
+            let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
+            (name, desc)
         })
         .collect();
+    print_two_col_table(&cat_rows, term_cols);
 
     let mut cat_labels_with_all = vec!["All categories".to_string()];
-    cat_labels_with_all.extend(cat_labels);
+    cat_labels_with_all.extend(
+        categories
+            .iter()
+            .map(|c| c.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string()),
+    );
 
     let cat_idx = FuzzySelect::with_theme(&theme)
         .with_prompt("Select a category (type to filter)")
@@ -240,7 +257,6 @@ fn cmd_browse() -> Result<()> {
         .default(0)
         .interact()?;
 
-    // Step 2: Filter agents by selected category
     let category_filter: Option<&str> = if cat_idx == 0 {
         None
     } else {
@@ -266,14 +282,31 @@ fn cmd_browse() -> Result<()> {
         return Ok(());
     }
 
-    // Step 3: Multi-select agents to install
-    let agent_labels: Vec<String> = filtered_agents
+    // Step 2 — Agent table + multi-select.
+    //
+    // Same transparent-table pattern. Long descriptions wrap inside
+    // the right column instead of bleeding past the terminal edge
+    // or overlapping with the next agent's name.
+    println!();
+    println!("Available agents:");
+    println!();
+    let agent_rows: Vec<(String, String)> = filtered_agents
         .iter()
         .map(|a| {
-            let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?");
-            let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("");
-            format!("{name:<24} {desc}")
+            let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string();
+            let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
+            (name, desc)
         })
+        .collect();
+    print_two_col_table(&agent_rows, term_cols);
+
+    // MultiSelect uses name-only labels since the table above
+    // already showed the descriptions — keeps the selector compact
+    // and avoids dialoguer's single-line item rendering truncating
+    // wrapped descriptions.
+    let agent_labels: Vec<String> = filtered_agents
+        .iter()
+        .map(|a| a.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string())
         .collect();
 
     let selections = MultiSelect::with_theme(&theme)
@@ -298,6 +331,138 @@ fn cmd_browse() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Render rows as a transparent two-column table — name on the left,
+/// description wrapped on the right. No row dividers, no column
+/// borders; just whitespace alignment so the eye reads the columns
+/// without visual noise.
+///
+/// The name column is sized to the widest name across all rows (with
+/// a sane min/max so super-short or absurdly-long names don't break
+/// the layout). The description column fills the remaining terminal
+/// width and word-wraps onto continuation lines that are indented to
+/// line up under the first description line.
+fn print_two_col_table(rows: &[(String, String)], term_cols: usize) {
+    if rows.is_empty() {
+        return;
+    }
+    // Name column = widest name, clamped to [12, 30]. Display-width
+    // aware so CJK / wide chars don't throw off alignment.
+    let name_col = rows
+        .iter()
+        .map(|(n, _)| display_width(n))
+        .max()
+        .unwrap_or(12)
+        .clamp(12, 30);
+    // Leave 2-space gutter on the left, 2-space gutter between the
+    // columns, 1-space breathing room on the right.
+    let left_gutter = 2;
+    let mid_gutter = 2;
+    let desc_col = term_cols
+        .saturating_sub(left_gutter + name_col + mid_gutter + 1)
+        .max(30);
+
+    let pad = " ".repeat(name_col + left_gutter + mid_gutter);
+    for (i, (name, desc)) in rows.iter().enumerate() {
+        let lines = wrap_paragraph(desc, desc_col);
+        let first = lines.first().cloned().unwrap_or_default();
+        println!(
+            "{}{}  {}",
+            " ".repeat(left_gutter),
+            pad_display(name, name_col),
+            first
+        );
+        for line in lines.iter().skip(1) {
+            println!("{pad}{line}");
+        }
+        if i + 1 < rows.len() {
+            println!();
+        }
+    }
+}
+
+/// Greedy word-wrap. Splits on whitespace, packs words into lines of
+/// at most `width` display columns. Single tokens longer than `width`
+/// are placed on their own line (better to overflow once than to
+/// shard a URL or identifier).
+fn wrap_paragraph(text: &str, width: usize) -> Vec<String> {
+    if text.is_empty() {
+        return vec![String::new()];
+    }
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut current_w: usize = 0;
+    for word in text.split_whitespace() {
+        let ww = display_width(word);
+        if current.is_empty() {
+            current.push_str(word);
+            current_w = ww;
+            continue;
+        }
+        // +1 for the joining space.
+        if current_w + 1 + ww <= width {
+            current.push(' ');
+            current.push_str(word);
+            current_w += 1 + ww;
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current.push_str(word);
+            current_w = ww;
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+/// Display width of a string in terminal cells. CJK / fullwidth chars
+/// count as 2; everything else as 1. Approximation good enough for
+/// the alignment in `print_two_col_table`; for exact widths we'd
+/// need the `unicode-width` crate but the dependency isn't worth it
+/// here.
+fn display_width(s: &str) -> usize {
+    let mut w = 0;
+    for c in s.chars() {
+        let code = c as u32;
+        // Rough fullwidth detection — covers Hangul, CJK Unified,
+        // Hiragana, Katakana, fullwidth ASCII. Misses some edge
+        // glyphs but errs toward over-counting (= harmless wider
+        // gutter).
+        let wide = matches!(
+            code,
+            0x1100..=0x115F          // Hangul Jamo
+                | 0x2E80..=0x303E    // CJK radicals / symbols
+                | 0x3041..=0x33FF    // Hiragana, Katakana, CJK symbols
+                | 0x3400..=0x4DBF    // CJK ext A
+                | 0x4E00..=0x9FFF    // CJK Unified
+                | 0xA000..=0xA4CF    // Yi
+                | 0xAC00..=0xD7A3    // Hangul Syllables
+                | 0xF900..=0xFAFF    // CJK Compat
+                | 0xFE30..=0xFE4F    // CJK Compat Forms
+                | 0xFF00..=0xFF60    // Fullwidth ASCII
+                | 0xFFE0..=0xFFE6    // Fullwidth signs
+        );
+        w += if wide { 2 } else { 1 };
+    }
+    w
+}
+
+/// Pad `s` to `target` display columns by appending spaces. If `s`
+/// is already wider than `target`, returns `s` as-is (caller decided
+/// the cap).
+fn pad_display(s: &str, target: usize) -> String {
+    let w = display_width(s);
+    if w >= target {
+        return s.to_string();
+    }
+    let mut out = String::from(s);
+    out.extend(std::iter::repeat(' ').take(target - w));
+    out
 }
 
 fn cmd_install(name: Option<String>, preset: Option<String>) -> Result<()> {
