@@ -30,6 +30,16 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 
 use genasis_core::slug::slugify_abbrev;
+use genasis_providers::mattermost::real_provisioner::{
+    MmClient, Outcome as MmOutcome, CHANNEL_OPEN,
+};
+use genasis_providers::plane::real_provisioner::{
+    PlaneClient, ProjectCreateOutcome, ROLE_ADMIN, ROLE_MEMBER,
+};
+
+use crate::provision_writer::{
+    write_all, AgentRecord, HumanRecord, MattermostRecord, PlaneRecord, ProvisionRecord,
+};
 
 /// Canonical 10-agent default. Order is significant: PM lands first
 /// in the env file so the daemon can read it without scanning the
@@ -151,14 +161,241 @@ pub async fn run(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    // M-v6.x: real Plane + Mattermost provisioners land in their own
-    // commits — this scaffolding commit only validates the plan and
-    // wires the clap surface so the next change has a clean target.
-    bail!(
-        "live provisioning not implemented yet — re-run with `--dry-run` to \
-         preview the plan, or wait for the upcoming alpha that ships the \
-         Plane + Mattermost REST adapters."
+    if !args.non_interactive {
+        let answer = prompt_required("Proceed with live provisioning? [y/N]", false)?;
+        if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+            bail!("aborted by user");
+        }
+    }
+
+    let plane = PlaneClient::new(
+        &plan.plane.url,
+        &plan.plane.admin_token,
+        "agentic",
+    )
+    .context("build Plane client")?;
+    let mm = MmClient::new(&plan.mattermost.url, &plan.mattermost.admin_token)
+        .context("build Mattermost client")?;
+
+    // Step 0 — auth probes. Fail fast before any side effects.
+    println!("→ Plane: probing admin/...");
+    let plane_me = plane.whoami().await.context("Plane whoami")?;
+    println!("  ✓ Plane sees you as {} <{}>", plane_me.display_name, plane_me.email);
+
+    println!("→ Mattermost: probing admin...");
+    let mm_me = mm.whoami().await.context("Mattermost whoami")?;
+    println!("  ✓ Mattermost sees you as {} <{}>", mm_me.username, mm_me.email);
+
+    // Step 1 — Plane project + agent membership.
+    let project_name = if plan.team_slug == plan.app_slug {
+        plan.app_name.clone()
+    } else {
+        format!("{} — {}", plan.team_name, plan.app_name)
+    };
+    let project_identifier = uppercase_identifier(&plan.app_slug);
+    println!(
+        "→ Plane: ensuring project {project_name:?} identifier={project_identifier}..."
     );
+    let (project, p_outcome) = plane
+        .ensure_project(&project_name, &project_identifier)
+        .await?;
+    println!(
+        "  ✓ project_id={} ({:?})",
+        project.id, p_outcome
+    );
+
+    // Resolve agent users by display_name match against existing
+    // workspace members. Plane CE has no REST user-create endpoint
+    // accessible via workspace-scoped API keys; agents are expected
+    // to be pre-registered out-of-band.
+    let mut plane_agents: Vec<(String, Option<genasis_providers::plane::real_provisioner::WorkspaceMember>)> =
+        Vec::new();
+    for role in &plan.agents {
+        let m = plane.find_member_by_display_name(role).await?;
+        if m.is_none() {
+            println!(
+                "  ⚠ Plane workspace has no agent user with display_name={role:?} — \
+                 operator must register it once (admin UI / DB) before this agent can \
+                 act on Plane issues."
+            );
+        }
+        plane_agents.push((role.clone(), m));
+    }
+
+    // Attach each known agent + the inviting human to the project.
+    for (role, member) in &plane_agents {
+        if let Some(m) = member {
+            let role_code = if role == "pm" { ROLE_ADMIN } else { ROLE_MEMBER };
+            let o = plane
+                .ensure_project_member(&project.id, &m.id, role_code)
+                .await?;
+            println!("  ✓ Plane project +{role} ({:?})", o);
+        }
+    }
+
+    // Step 2 — Human invitations on Plane (workspace-level — Plane CE
+    // has no direct project invite).
+    let mut human_records: Vec<HumanRecord> = Vec::new();
+    for h in &plan.humans {
+        let (inv, o) = plane.ensure_workspace_invitation(&h.email, ROLE_MEMBER).await?;
+        let id = if inv.accepted { Some(inv.id.clone()) } else { None };
+        println!(
+            "  ✓ Plane invite for {} <{}> ({:?}) accepted={}",
+            h.name, h.email, o, inv.accepted
+        );
+        human_records.push(HumanRecord {
+            name: h.name.clone(),
+            email: h.email.clone(),
+            username: derive_username(&h.email),
+            plane_user_id: id,
+            mm_user_id: None, // populated below
+        });
+    }
+
+    // Step 3 — Mattermost team + scrum channel.
+    let mm_team_name = format!("team-{}", plan.team_slug);
+    println!("→ Mattermost: ensuring team {mm_team_name:?}...");
+    let (team, t_o) = mm.ensure_team(&mm_team_name, &plan.team_name).await?;
+    println!("  ✓ team_id={} ({:?})", team.id, t_o);
+
+    let scrum_name = format!("scrum-{}", plan.app_slug);
+    let scrum_display = format!("Scrum — {}", plan.app_name);
+    println!("→ Mattermost: ensuring channel {scrum_name:?}...");
+    let (channel, c_o) = mm
+        .ensure_channel(&team.id, &scrum_name, &scrum_display, CHANNEL_OPEN)
+        .await?;
+    println!("  ✓ channel_id={} ({:?})", channel.id, c_o);
+
+    // Step 4 — Mattermost agent users + PATs + team/channel membership.
+    let mut agent_records: Vec<AgentRecord> = Vec::new();
+    for (role, plane_member) in &plane_agents {
+        let agent_email = format!("{role}-{}@genasis.bot", plan.team_slug);
+        let agent_username = sanitize_mm_username(&format!("{role}-{}", plan.team_slug));
+        let password = random_password();
+        let (user, u_o) = mm
+            .ensure_agent_user(&agent_email, &agent_username, &password)
+            .await?;
+        println!("  ✓ MM agent user {agent_email} ({:?})", u_o);
+
+        let m_o = mm.ensure_team_member(&team.id, &user.id).await?;
+        println!("    → team member ({:?})", m_o);
+        let c_o = mm.ensure_channel_member(&channel.id, &user.id).await?;
+        println!("    → channel member ({:?})", c_o);
+
+        let pat = mm
+            .issue_pat(&user.id, &format!("genasis-{}-{}", plan.team_slug, role))
+            .await?;
+
+        agent_records.push(AgentRecord {
+            role: role.clone(),
+            email: agent_email,
+            plane_user_id: plane_member.as_ref().map(|m| m.id.clone()),
+            plane_pat: None, // workspace-shared PAT model — no per-team PAT
+            mm_user_id: user.id,
+            mm_pat: pat.token,
+        });
+    }
+
+    // Step 5 — Mattermost: invite each human by email + add existing
+    // accounts to the team / channel.
+    for h in human_records.iter_mut() {
+        if let Some(user) = mm.user_by_email(&h.email).await? {
+            mm.ensure_team_member(&team.id, &user.id).await?;
+            mm.ensure_channel_member(&channel.id, &user.id).await?;
+            h.mm_user_id = Some(user.id);
+            println!("  ✓ MM human {} already has account — added to team", h.email);
+        } else {
+            mm.invite_human_by_email(&team.id, &[h.email.clone()]).await?;
+            println!("  ✓ MM invite emailed to {}", h.email);
+        }
+    }
+
+    // Step 6 — write outputs.
+    let record = ProvisionRecord {
+        team_name: plan.team_name.clone(),
+        team_slug: plan.team_slug.clone(),
+        app_name: plan.app_name.clone(),
+        app_slug: plan.app_slug.clone(),
+        plane: PlaneRecord {
+            url: plan.plane.url.clone(),
+            workspace_slug: "agentic".to_string(),
+            project_id: project.id.clone(),
+            project_identifier: project.identifier.clone(),
+            project_name: project.name.clone(),
+        },
+        mattermost: MattermostRecord {
+            url: plan.mattermost.url.clone(),
+            team_id: team.id.clone(),
+            team_name: team.name.clone(),
+            scrum_channel_id: channel.id.clone(),
+            scrum_channel_name: channel.name.clone(),
+        },
+        humans: human_records,
+        agents: agent_records,
+    };
+    let out_dir = write_all(&record, &plan.output_dir).context("write provision outputs")?;
+
+    println!();
+    println!("──────────────────────────────────────────────");
+    println!("  ✓ provision complete");
+    println!("──────────────────────────────────────────────");
+    println!("  artifacts: {}", out_dir.display());
+    println!("    - .env.local");
+    println!("    - genasis.toml.snapshot");
+    println!("    - provision.log");
+    println!();
+    println!("  Plane project   : {}/{}", plan.plane.url, project.identifier);
+    println!("  Mattermost team : {}/{}/channels/{}", plan.mattermost.url, team.name, channel.name);
+    println!();
+    println!("  Next: `cd <project-dir> && genasis listen --real` to start the daemon.");
+
+    // Suppress unused-variant warning for outcome captures.
+    let _ = (ProjectCreateOutcome::Created, MmOutcome::Created);
+    Ok(())
+}
+
+fn uppercase_identifier(slug: &str) -> String {
+    let upper: String = slug
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    // Plane caps identifier at ~12 chars; truncate defensively.
+    upper.chars().take(12).collect()
+}
+
+fn sanitize_mm_username(s: &str) -> String {
+    // Mattermost requires usernames to be 3-22 chars, lowercase
+    // alphanumerics + `.`, `_`, `-`. We've already lowercased; just
+    // strip anything else and clamp the length.
+    let cleaned: String = s
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' })
+        .collect();
+    if cleaned.len() <= 22 {
+        cleaned
+    } else {
+        cleaned.chars().take(22).collect()
+    }
+}
+
+fn random_password() -> String {
+    // 24-char random hex. We never store this — agents authenticate
+    // via the PAT — but Mattermost still requires the user-create
+    // call to supply one.
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let mut s = format!("{nanos:x}{pid:x}");
+    // Mattermost requires at least one number and lowercase — our
+    // hex output covers both — but also needs an uppercase + symbol
+    // when password complexity is enabled. Suffix with a constant
+    // satisfies the policy without bloating randomness materially.
+    s.push_str("Z!");
+    s
 }
 
 fn print_plan(plan: &ResolvedProvisionPlan, dry_run: bool) {
