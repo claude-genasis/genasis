@@ -20,6 +20,7 @@ mod cmd_plane;
 mod cmd_provision;
 mod cmd_team;
 mod cmd_trial;
+mod provision_writer;
 mod cmd_upgrade;
 mod cmd_version;
 mod lang_prompt;
