@@ -363,6 +363,133 @@ fn read_env_kv(path: &Path) -> Option<BTreeMap<String, String>> {
     Some(m)
 }
 
+/// Load a previously-written `genasis.toml.snapshot` so day-2
+/// commands (`genasis team add/remove/list`) can mutate the state
+/// produced by an earlier `genasis provision` run.
+pub fn load_snapshot(path: &Path) -> Result<ProvisionRecord> {
+    let body = std::fs::read_to_string(path)
+        .with_context(|| format!("read snapshot {}", path.display()))?;
+    let parsed: toml::Value = toml::from_str(&body)
+        .with_context(|| format!("parse snapshot {}", path.display()))?;
+
+    let provision = parsed
+        .get("provision")
+        .ok_or_else(|| anyhow::anyhow!("[provision] missing in {}", path.display()))?;
+    let plane = parsed
+        .get("plane")
+        .ok_or_else(|| anyhow::anyhow!("[plane] missing in {}", path.display()))?;
+    let mm = parsed
+        .get("mattermost")
+        .ok_or_else(|| anyhow::anyhow!("[mattermost] missing in {}", path.display()))?;
+
+    let team_name = tstr(provision, "team_name")?;
+    let team_slug = tstr(provision, "team_slug")?;
+    let app_name = tstr(provision, "app_name")?;
+    let app_slug = tstr(provision, "app_slug")?;
+
+    let humans_arr = parsed
+        .get("humans")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut humans = Vec::new();
+    for h in humans_arr {
+        humans.push(HumanRecord {
+            name: tstr(&h, "name")?,
+            email: tstr(&h, "email")?,
+            username: tstr(&h, "username")?,
+            plane_user_id: opt_tstr(&h, "plane_user_id"),
+            mm_user_id: opt_tstr(&h, "mm_user_id"),
+        });
+    }
+
+    let agents_arr = parsed
+        .get("agents")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut agents = Vec::new();
+    for a in agents_arr {
+        agents.push(AgentRecord {
+            role: tstr(&a, "role")?,
+            email: tstr(&a, "email")?,
+            plane_user_id: opt_tstr(&a, "plane_user_id"),
+            plane_pat: None, // never serialized — held only in env.local
+            mm_user_id: tstr(&a, "mm_user_id")?,
+            mm_pat: String::new(), // ditto; reload from .env.local at use site
+        });
+    }
+
+    Ok(ProvisionRecord {
+        team_name,
+        team_slug,
+        app_name,
+        app_slug,
+        plane: PlaneRecord {
+            url: tstr(plane, "url")?,
+            workspace_slug: tstr(plane, "workspace_slug")?,
+            project_id: tstr(plane, "project_id")?,
+            project_identifier: tstr(plane, "project_identifier")?,
+            project_name: tstr(plane, "project_name")?,
+        },
+        mattermost: MattermostRecord {
+            url: tstr(mm, "url")?,
+            team_id: tstr(mm, "team_id")?,
+            team_name: tstr(mm, "team_name")?,
+            scrum_channel_id: tstr(mm, "scrum_channel_id")?,
+            scrum_channel_name: tstr(mm, "scrum_channel_name")?,
+        },
+        humans,
+        agents,
+    })
+}
+
+fn tstr(v: &toml::Value, key: &str) -> Result<String> {
+    v.get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("required field {key:?} missing or not a string"))
+}
+
+fn opt_tstr(v: &toml::Value, key: &str) -> Option<String> {
+    v.get(key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Resolve which `genasis.toml.snapshot` to load for a day-2
+/// `genasis team` command. Priority:
+///   1. `--from <dir>` if the caller passed one (and snapshot exists)
+///   2. `GENASIS_SECRETS_ROOT/teams/<team_slug>` if both env + slug given
+///   3. cwd (or any directory walked up from cwd)
+pub fn resolve_snapshot_path(
+    from: Option<&Path>,
+    team_slug: Option<&str>,
+) -> Result<PathBuf> {
+    if let Some(dir) = from {
+        let candidate = dir.join("genasis.toml.snapshot");
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    if let (Ok(root), Some(slug)) = (std::env::var("GENASIS_SECRETS_ROOT"), team_slug) {
+        let candidate = Path::new(&root).join("teams").join(slug).join("genasis.toml.snapshot");
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    let cwd = std::env::current_dir().context("cwd")?;
+    let candidate = cwd.join("genasis.toml.snapshot");
+    if candidate.is_file() {
+        return Ok(candidate);
+    }
+    anyhow::bail!(
+        "could not locate genasis.toml.snapshot. Pass `--from <dir>`, set \
+         GENASIS_SECRETS_ROOT + --team-slug, or run from a directory that \
+         contains genasis.toml.snapshot."
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

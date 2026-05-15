@@ -217,13 +217,23 @@ target state 로 수렴하는 PATCH 로 구조화. 부분 실패 시 사용자�
   --trial` 은 `mmplane-trial.realstory.blog` 대상으로 변동 없이 작동.
   ADR-017 과 ADR-019 는 보완 관계, 경쟁 관계 아님.
 
-## 구현 상태 (alpha.26)
+## 구현 상태
 
-- `genasis-core::slug` — landed (unit test 8개).
-- `genasis-cli::cmd_provision` — clap surface, plan resolution,
-  interactive prompts, dry-run preview landed (unit test 6개).
-- `genasis-cli::cmd_team` — clap surface scaffolded; 본문 구현은
-  명확한 "not yet implemented" 에러 반환 + 다음 alpha 가리킴.
-- **Pending**: `genasis-providers::plane::real_provisioner` (REST),
-  `genasis-providers::mattermost::real_provisioner` (REST), output
-  파일 writers, `genasis team` 본문 구현.
+- **alpha.26** — `genasis-core::slug` (8 tests),
+  `cmd_provision` scaffold (dry-run preview).
+- **alpha.27** — interactive prompts + `--humans-file` + `cmd_team`
+  scaffold + ADR + README.
+- **alpha.28** — `plane::real_provisioner` REST adapter; LIVE
+  smoke against plane.realstory.blog (idempotent).
+- **alpha.29** — `mattermost::real_provisioner` REST adapter; LIVE
+  smoke against mm.realstory.blog (idempotent).
+- **alpha.30** — `provision_writer` (`.env.local` + snapshot TOML +
+  log) + `GENASIS_SECRETS_ROOT` redirect (6 tests).
+- **alpha.31** — `cmd_provision` live flow orchestrate; end-to-end
+  LIVE PASS (Created → Reused).
+- **alpha.32** — `cmd_team` 본문 (list / add human / add agent /
+  remove human / remove agent) + snapshot loader; LIVE PASS.
+  운영자 cheat sheet README 에 추가.
+
+ADR-019 의 모든 PR 완료. 다음 로드맵: per-tenant token rotation
+(`genasis team rotate <slug>`) + self-host docker-compose smoke.

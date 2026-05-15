@@ -174,6 +174,32 @@ docker-compose stack: `PLANE_URL=http://localhost:8080`,
 `MM_URL=http://localhost:8065`. See [ADR-019](docs/ADR/ADR-019-real-provisioning.md)
 for the full specification.
 
+**Operator cheat sheet** — running Genasis-as-a-service for several
+tenants? Stash per-tenant secrets in a private repo so they survive
+workstation loss and are recoverable from git history:
+
+```bash
+# One-time: point provision/team at the secrets store.
+export GENASIS_SECRETS_ROOT=/path/to/agents-pool/secrets
+
+# Provision a new tenant — writes secrets/teams/<slug>/.
+genasis provision --team "Tenant Co" --app "Their App" \
+  --humans "Tenant Owner <owner@tenant.co>"
+
+# Day-2 changes (no need to re-provision):
+genasis team --team-slug <slug> list
+genasis team --team-slug <slug> add human "Charlie <charlie@x.com>"
+genasis team --team-slug <slug> add agent designer
+genasis team --team-slug <slug> remove agent designer
+genasis team --team-slug <slug> remove human alice@x.com
+
+# Commit the updated secrets/teams/<slug>/ to your private repo.
+```
+
+End-users running `genasis` against their own self-hosted stack
+omit `GENASIS_SECRETS_ROOT` — outputs land in the project directory
+they're in.
+
 ## Step-by-Step Guide
 
 For teams that want full control over every step.

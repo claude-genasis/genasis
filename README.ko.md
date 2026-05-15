@@ -167,6 +167,31 @@ genasis team list                                     # 현재 roster + health
 `PLANE_URL=http://localhost:8080`, `MM_URL=http://localhost:8065`.
 전체 명세는 [ADR-019](docs/ko/ADR/ADR-019-real-provisioning.md) 참고.
 
+**운영자 cheat sheet** — Genasis-as-a-service 로 여러 테넌트 운영할
+때는 비밀 정보를 private repo 에 모아두면 작업 머신 잃어도 git 으로
+복원 가능:
+
+```bash
+# 한 번만: provision/team 출력 위치를 private secrets 트리로.
+export GENASIS_SECRETS_ROOT=/path/to/agents-pool/secrets
+
+# 새 테넌트 provision — secrets/teams/<slug>/ 에 작성됨.
+genasis provision --team "Tenant Co" --app "Their App" \
+  --humans "Tenant Owner <owner@tenant.co>"
+
+# Day-2 변경 (re-provision 불필요):
+genasis team --team-slug <slug> list
+genasis team --team-slug <slug> add human "Charlie <charlie@x.com>"
+genasis team --team-slug <slug> add agent designer
+genasis team --team-slug <slug> remove agent designer
+genasis team --team-slug <slug> remove human alice@x.com
+
+# 업데이트된 secrets/teams/<slug>/ 를 private repo 에 commit.
+```
+
+자체 호스트 stack 으로 본인 환경 운영하는 end-user 는 `GENASIS_SECRETS_ROOT`
+설정 없이 사용 — 출력이 현재 디렉터리에 생성됨.
+
 ## 단계별 가이드
 
 모든 단계를 직접 통제하고 싶은 팀을 위한 안내입니다.

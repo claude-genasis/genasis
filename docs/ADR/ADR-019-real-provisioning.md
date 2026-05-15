@@ -235,14 +235,29 @@ skipped, work resumes from the next pending step.
   `mmplane-trial.realstory.blog` exactly as before. ADR-017 and
   ADR-019 are complementary, not competing.
 
-## Implementation status (alpha.26)
+## Implementation status
 
-- `genasis-core::slug` — landed (8 unit tests).
-- `genasis-cli::cmd_provision` — clap surface, plan resolution,
-  interactive prompts, dry-run preview landed (6 unit tests).
-- `genasis-cli::cmd_team` — clap surface scaffolded; implementations
-  return a clear "not yet implemented" error pointing at the upcoming
-  alpha.
-- **Pending**: `genasis-providers::plane::real_provisioner` (REST),
-  `genasis-providers::mattermost::real_provisioner` (REST), the
-  output-file writers, and `genasis team` body implementations.
+- **alpha.26** — `genasis-core::slug` (8 tests),
+  `genasis-cli::cmd_provision` scaffold (dry-run preview).
+- **alpha.27** — `cmd_provision` interactive prompts +
+  `--humans-file` JSON + `cmd_team` scaffold + ADR + README.
+- **alpha.28** — `plane::real_provisioner` REST adapter; LIVE
+  smoke against plane.realstory.blog (whoami → ensure_project →
+  member attach → invitation, all idempotent).
+- **alpha.29** — `mattermost::real_provisioner` REST adapter; LIVE
+  smoke against mm.realstory.blog (whoami → team → channel → user
+  → membership → PAT, all idempotent).
+- **alpha.30** — `provision_writer` (`.env.local` + snapshot toml +
+  provision.log) + `GENASIS_SECRETS_ROOT` redirect for the
+  operator's agents-pool/secrets/ tree (6 tests).
+- **alpha.31** — `cmd_provision` live flow orchestrating PR-1/2/3;
+  end-to-end LIVE PASS on plane+mm with team `gpt` + 2 agents +
+  1 human (Created → Reused on re-run).
+- **alpha.32** — `cmd_team` body (list / add human / add agent /
+  remove human / remove agent) + snapshot loader; LIVE PASS for
+  list, add agent designer, remove agent designer, add human.
+  Operator cheat sheet added to README.
+
+All ADR-019 PRs complete. Next on the roadmap is per-tenant token
+rotation (`genasis team rotate <slug>`) and self-host
+docker-compose smoke against a fresh stack.
