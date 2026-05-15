@@ -94,7 +94,21 @@ pub struct Args {
     #[arg(long, value_name = "PATH")]
     pub humans_file: Option<PathBuf>,
 
-    /// Override the 10-agent default. Comma-separated role names.
+    /// Pin the team slug instead of deriving it from `--team`. Use
+    /// when the automatic 5-char abbreviation collides with an
+    /// existing team or you want a specific identifier.
+    #[arg(long, value_name = "SLUG")]
+    pub team_slug: Option<String>,
+
+    /// Pin the app/project slug instead of deriving it from `--app`.
+    /// Same rationale as `--team-slug`.
+    #[arg(long, value_name = "SLUG")]
+    pub app_slug: Option<String>,
+
+    /// Override agent roster. Comma-separated role names. When
+    /// omitted, the CLI auto-detects from `<output>/.claude/agents/`
+    /// (the agents already installed in the project) and falls back
+    /// to the 10-agent canonical default for greenfield projects.
     #[arg(long, value_name = "ROLES", value_delimiter = ',')]
     pub agents: Option<Vec<String>>,
 
@@ -438,8 +452,16 @@ fn resolve_plan(args: &Args) -> Result<ResolvedProvisionPlan> {
         )?,
     };
 
-    let team_slug = slugify_abbrev(&team_name);
-    let app_slug = slugify_abbrev(&app_name);
+    // Slugs default to the abbreviation of the human-readable name
+    // but the caller can override either with the explicit flag.
+    let team_slug = match &args.team_slug {
+        Some(s) if !s.trim().is_empty() => s.trim().to_ascii_lowercase(),
+        _ => slugify_abbrev(&team_name),
+    };
+    let app_slug = match &args.app_slug {
+        Some(s) if !s.trim().is_empty() => s.trim().to_ascii_lowercase(),
+        _ => slugify_abbrev(&app_name),
+    };
 
     // 2) humans. Three input paths in priority order: --humans-file
     //    (JSON batch) > --humans (inline `"Name <email>"`) > stdin
@@ -459,19 +481,33 @@ fn resolve_plan(args: &Args) -> Result<ResolvedProvisionPlan> {
         bail!("at least one human team-member is required (Plane + Mattermost both need a real account to own the team)");
     }
 
-    let agents: Vec<String> = args
-        .agents
-        .clone()
-        .unwrap_or_else(|| DEFAULT_AGENTS.iter().map(|s| s.to_string()).collect());
-    if agents.is_empty() {
-        bail!("--agents must list at least one role; omit the flag to use the 10-agent default");
-    }
-
     let output_dir = match &args.output {
         Some(p) => p.clone(),
         None => std::env::current_dir()
             .context("unable to read current working directory for --output default")?,
     };
+
+    // Agent roster resolution — priority order:
+    //   1. `--agents` flag (explicit override).
+    //   2. `<output_dir>/.claude/agents/*.md` (auto-detect what the
+    //      project already has installed via `genasis init` /
+    //      `bootstrap` / `agents install`). Backup files
+    //      (*.genasis.bak.*) are skipped.
+    //   3. The 10-agent canonical default (greenfield).
+    let agents: Vec<String> = if let Some(explicit) = &args.agents {
+        explicit.clone()
+    } else if let Some(detected) = detect_agents_from_dir(&output_dir) {
+        if detected.is_empty() {
+            DEFAULT_AGENTS.iter().map(|s| s.to_string()).collect()
+        } else {
+            detected
+        }
+    } else {
+        DEFAULT_AGENTS.iter().map(|s| s.to_string()).collect()
+    };
+    if agents.is_empty() {
+        bail!("--agents must list at least one role; omit the flag to use the auto-detected or 10-agent default");
+    }
 
     let plane = read_endpoint("PLANE_URL", "PLANE_ADMIN_TOKEN")
         .context("Plane admin credentials missing from environment")?;
@@ -627,6 +663,42 @@ fn is_plausible_email(s: &str) -> bool {
     !local.is_empty() && domain.contains('.') && !domain.starts_with('.')
 }
 
+/// Inspect `<dir>/.claude/agents/` and return the list of agent
+/// role names found there (filename stem of every `.md` file,
+/// excluding genasis backup files). Returns `None` if the directory
+/// doesn't exist — caller treats that as "fall back to defaults".
+///
+/// Filenames are mapped straight to role names — `code-reviewer.md`
+/// becomes `code-reviewer`, `pm.md` becomes `pm`. The `.genasis.bak.*`
+/// backups that overlay produces are skipped so we don't
+/// double-count.
+pub fn detect_agents_from_dir(dir: &std::path::Path) -> Option<Vec<String>> {
+    let agents_dir = dir.join(".claude").join("agents");
+    if !agents_dir.is_dir() {
+        return None;
+    }
+    let mut roles: Vec<String> = Vec::new();
+    let entries = std::fs::read_dir(&agents_dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n,
+            None => continue,
+        };
+        // Skip backups like `pm.md.genasis.bak.1778787786`.
+        if name.contains(".genasis.bak.") {
+            continue;
+        }
+        if let Some(stem) = name.strip_suffix(".md") {
+            if !stem.is_empty() && !roles.iter().any(|r| r == stem) {
+                roles.push(stem.to_string());
+            }
+        }
+    }
+    roles.sort();
+    Some(roles)
+}
+
 /// Derive a Plane / Mattermost username suggestion from an email.
 /// The REST adapters take this as a starting point and append a
 /// numeric suffix on collision.
@@ -672,6 +744,29 @@ mod tests {
         assert_eq!(derive_username("GNoopy@gmail.com"), "gnoopy");
         assert_eq!(derive_username("first.last+tag@x.com"), "first_last_tag");
         assert_eq!(derive_username("UPPER@x.com"), "upper");
+    }
+
+    #[test]
+    fn detect_agents_from_claude_agents_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let agents = dir.path().join(".claude").join("agents");
+        std::fs::create_dir_all(&agents).unwrap();
+        std::fs::write(agents.join("pm.md"), "stub").unwrap();
+        std::fs::write(agents.join("code-reviewer.md"), "stub").unwrap();
+        std::fs::write(agents.join("designer.md"), "stub").unwrap();
+        // Backup files must be ignored.
+        std::fs::write(agents.join("pm.md.genasis.bak.123"), "stub").unwrap();
+        // Non-md files must be ignored.
+        std::fs::write(agents.join("README"), "stub").unwrap();
+
+        let detected = detect_agents_from_dir(dir.path()).unwrap();
+        assert_eq!(detected, vec!["code-reviewer", "designer", "pm"]);
+    }
+
+    #[test]
+    fn detect_agents_returns_none_when_dir_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(detect_agents_from_dir(dir.path()).is_none());
     }
 
     #[test]

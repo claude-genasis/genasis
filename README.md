@@ -141,9 +141,12 @@ What it does (idempotent — re-runs are safe):
 2. Tries to create a per-team Plane workspace; on permission failure
    falls back to a shared `agentic` workspace + `<team>-<app>` project
    name.
-3. Creates 10 default agent users (`pm-ms@genasis.bot`,
-   `frontend-ms@genasis.bot`, ...) in both Plane and Mattermost,
-   issues per-agent API tokens.
+3. Creates agent users in both Plane and Mattermost and issues
+   per-agent API tokens. The roster is auto-detected from the
+   project's `.claude/agents/` directory if present (so the agents
+   actually installed in the project get provisioned, no more, no
+   less); falls back to the 10-agent canonical default in a
+   greenfield setup; overridable with `--agents pm,frontend,...`.
 4. Invites the listed humans into the Plane project and the
    Mattermost team. The email's local-part seeds the suggested
    username (`gnoopy@gmail.com` → `gnoopy`).

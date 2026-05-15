@@ -138,9 +138,11 @@ genasis provision \
    로컬 `claude` CLI 로 번역 후 약어화.
 2. 신청자별 Plane workspace 생성 시도; 권한 실패 시 공용 `agentic`
    workspace + `<team>-<app>` 프로젝트 이름으로 fallback.
-3. 10개 default agent user (`pm-ms@genasis.bot`,
-   `frontend-ms@genasis.bot`, …) 을 Plane / Mattermost 양쪽에 생성하고
-   agent 별 API token 발급.
+3. Agent user 들을 Plane / Mattermost 양쪽에 생성하고 agent 별 API
+   token 발급. roster 는 프로젝트의 `.claude/agents/` 디렉터리에서
+   자동 감지 (실제로 설치된 agent만 provision — 더도 덜도 아님);
+   greenfield 환경이면 10-agent canonical default; 명시 override 는
+   `--agents pm,frontend,...`.
 4. 명시한 인간 멤버를 Plane 프로젝트 + Mattermost 팀에 invite.
    이메일 local-part 가 username 의 기준 (`gnoopy@gmail.com` → `gnoopy`).
 5. Mattermost team (`team-ms`) 과 scrum 채널 (`scrum-quiz`) 한 개씩
