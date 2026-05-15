@@ -113,6 +113,60 @@ git clone https://github.com/claude-genasis/genasis.git && cd genasis && ./build
 
 ---
 
+## 실 Plane + Mattermost 경로 (`genasis provision`)
+
+Quick Path 는 `mmplane-trial.realstory.blog` 의 trial 샌드박스로 진입합니다.
+팀이 실제 Plane + Mattermost 스택으로 옮길 준비가 되면 — 운영자 호스팅
+`plane.realstory.blog` / `mm.realstory.blog` 든, 자체 `docker-compose.yml`
+스택이든 — 한 명령으로 전체 provisioning 이 끝납니다.
+
+```bash
+export PLANE_URL=https://plane.realstory.blog
+export PLANE_ADMIN_TOKEN=...        # Plane admin UI 에서 발급
+export MM_URL=https://mm.realstory.blog
+export MM_ADMIN_TOKEN=...           # Mattermost system-admin PAT
+
+genasis provision \
+  --team "Marketing Squad" \
+  --app "Quiz Demo" \
+  --humans "Bravo Kim <gnoopy@gmail.com>,Alice <alice@example.com>"
+```
+
+수행 내용 (멱등 — 재실행 안전):
+
+1. team / app 이름을 5자 slug 으로 약어화 (`ms`, `qd`). 한글 input 은
+   로컬 `claude` CLI 로 번역 후 약어화.
+2. 신청자별 Plane workspace 생성 시도; 권한 실패 시 공용 `agentic`
+   workspace + `<team>-<app>` 프로젝트 이름으로 fallback.
+3. 10개 default agent user (`pm-ms@genasis.bot`,
+   `frontend-ms@genasis.bot`, …) 을 Plane / Mattermost 양쪽에 생성하고
+   agent 별 API token 발급.
+4. 명시한 인간 멤버를 Plane 프로젝트 + Mattermost 팀에 invite.
+   이메일 local-part 가 username 의 기준 (`gnoopy@gmail.com` → `gnoopy`).
+5. Mattermost team (`team-ms`) 과 scrum 채널 (`scrum-quiz`) 한 개씩
+   생성 후 모든 human + agent 멤버로 추가.
+6. `genasis.toml` (식별자) + `.env.local` (agent 별 토큰, chmod 600)
+   작성. `genasis listen` 데몬이 시작 시 두 파일 자동 load.
+
+**Interactive 모드** — 플래그 없이 `genasis provision` 실행하면 stdin
+wizard 로 team 이름, app 이름, 인간 멤버 (이름 + 이메일) 를 한 명씩 묻습니다.
+
+**운영 중 변경** — provisioning 후 멤버 변동은 `genasis team` 으로
+incremental 처리 (전체 흐름 재실행 불필요):
+
+```bash
+genasis team add human "Charlie <charlie@x.com>"     # 인간 추가
+genasis team add agent designer                       # agent 추가
+genasis team add agent custom-role                    # 새 role 추가
+genasis team remove human alice@x.com                 # 인간 deactivate (history 보존)
+genasis team remove agent designer
+genasis team list                                     # 현재 roster + health
+```
+
+**자체 호스트** — 같은 명령, env 만 docker-compose 스택을 가리키도록:
+`PLANE_URL=http://localhost:8080`, `MM_URL=http://localhost:8065`.
+전체 명세는 [ADR-019](docs/ko/ADR/ADR-019-real-provisioning.md) 참고.
+
 ## 단계별 가이드
 
 모든 단계를 직접 통제하고 싶은 팀을 위한 안내입니다.

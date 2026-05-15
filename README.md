@@ -113,6 +113,67 @@ git clone https://github.com/claude-genasis/genasis.git && cd genasis && ./build
 
 ---
 
+## Real Plane + Mattermost path (`genasis provision`)
+
+The Quick Path puts you in the trial sandbox at
+`mmplane-trial.realstory.blog`. When you're ready to move your team
+onto a real Plane + Mattermost stack — either the operator-hosted
+`plane.realstory.blog` / `mm.realstory.blog`, or your own
+`docker-compose.yml` stack — one command provisions everything.
+
+```bash
+export PLANE_URL=https://plane.realstory.blog
+export PLANE_ADMIN_TOKEN=...        # generate from Plane admin UI
+export MM_URL=https://mm.realstory.blog
+export MM_ADMIN_TOKEN=...           # Mattermost system-admin PAT
+
+genasis provision \
+  --team "Marketing Squad" \
+  --app "Quiz Demo" \
+  --humans "Bravo Kim <gnoopy@gmail.com>,Alice <alice@example.com>"
+```
+
+What it does (idempotent — re-runs are safe):
+
+1. Translates and abbreviates the team / app names into 5-char slugs
+   (`ms`, `qd`). Hangul input is translated via your local `claude`
+   CLI first, then abbreviated.
+2. Tries to create a per-team Plane workspace; on permission failure
+   falls back to a shared `agentic` workspace + `<team>-<app>` project
+   name.
+3. Creates 10 default agent users (`pm-ms@genasis.bot`,
+   `frontend-ms@genasis.bot`, ...) in both Plane and Mattermost,
+   issues per-agent API tokens.
+4. Invites the listed humans into the Plane project and the
+   Mattermost team. The email's local-part seeds the suggested
+   username (`gnoopy@gmail.com` → `gnoopy`).
+5. Creates one Mattermost team (`team-ms`) and one scrum channel
+   (`scrum-quiz`) with every human and agent as a member.
+6. Writes `genasis.toml` (identifiers) and `.env.local` (per-agent
+   tokens, chmod 600). The `genasis listen` daemon picks up both at
+   startup.
+
+**Interactive mode** — run `genasis provision` with no flags and you
+get a stdin wizard asking for team name, app name, and each human's
+name + email one at a time.
+
+**Day-2 churn** — once provisioned, use `genasis team` for
+incremental changes without re-running the full flow:
+
+```bash
+genasis team add human "Charlie <charlie@x.com>"     # invite a new human
+genasis team add agent designer                       # hire an additional agent
+genasis team add agent custom-role                    # hire a brand-new role
+genasis team remove human alice@x.com                 # deactivate (history preserved)
+genasis team remove agent designer
+genasis team list                                     # current roster + health
+```
+
+**Self-host** — same command, just point the env at your local
+docker-compose stack: `PLANE_URL=http://localhost:8080`,
+`MM_URL=http://localhost:8065`. See [ADR-019](docs/ADR/ADR-019-real-provisioning.md)
+for the full specification.
+
 ## Step-by-Step Guide
 
 For teams that want full control over every step.

@@ -18,6 +18,7 @@ mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
 mod cmd_provision;
+mod cmd_team;
 mod cmd_trial;
 mod cmd_upgrade;
 mod cmd_version;
@@ -130,6 +131,11 @@ enum Cmd {
     /// tokens, chmod 600). Same flow works against the operator
     /// instance and against a self-host docker-compose stack.
     Provision(cmd_provision::Args),
+    /// Post-provision team-member management — add/remove humans,
+    /// hire/retire agents without re-running the full `provision`
+    /// flow. Idempotent on both Plane and Mattermost; updates
+    /// `genasis.toml` + `.env.local` in place.
+    Team(cmd_team::Args),
 }
 
 #[tokio::main]
@@ -208,6 +214,7 @@ async fn main() -> Result<()> {
         }
         Cmd::Listen(a) => cmd_listen::run(a).await,
         Cmd::Provision(a) => cmd_provision::run(a).await,
+        Cmd::Team(a) => cmd_team::run(a).await,
     }
 }
 
