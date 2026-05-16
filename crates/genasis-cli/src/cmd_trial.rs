@@ -196,7 +196,7 @@ async fn run_publish(project_root: &std::path::Path, args: PublishArgs) -> Resul
                 "assignee": "frontend",
             },
             {
-                "title": "🎉 Example app published — open showcase",
+                "title": "🎉 Trial environment ready — chat panel is live",
                 "state": "done",
                 "assignee": "genasis",
             },
@@ -204,9 +204,11 @@ async fn run_publish(project_root: &std::path::Path, args: PublishArgs) -> Resul
         "welcome_message": {
             "actor": "genasis",
             "text": format!(
-                "✅ 빌드 완료 · {project_name} 의 예제 앱이 쇼케이스 패널에 \
-                 게시됐습니다. 라이브 트라이얼 화면의 모바일 폰 아이콘 \
-                 (📱 에이전트가 만든 앱 보기) 을 누르면 펼쳐집니다."
+                "✅ 트라이얼 환경 준비 완료 · {project_name}. \
+                 이제 채팅창에 한국어로 만들고 싶은 앱을 요청해 주세요 — \
+                 예: \"다크모드 + i18n 지원되는 퀴즈 앱 만들어줘\". \
+                 PM 이 frontend / devops 에게 분배하고, 빌드가 끝나면 \
+                 왼쪽 \"결과보기\" 패널에 라이브 앱 iframe 이 펼쳐집니다."
             ),
         },
     });
