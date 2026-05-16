@@ -82,9 +82,7 @@ impl PlaneClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(Error::Provider(format!(
-                "plane whoami {status}: {body}"
-            )));
+            return Err(Error::Provider(format!("plane whoami {status}: {body}")));
         }
         resp.json::<WorkspaceMember>()
             .await
@@ -148,9 +146,7 @@ impl PlaneClient {
     ) -> Result<(ProjectRef, ProjectCreateOutcome)> {
         if let Some(existing) = self.find_project_by_identifier(identifier).await? {
             return match expected_id {
-                Some(id) if id == existing.id => {
-                    Ok((existing, ProjectCreateOutcome::Reused))
-                }
+                Some(id) if id == existing.id => Ok((existing, ProjectCreateOutcome::Reused)),
                 Some(other) => Err(Error::Provider(format!(
                     "Plane project identifier {identifier:?} exists with id \
                      {existing_id} but the local snapshot expected id {other}. \
@@ -201,9 +197,7 @@ impl PlaneClient {
             }
             other => {
                 let body = resp.text().await.unwrap_or_default();
-                Err(Error::Provider(format!(
-                    "create project {other}: {body}"
-                )))
+                Err(Error::Provider(format!("create project {other}: {body}")))
             }
         }
     }
@@ -355,7 +349,9 @@ impl PlaneClient {
             .json()
             .await
             .map_err(|e| Error::Provider(format!("invitations json: {e}")))?;
-        Ok(arr.into_iter().find(|i| i.email.eq_ignore_ascii_case(email)))
+        Ok(arr
+            .into_iter()
+            .find(|i| i.email.eq_ignore_ascii_case(email)))
     }
 
     /// Plane CE has no public "invite a specific email directly into

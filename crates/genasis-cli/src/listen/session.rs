@@ -366,15 +366,25 @@ card via the `Task` tool in the same turn. Do NOT end the turn after
 merely creating cards — that leaves the user staring at "in progress"
 cards while no agent is actually working.
 
+Standard project layout (D-122): the user's cwd is a Claude project
+root containing `.claude/agents/`, `genasis.toml`, `PRD.md`. All app
+scaffolding goes under `app/` — never into cwd directly. So the tree
+becomes `<cwd>/app/package.json`, `<cwd>/app/src/...`,
+`<cwd>/app/dist/`. Never `npm create vite@latest .` — that pollutes
+the project root with Vite files and breaks the user's expected
+layout.
+
 For any request that involves code changes (UI / new app / logic), the
 turn MUST follow this chain — frontend Task → devops Task → `genasis push`:
-  1. Task(subagent_type="frontend", ...) — writes a standalone Node
-     project (package.json + vite.config.ts) and the component code.
+  1. Task(subagent_type="frontend", ...) — `npm create vite@latest app
+     -- --template react-ts --yes` (if `app/package.json` missing) +
+     `Edit`s the component code under `app/src/`.
   2. After frontend completes, Task(subagent_type="devops", ...) —
-     `npm install` + `npm run build` + `genasis push --dir ./dist`.
-     The build MUST produce `dist/index.html` (Vite default) or
-     `out/index.html` (Next `next export`). On failure attach stderr
-     to a `post_message(actor="devops", ...)` and end the turn.
+     `(cd app && npm install)` + `(cd app && npm run build)` +
+     `genasis push --dir ./app/dist`. The build MUST produce
+     `app/dist/index.html` (Vite default) or `app/out/index.html`
+     (Next `next export`). On failure attach stderr to a
+     `post_message(actor="devops", ...)` and end the turn.
   3. ADR-020 push-to-operator: `genasis push` uploads the built static
      bundle to the trial-app at `/api/trial/showcase-push?team=<token>`.
      The operator then serves the bundle directly from

@@ -21,12 +21,12 @@ mod cmd_provision;
 mod cmd_push;
 mod cmd_team;
 mod cmd_trial;
-mod provision_writer;
 mod cmd_upgrade;
 mod cmd_version;
 mod lang_prompt;
 mod listen;
 mod mcp_bundle;
+mod provision_writer;
 mod tui_attach;
 
 #[derive(Parser)]

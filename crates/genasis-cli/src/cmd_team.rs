@@ -17,12 +17,9 @@ use genasis_providers::plane::real_provisioner::{
     PlaneClient, ProjectCreateOutcome as PlaneOutcome, ROLE_MEMBER,
 };
 
-use crate::cmd_provision::{
-    derive_username, parse_human_spec, HumanSpec, AGENT_EMAIL_DOMAIN,
-};
+use crate::cmd_provision::{derive_username, parse_human_spec, HumanSpec, AGENT_EMAIL_DOMAIN};
 use crate::provision_writer::{
-    load_snapshot, resolve_snapshot_path, write_all, AgentRecord, HumanRecord,
-    ProvisionRecord,
+    load_snapshot, resolve_snapshot_path, write_all, AgentRecord, HumanRecord, ProvisionRecord,
 };
 
 #[derive(Parser, Debug)]
@@ -94,8 +91,7 @@ pub enum RemoveTarget {
 }
 
 pub async fn run(args: Args) -> Result<()> {
-    let snapshot_path =
-        resolve_snapshot_path(args.from.as_deref(), args.team_slug.as_deref())?;
+    let snapshot_path = resolve_snapshot_path(args.from.as_deref(), args.team_slug.as_deref())?;
     let snapshot_dir = snapshot_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("snapshot path has no parent dir"))?
@@ -112,12 +108,8 @@ pub async fn run(args: Args) -> Result<()> {
             AddTarget::Agent { role } => add_agent(&mut record, &snapshot_dir, &role).await,
         },
         TeamCmd::Remove(r) => match r.target {
-            RemoveTarget::Human { email } => {
-                remove_human(&mut record, &snapshot_dir, &email).await
-            }
-            RemoveTarget::Agent { role } => {
-                remove_agent(&mut record, &snapshot_dir, &role).await
-            }
+            RemoveTarget::Human { email } => remove_human(&mut record, &snapshot_dir, &email).await,
+            RemoveTarget::Agent { role } => remove_agent(&mut record, &snapshot_dir, &role).await,
         },
     }
 }
@@ -125,44 +117,60 @@ pub async fn run(args: Args) -> Result<()> {
 fn list_roster(record: &ProvisionRecord) -> Result<()> {
     println!("Team        : {} ({})", record.team_name, record.team_slug);
     println!("App         : {} ({})", record.app_name, record.app_slug);
-    println!("Plane       : {}/{}", record.plane.url, record.plane.project_identifier);
-    println!("Mattermost  : {}/{}/channels/{}", record.mattermost.url, record.mattermost.team_name, record.mattermost.scrum_channel_name);
+    println!(
+        "Plane       : {}/{}",
+        record.plane.url, record.plane.project_identifier
+    );
+    println!(
+        "Mattermost  : {}/{}/channels/{}",
+        record.mattermost.url, record.mattermost.team_name, record.mattermost.scrum_channel_name
+    );
     println!();
     println!("Humans ({}):", record.humans.len());
     for h in &record.humans {
         let plane = h.plane_user_id.as_deref().unwrap_or("(pending invite)");
         let mm = h.mm_user_id.as_deref().unwrap_or("(pending invite)");
-        println!("  - {:<20} <{}>  plane={}  mm={}", h.name, h.email, plane, mm);
+        println!(
+            "  - {:<20} <{}>  plane={}  mm={}",
+            h.name, h.email, plane, mm
+        );
     }
     println!();
     println!("Agents ({}):", record.agents.len());
     for a in &record.agents {
         let plane = a.plane_user_id.as_deref().unwrap_or("(none)");
-        println!("  - {:<14} {:<30} plane={}  mm={}", a.role, a.email, plane, a.mm_user_id);
+        println!(
+            "  - {:<14} {:<30} plane={}  mm={}",
+            a.role, a.email, plane, a.mm_user_id
+        );
     }
     Ok(())
 }
 
-async fn add_human(
-    record: &mut ProvisionRecord,
-    snapshot_dir: &Path,
-    h: HumanSpec,
-) -> Result<()> {
-    if record.humans.iter().any(|x| x.email.eq_ignore_ascii_case(&h.email)) {
+async fn add_human(record: &mut ProvisionRecord, snapshot_dir: &Path, h: HumanSpec) -> Result<()> {
+    if record
+        .humans
+        .iter()
+        .any(|x| x.email.eq_ignore_ascii_case(&h.email))
+    {
         println!("ℹ {} is already on the roster — no-op", h.email);
         return Ok(());
     }
     let (plane, mm) = open_clients(record)?;
 
     println!("→ Plane workspace invite for {} <{}>...", h.name, h.email);
-    let (inv, p_o) = plane.ensure_workspace_invitation(&h.email, ROLE_MEMBER).await?;
+    let (inv, p_o) = plane
+        .ensure_workspace_invitation(&h.email, ROLE_MEMBER)
+        .await?;
     println!("  ✓ {:?} accepted={}", p_o, inv.accepted);
 
     println!("→ Mattermost: ...");
     let mm_id = match mm.user_by_email(&h.email).await? {
         Some(user) => {
-            mm.ensure_team_member(&record.mattermost.team_id, &user.id).await?;
-            mm.ensure_channel_member(&record.mattermost.scrum_channel_id, &user.id).await?;
+            mm.ensure_team_member(&record.mattermost.team_id, &user.id)
+                .await?;
+            mm.ensure_channel_member(&record.mattermost.scrum_channel_id, &user.id)
+                .await?;
             println!("  ✓ existing MM account attached to team + channel");
             Some(user.id)
         }
@@ -186,11 +194,7 @@ async fn add_human(
     Ok(())
 }
 
-async fn add_agent(
-    record: &mut ProvisionRecord,
-    snapshot_dir: &Path,
-    role: &str,
-) -> Result<()> {
+async fn add_agent(record: &mut ProvisionRecord, snapshot_dir: &Path, role: &str) -> Result<()> {
     if record.agents.iter().any(|a| a.role == role) {
         println!("ℹ agent {role:?} already on the roster — no-op");
         return Ok(());
@@ -199,13 +203,16 @@ async fn add_agent(
 
     // Plane side — match by display_name. If the agent isn't a
     // workspace member yet, surface the actionable error and bail.
-    let plane_member = plane.find_member_by_display_name(role).await?.ok_or_else(|| {
-        anyhow::anyhow!(
-            "no Plane workspace member with display_name={role:?}. The operator \
+    let plane_member = plane
+        .find_member_by_display_name(role)
+        .await?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no Plane workspace member with display_name={role:?}. The operator \
              must register the agent in the Plane admin UI / DB first; then \
              re-run this command."
-        )
-    })?;
+            )
+        })?;
     let role_code = if role == "pm" {
         genasis_providers::plane::real_provisioner::ROLE_ADMIN
     } else {
@@ -224,8 +231,10 @@ async fn add_agent(
         .ensure_agent_user(&agent_email, &mm_username, &password)
         .await?;
     println!("  ✓ MM agent user {agent_email} ({:?})", u_o);
-    mm.ensure_team_member(&record.mattermost.team_id, &user.id).await?;
-    mm.ensure_channel_member(&record.mattermost.scrum_channel_id, &user.id).await?;
+    mm.ensure_team_member(&record.mattermost.team_id, &user.id)
+        .await?;
+    mm.ensure_channel_member(&record.mattermost.scrum_channel_id, &user.id)
+        .await?;
     let pat = mm
         .issue_pat(&user.id, &format!("genasis-{}-{}", record.team_slug, role))
         .await?;
@@ -304,11 +313,7 @@ async fn remove_human(
     Ok(())
 }
 
-async fn remove_agent(
-    record: &mut ProvisionRecord,
-    snapshot_dir: &Path,
-    role: &str,
-) -> Result<()> {
+async fn remove_agent(record: &mut ProvisionRecord, snapshot_dir: &Path, role: &str) -> Result<()> {
     let idx = record.agents.iter().position(|a| a.role == role);
     let idx = match idx {
         Some(i) => i,
@@ -338,9 +343,13 @@ async fn remove_agent(
 fn open_clients(record: &ProvisionRecord) -> Result<(PlaneClient, MmClient)> {
     let plane_token = std::env::var("PLANE_ADMIN_TOKEN")
         .context("PLANE_ADMIN_TOKEN required for `team` commands")?;
-    let mm_token = std::env::var("MM_ADMIN_TOKEN")
-        .context("MM_ADMIN_TOKEN required for `team` commands")?;
-    let plane = PlaneClient::new(&record.plane.url, &plane_token, &record.plane.workspace_slug)?;
+    let mm_token =
+        std::env::var("MM_ADMIN_TOKEN").context("MM_ADMIN_TOKEN required for `team` commands")?;
+    let plane = PlaneClient::new(
+        &record.plane.url,
+        &plane_token,
+        &record.plane.workspace_slug,
+    )?;
     let mm = MmClient::new(&record.mattermost.url, &mm_token)?;
     Ok((plane, mm))
 }

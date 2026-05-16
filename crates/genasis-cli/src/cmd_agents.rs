@@ -237,19 +237,28 @@ fn cmd_browse() -> Result<()> {
     let cat_rows: Vec<(String, String)> = categories
         .iter()
         .map(|c| {
-            let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string();
-            let desc = c.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
+            let name = c
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("?")
+                .to_string();
+            let desc = c
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("")
+                .to_string();
             (name, desc)
         })
         .collect();
     print_two_col_table(&cat_rows, term_cols);
 
     let mut cat_labels_with_all = vec!["All categories".to_string()];
-    cat_labels_with_all.extend(
-        categories
-            .iter()
-            .map(|c| c.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string()),
-    );
+    cat_labels_with_all.extend(categories.iter().map(|c| {
+        c.get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("?")
+            .to_string()
+    }));
 
     let cat_idx = FuzzySelect::with_theme(&theme)
         .with_prompt("Select a category (type to filter)")
@@ -293,8 +302,16 @@ fn cmd_browse() -> Result<()> {
     let agent_rows: Vec<(String, String)> = filtered_agents
         .iter()
         .map(|a| {
-            let name = a.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string();
-            let desc = a.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
+            let name = a
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("?")
+                .to_string();
+            let desc = a
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("")
+                .to_string();
             (name, desc)
         })
         .collect();
@@ -306,7 +323,12 @@ fn cmd_browse() -> Result<()> {
     // wrapped descriptions.
     let agent_labels: Vec<String> = filtered_agents
         .iter()
-        .map(|a| a.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string())
+        .map(|a| {
+            a.get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("?")
+                .to_string()
+        })
         .collect();
 
     let selections = MultiSelect::with_theme(&theme)

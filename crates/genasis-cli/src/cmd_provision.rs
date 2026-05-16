@@ -192,7 +192,9 @@ pub async fn run(args: Args) -> Result<()> {
     // with the same slug as somebody else's team rejects loudly).
     let prior_snapshot = {
         let snapshot_dir = if let Ok(root) = std::env::var("GENASIS_SECRETS_ROOT") {
-            std::path::PathBuf::from(root).join("teams").join(&plan.team_slug)
+            std::path::PathBuf::from(root)
+                .join("teams")
+                .join(&plan.team_slug)
         } else {
             plan.output_dir.clone()
         };
@@ -201,7 +203,10 @@ pub async fn run(args: Args) -> Result<()> {
             match crate::provision_writer::load_snapshot(&snapshot_path) {
                 Ok(r) => Some(r),
                 Err(e) => {
-                    eprintln!("⚠ existing snapshot at {} failed to parse — ignoring: {e}", snapshot_path.display());
+                    eprintln!(
+                        "⚠ existing snapshot at {} failed to parse — ignoring: {e}",
+                        snapshot_path.display()
+                    );
                     None
                 }
             }
@@ -210,26 +215,32 @@ pub async fn run(args: Args) -> Result<()> {
         }
     };
     let expected_plane_project_id = prior_snapshot.as_ref().map(|r| r.plane.project_id.clone());
-    let expected_mm_team_id = prior_snapshot.as_ref().map(|r| r.mattermost.team_id.clone());
-    let expected_mm_channel_id = prior_snapshot.as_ref().map(|r| r.mattermost.scrum_channel_id.clone());
+    let expected_mm_team_id = prior_snapshot
+        .as_ref()
+        .map(|r| r.mattermost.team_id.clone());
+    let expected_mm_channel_id = prior_snapshot
+        .as_ref()
+        .map(|r| r.mattermost.scrum_channel_id.clone());
 
-    let plane = PlaneClient::new(
-        &plan.plane.url,
-        &plan.plane.admin_token,
-        "agentic",
-    )
-    .context("build Plane client")?;
+    let plane = PlaneClient::new(&plan.plane.url, &plan.plane.admin_token, "agentic")
+        .context("build Plane client")?;
     let mm = MmClient::new(&plan.mattermost.url, &plan.mattermost.admin_token)
         .context("build Mattermost client")?;
 
     // Step 0 — auth probes. Fail fast before any side effects.
     println!("→ Plane: probing admin/...");
     let plane_me = plane.whoami().await.context("Plane whoami")?;
-    println!("  ✓ Plane sees you as {} <{}>", plane_me.display_name, plane_me.email);
+    println!(
+        "  ✓ Plane sees you as {} <{}>",
+        plane_me.display_name, plane_me.email
+    );
 
     println!("→ Mattermost: probing admin...");
     let mm_me = mm.whoami().await.context("Mattermost whoami")?;
-    println!("  ✓ Mattermost sees you as {} <{}>", mm_me.username, mm_me.email);
+    println!(
+        "  ✓ Mattermost sees you as {} <{}>",
+        mm_me.username, mm_me.email
+    );
 
     // Step 1 — Plane project + agent membership.
     let project_name = if plan.team_slug == plan.app_slug {
@@ -238,9 +249,7 @@ pub async fn run(args: Args) -> Result<()> {
         format!("{} — {}", plan.team_name, plan.app_name)
     };
     let project_identifier = uppercase_identifier(&plan.app_slug);
-    println!(
-        "→ Plane: ensuring project {project_name:?} identifier={project_identifier}..."
-    );
+    println!("→ Plane: ensuring project {project_name:?} identifier={project_identifier}...");
     let (project, p_outcome) = plane
         .ensure_project(
             &project_name,
@@ -248,17 +257,16 @@ pub async fn run(args: Args) -> Result<()> {
             expected_plane_project_id.as_deref(),
         )
         .await?;
-    println!(
-        "  ✓ project_id={} ({:?})",
-        project.id, p_outcome
-    );
+    println!("  ✓ project_id={} ({:?})", project.id, p_outcome);
 
     // Resolve agent users by display_name match against existing
     // workspace members. Plane CE has no REST user-create endpoint
     // accessible via workspace-scoped API keys; agents are expected
     // to be pre-registered out-of-band.
-    let mut plane_agents: Vec<(String, Option<genasis_providers::plane::real_provisioner::WorkspaceMember>)> =
-        Vec::new();
+    let mut plane_agents: Vec<(
+        String,
+        Option<genasis_providers::plane::real_provisioner::WorkspaceMember>,
+    )> = Vec::new();
     for role in &plan.agents {
         let m = plane.find_member_by_display_name(role).await?;
         if m.is_none() {
@@ -274,7 +282,11 @@ pub async fn run(args: Args) -> Result<()> {
     // Attach each known agent + the inviting human to the project.
     for (role, member) in &plane_agents {
         if let Some(m) = member {
-            let role_code = if role == "pm" { ROLE_ADMIN } else { ROLE_MEMBER };
+            let role_code = if role == "pm" {
+                ROLE_ADMIN
+            } else {
+                ROLE_MEMBER
+            };
             let o = plane
                 .ensure_project_member(&project.id, &m.id, role_code)
                 .await?;
@@ -286,8 +298,14 @@ pub async fn run(args: Args) -> Result<()> {
     // has no direct project invite).
     let mut human_records: Vec<HumanRecord> = Vec::new();
     for h in &plan.humans {
-        let (inv, o) = plane.ensure_workspace_invitation(&h.email, ROLE_MEMBER).await?;
-        let id = if inv.accepted { Some(inv.id.clone()) } else { None };
+        let (inv, o) = plane
+            .ensure_workspace_invitation(&h.email, ROLE_MEMBER)
+            .await?;
+        let id = if inv.accepted {
+            Some(inv.id.clone())
+        } else {
+            None
+        };
         println!(
             "  ✓ Plane invite for {} <{}> ({:?}) accepted={}",
             h.name, h.email, o, inv.accepted
@@ -364,9 +382,13 @@ pub async fn run(args: Args) -> Result<()> {
             mm.ensure_team_member(&team.id, &user.id).await?;
             mm.ensure_channel_member(&channel.id, &user.id).await?;
             h.mm_user_id = Some(user.id);
-            println!("  ✓ MM human {} already has account — added to team", h.email);
+            println!(
+                "  ✓ MM human {} already has account — added to team",
+                h.email
+            );
         } else {
-            mm.invite_human_by_email(&team.id, &[h.email.clone()]).await?;
+            mm.invite_human_by_email(&team.id, &[h.email.clone()])
+                .await?;
             println!("  ✓ MM invite emailed to {}", h.email);
         }
     }
@@ -405,8 +427,14 @@ pub async fn run(args: Args) -> Result<()> {
     println!("    - genasis.toml.snapshot");
     println!("    - provision.log");
     println!();
-    println!("  Plane project   : {}/{}", plan.plane.url, project.identifier);
-    println!("  Mattermost team : {}/{}/channels/{}", plan.mattermost.url, team.name, channel.name);
+    println!(
+        "  Plane project   : {}/{}",
+        plan.plane.url, project.identifier
+    );
+    println!(
+        "  Mattermost team : {}/{}/channels/{}",
+        plan.mattermost.url, team.name, channel.name
+    );
     println!();
     println!("  Next: `cd <project-dir> && genasis listen --real` to start the daemon.");
 
@@ -431,7 +459,13 @@ fn sanitize_mm_username(s: &str) -> String {
     // strip anything else and clamp the length.
     let cleaned: String = s
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if cleaned.len() <= 22 {
         cleaned
@@ -480,7 +514,10 @@ fn print_plan(plan: &ResolvedProvisionPlan, dry_run: bool) {
     println!("  plane URL  : {}", plan.plane.url);
     println!("  mm URL     : {}", plan.mattermost.url);
     println!("  output dir : {}", plan.output_dir.display());
-    println!("  mode       : {}", if dry_run { "DRY-RUN" } else { "LIVE" });
+    println!(
+        "  mode       : {}",
+        if dry_run { "DRY-RUN" } else { "LIVE" }
+    );
     println!();
 }
 
@@ -622,13 +659,21 @@ fn parse_humans_file(path: &PathBuf) -> Result<Vec<HumanSpec>> {
         name: String,
         email: String,
     }
-    let entries: Vec<Entry> = serde_json::from_str(&body)
-        .with_context(|| format!("--humans-file {} must be a JSON array of {{name,email}}", path.display()))?;
+    let entries: Vec<Entry> = serde_json::from_str(&body).with_context(|| {
+        format!(
+            "--humans-file {} must be a JSON array of {{name,email}}",
+            path.display()
+        )
+    })?;
     entries
         .into_iter()
         .map(|e| {
             if !is_plausible_email(&e.email) {
-                bail!("entry in {} has unparseable email {:?}", path.display(), e.email);
+                bail!(
+                    "entry in {} has unparseable email {:?}",
+                    path.display(),
+                    e.email
+                );
             }
             Ok(HumanSpec {
                 name: e.name,
@@ -753,7 +798,13 @@ pub fn derive_username(email: &str) -> String {
     let local = email.split('@').next().unwrap_or(email);
     local
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

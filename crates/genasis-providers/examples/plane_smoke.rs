@@ -13,9 +13,7 @@
 
 use anyhow::{Context, Result};
 
-use genasis_providers::plane::real_provisioner::{
-    PlaneClient, ProjectCreateOutcome, ROLE_MEMBER,
-};
+use genasis_providers::plane::real_provisioner::{PlaneClient, ProjectCreateOutcome, ROLE_MEMBER};
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -428,7 +428,11 @@ async fn collect_trial(state: &mut AppState) {
             // appended, then we cap at 200 keeping newest entries.
             let now_hm = chrono::Local::now().format("%H:%M").to_string();
             for line in &s.log_tail {
-                if !state.log_tail.iter().any(|existing| existing.ends_with(line)) {
+                if !state
+                    .log_tail
+                    .iter()
+                    .any(|existing| existing.ends_with(line))
+                {
                     state.log_tail.push(format!("{now_hm}  {line}"));
                 }
             }
@@ -457,9 +461,7 @@ async fn collect_trial(state: &mut AppState) {
                     let role = session.role.as_deref().unwrap_or("");
                     let belongs = project_root_str.is_empty()
                         || session.cwd == project_root_str
-                        || session
-                            .cwd
-                            .starts_with(&format!("{}/", project_root_str));
+                        || session.cwd.starts_with(&format!("{}/", project_root_str));
                     if role == "daemon" && belongs {
                         session.role = Some(state.trial_latest_actor.clone());
                     }
@@ -468,7 +470,9 @@ async fn collect_trial(state: &mut AppState) {
         }
         Err(e) => {
             let now_hm = chrono::Local::now().format("%H:%M").to_string();
-            state.log_tail.push(format!("{now_hm}  (trial poll error: {e})"));
+            state
+                .log_tail
+                .push(format!("{now_hm}  (trial poll error: {e})"));
             if state.log_tail.len() > 200 {
                 let overflow = state.log_tail.len() - 200;
                 state.log_tail.drain(..overflow);

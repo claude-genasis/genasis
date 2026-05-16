@@ -102,45 +102,60 @@ deterministic on a per-session seed (the seed itself is random per
 session, but reproducible if a future feature wants "share my result").
 No login, no storage, no telemetry.
 
-## 5. Trial-app integration (v0.6.0 model)
+## 5. Trial-app integration (ADR-020 push-to-operator model)
 
-The agentic team builds **a standalone, runnable React app inside
-the user's own sandbox**, then exposes it back to the trial-app's
-showcase panel through `announce_dev_server_url`.
+The agentic team builds **a standalone React app under the project's
+`app/` subdirectory**, then `genasis push` uploads the static assets
+to the operator's trial-app. The operator serves them directly from
+`/dev/<team_token>/`, so the demo URL stays live even after the user's
+machine sleeps and is reachable from any device.
 
-Required scaffold layout (frontend creates it if absent):
+Required layout (relative to the project root the user created with
+`mkdir my-team && cd my-team && genasis init --trial` — standard
+Claude project shape):
 
 ```
-<sandbox-root>/
-├── package.json            # vite + react-ts deps
-├── vite.config.ts          # exports default with --host 0.0.0.0
-├── index.html
-├── src/
-│   ├── main.tsx
-│   ├── App.tsx             # mounts QuizApp
-│   ├── components/
-│   │   └── QuizApp.tsx     # the quiz from §3 + §4
-│   └── lib/
-│       └── quiz-bank.ts    # the question bank
+my-team/                       ← cwd / project root
+├── .claude/agents/            ← genasis-managed agent definitions
+├── .genasis/                  ← daemon state
+├── genasis.toml               ← provider + trial config
+├── PRD.md                     ← this file
+└── app/                       ← frontend scaffolds the React app here
+    ├── package.json           # vite + react-ts deps
+    ├── vite.config.ts
+    ├── index.html
+    ├── src/
+    │   ├── main.tsx
+    │   ├── App.tsx            # mounts QuizApp
+    │   ├── components/
+    │   │   └── QuizApp.tsx    # the quiz from §3 + §4
+    │   └── lib/
+    │       └── quiz-bank.ts   # the question bank
+    └── dist/                  ← `npm run build` output (genasis push uploads this)
 ```
 
 Workflow (PM dispatches in order):
 
-1. **frontend** Task — scaffold above (npm create vite + npm install)
-   + write `QuizApp.tsx` and `quiz-bank.ts` per §3-§4 + typecheck.
-2. **devops** Task — `npm install` (idempotent) + spawn
-   `npm run dev -- --host 0.0.0.0 --port 5173 &` in the background +
-   verify `ss -tlnp | grep 5173` + call
-   `mcp__trial-app__announce_dev_server_url(url="http://localhost:5173")`.
-3. The trial-app's `ShowcasePanel.LocalDevServerOrFallback` reads
-   `sim_teams.dev_server_url` and renders the user's localhost dev
-   server inside its iframe. If the URL never lands, the panel falls
-   back to a hosted simulation demo with a warning notice.
+1. **frontend** Task — `npm create vite@latest app -- --template
+   react-ts --yes` + `(cd app && npm install)` + write
+   `app/src/components/QuizApp.tsx` / `app/src/lib/quiz-bank.ts`
+   per §3-§4 + `(cd app && npx tsc --noEmit)` typecheck.
+2. **devops** Task — `(cd app && npm run build)` produces
+   `app/dist/`, verify `[ -f app/dist/index.html ]`, then call
+   `genasis push --dir ./app/dist`. The push uploads static assets to
+   the trial-app, updates `sim_teams.showcase_pushed_at`, and the
+   showcase panel placeholder ("준비중" / "Waiting…") flips into a
+   live iframe of the built app.
+3. **app_status** flips to `complete` automatically on publish — no
+   separate call needed.
 
-For the legacy v0.5.x model where agents PR the trial-app source tree
-directly, see ADR-016. v0.6.0 onwards prefers the localhost iframe
-flow above — the user sees the actual code the agents wrote, not a
-hosted recreation.
+Never `npm create vite@latest .` (cwd directly) — it pollutes the
+Claude project root with Vite scaffolding and breaks the layout the
+user expects. Always scaffold under `app/`.
+
+The legacy v0.5.x flow (`announce_dev_server_url` + localhost iframe)
+is retired by ADR-020. The user's laptop no longer needs to host a
+dev server, so the demo survives sleep / network changes.
 
 ## 6. Acceptance criteria
 

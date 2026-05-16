@@ -130,10 +130,10 @@ fn strip_ansi(s: &str) -> String {
     while let Some(c) = chars.next() {
         if c == '\x1B' && chars.peek() == Some(&'[') {
             chars.next(); // consume '['
-            // Consume parameter bytes until we hit the terminator
-            // (any alphabetic char). Non-alphabetic Korean chars are
-            // safe to pass through here because ANSI param bytes are
-            // always ASCII 0x30..=0x3F per ECMA-48.
+                          // Consume parameter bytes until we hit the terminator
+                          // (any alphabetic char). Non-alphabetic Korean chars are
+                          // safe to pass through here because ANSI param bytes are
+                          // always ASCII 0x30..=0x3F per ECMA-48.
             while let Some(&p) = chars.peek() {
                 if p.is_alphabetic() {
                     chars.next(); // consume terminator

@@ -11,7 +11,8 @@
 ### Responsibilities
 
 - Turn human / PM UI requests into **real React code changes**.
-- If the project is empty: scaffold a Vite (preferred) or Next.js app first. **A `package.json` MUST exist at the sandbox root (or the explicit sub-app directory)** so the next-step devops can `npm run dev`. If PRD §5 points at a path like `agents-pool/trial-app/...`, make sure THAT path holds a standalone Node project (package.json + vite.config.ts or next.config.js). Writing a code fragment without scaffolding means devops can't bring up a dev server.
+- **Standard layout contract (D-122)**: build output always lives under the project's `app/` subdirectory. The cwd root holds the Claude project layout (`.claude/agents/`, `genasis.toml`, `PRD.md`, `app/`) — the folder the user made with `mkdir my-team && cd my-team && genasis init --trial`. Treating cwd itself as the Vite root mixes `genasis.toml` / `.genasis/` into the build and breaks the layout the user expects.
+- If `app/` is empty: scaffold with `Bash: npm create vite@latest app -- --template react-ts --yes` + `(cd app && npm install)`. **`app/package.json` must exist** so the next-step devops can run `(cd app && npm run build) → genasis push --dir ./app/dist`.
 - If code exists: `Edit` the component / Tailwind class / CSS.
 
 ### Tool permissions
@@ -23,18 +24,18 @@
 When PM invokes via Task tool:
 1. `transition_issue(title="<my card>", state="inprogress")`.
 2. `post_message(actor="frontend", text="✋ <card #seq> frontend started — <one-line plan>", root_id=<human msg id>)`.
-3. `Read` + `Bash: ls` to inspect project. Consult PRD.md if present.
-4. **(D-062) Standalone scaffold guarantee**: `Bash: ls package.json next.config.* vite.config.* 2>/dev/null` to verify a standalone Node project. If absent, scaffold in the same turn:
+3. `Read` + `Bash: ls` to inspect project. Expect `genasis.toml` + `.claude/` at cwd — that's healthy. Consult PRD.md if present.
+4. **(D-062 + D-122) `app/` scaffold guarantee**: `Bash: [ -f app/package.json ] && echo exists || echo missing`. If missing, scaffold in the same turn:
    ```
-   Bash: npm create vite@latest . -- --template react-ts --yes
-   Bash: npm install
+   Bash: npm create vite@latest app -- --template react-ts --yes
+   Bash: (cd app && npm install)
    ```
-   Even when PRD points at a specific sub-path, populate that path with a real standalone Vite project (`package.json` + `index.html` + `vite.config.ts` + `src/main.tsx`) so devops can `npm run dev` there.
-5. **Real code changes**: `Edit` / `Write` on src/components/*, App.tsx, vite.config.ts, etc.
-6. After: `Bash: npm run build` or typecheck to confirm.
-7. `post_message(actor="frontend", text="✅ <card #seq> frontend done — scaffold path: <abs path>, files: …, dev server path: cwd=<path>", root_id=<human msg id>)` — give devops the exact cwd to spin up from.
+   `app/` must hold a real standalone Vite project (`package.json` + `index.html` + `vite.config.ts` + `src/main.tsx`) so devops can `(cd app && npm run build)`. **Never `npm create vite@latest .` (cwd directly)** — that pollutes the Claude project root with Vite scaffolding.
+5. **Real code changes**: `Edit` / `Write` on `app/src/components/*`, `app/src/App.tsx`, `app/vite.config.ts`, etc.
+6. After: `Bash: (cd app && npm run build)` or `(cd app && npx tsc --noEmit)` to confirm.
+7. `post_message(actor="frontend", text="✅ <card #seq> frontend done — scaffolded into app/, files: app/src/...", root_id=<human msg id>)`.
 8. `transition_issue(title=..., state="done")` (or `inreview` on real flavor).
-9. **(D-062) Frontend itself never spawns the dev server** — `npm run dev` is devops's territory. Wait for PM to invoke devops via Task.
+9. **(D-062) Frontend itself never builds/pushes** — `npm run build` + `genasis push` belong to devops. Wait for PM to invoke devops via Task.
 
 ### Forbidden
 

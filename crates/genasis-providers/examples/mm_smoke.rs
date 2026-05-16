@@ -7,9 +7,7 @@
 
 use anyhow::{Context, Result};
 
-use genasis_providers::mattermost::real_provisioner::{
-    MmClient, Outcome, CHANNEL_OPEN,
-};
+use genasis_providers::mattermost::real_provisioner::{MmClient, Outcome, CHANNEL_OPEN};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,34 +34,38 @@ async fn main() -> Result<()> {
 
     println!("→ ensure channel scrum-genasis-smoke — should Create…");
     let (chan, o3) = c
-        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN, None)
+        .ensure_channel(
+            &team.id,
+            "scrum-genasis-smoke",
+            "Scrum Smoke",
+            CHANNEL_OPEN,
+            None,
+        )
         .await?;
     println!("  ✓ channel id={} outcome={:?}", chan.id, o3);
 
     println!("→ ensure channel with matching expected_id — should Reuse…");
     let (_, o4) = c
-        .ensure_channel(&team.id, "scrum-genasis-smoke", "Scrum Smoke", CHANNEL_OPEN, Some(&chan.id))
+        .ensure_channel(
+            &team.id,
+            "scrum-genasis-smoke",
+            "Scrum Smoke",
+            CHANNEL_OPEN,
+            Some(&chan.id),
+        )
         .await?;
     assert_eq!(o4, Outcome::Reused);
     println!("  ✓ outcome={:?}", o4);
 
     println!("→ ensure agent user smoke-pm@genasis.bot — should Create…");
     let (agent, o5) = c
-        .ensure_agent_user(
-            "smoke-pm@genasis.bot",
-            "smoke-pm-gsmk",
-            "Tmp-Pass-123456",
-        )
+        .ensure_agent_user("smoke-pm@genasis.bot", "smoke-pm-gsmk", "Tmp-Pass-123456")
         .await?;
     println!("  ✓ user id={} outcome={:?}", agent.id, o5);
 
     println!("→ ensure agent — should Reuse…");
     let (_, o6) = c
-        .ensure_agent_user(
-            "smoke-pm@genasis.bot",
-            "smoke-pm-gsmk",
-            "Tmp-Pass-123456",
-        )
+        .ensure_agent_user("smoke-pm@genasis.bot", "smoke-pm-gsmk", "Tmp-Pass-123456")
         .await?;
     assert_eq!(o6, Outcome::Reused);
 
@@ -82,6 +84,8 @@ async fn main() -> Result<()> {
     let pat = c.issue_pat(&agent.id, "genasis-smoke").await?;
     println!("  ✓ PAT id={} len(token)={}", pat.id, pat.token.len());
 
-    println!("\nALL OK — clean up `team-genasis-smoke` and `smoke-pm@genasis.bot` from MM admin UI.");
+    println!(
+        "\nALL OK — clean up `team-genasis-smoke` and `smoke-pm@genasis.bot` from MM admin UI."
+    );
     Ok(())
 }

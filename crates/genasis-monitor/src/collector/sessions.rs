@@ -244,9 +244,13 @@ mod tests {
             "/home/bravo/.vscode-server-insiders/extensions/anthropic.claude-code-2.1.141-linux-x64/resources/native-binary/claude --output-format stream-json --verbose"
         ));
         // bare invocation
-        assert!(is_claude_process("claude --permission-mode bypassPermissions"));
+        assert!(is_claude_process(
+            "claude --permission-mode bypassPermissions"
+        ));
         // claude-code symlink name
-        assert!(is_claude_process("/home/user/.local/bin/claude-code --session xyz"));
+        assert!(is_claude_process(
+            "/home/user/.local/bin/claude-code --session xyz"
+        ));
         // NOT claude — node wrapper, vim editing a .md file, npm
         assert!(!is_claude_process("node /usr/bin/npm install"));
         assert!(!is_claude_process("vim claude.md"));

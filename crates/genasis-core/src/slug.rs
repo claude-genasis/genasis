@@ -80,7 +80,10 @@ pub fn abbreviate_english(input: &str) -> String {
 
     let raw = if words.len() >= 2 {
         // Multi-word → first letter of each, up to 5.
-        words.iter().filter_map(|w| w.chars().next()).collect::<String>()
+        words
+            .iter()
+            .filter_map(|w| w.chars().next())
+            .collect::<String>()
     } else if let Some(only) = words.first() {
         // Single word → first 5 chars.
         only.to_string()
@@ -110,7 +113,10 @@ fn translate_if_non_ascii(input: &str) -> Option<String> {
          explanation.\n\nName: {input}"
     );
     let mut cmd = Command::new(claude_path);
-    cmd.arg("-p").arg(&prompt).arg("--output-format").arg("text");
+    cmd.arg("-p")
+        .arg(&prompt)
+        .arg("--output-format")
+        .arg("text");
     // 30s ceiling so a wedged claude doesn't block provision.
     let output = run_with_timeout(cmd, Duration::from_secs(30)).ok()?;
     if !output.status.success() {

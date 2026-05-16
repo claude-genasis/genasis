@@ -144,14 +144,7 @@ pub async fn run(args: Args) -> Result<()> {
 }
 
 fn auto_detect_bundle(project_root: &Path) -> Result<PathBuf> {
-    let candidates = [
-        "app/dist",
-        "app/build",
-        "app/out",
-        "dist",
-        "build",
-        "out",
-    ];
+    let candidates = ["app/dist", "app/build", "app/out", "dist", "build", "out"];
     for c in &candidates {
         let p = project_root.join(c);
         if p.join("index.html").is_file() {
@@ -176,9 +169,9 @@ fn auto_detect_bundle(project_root: &Path) -> Result<PathBuf> {
 fn pack_dir_tar_gz(dir: &Path) -> Result<Vec<u8>> {
     use std::process::{Command, Stdio};
 
-    let abs = dir.canonicalize().with_context(|| {
-        format!("canonicalize bundle dir {}", dir.display())
-    })?;
+    let abs = dir
+        .canonicalize()
+        .with_context(|| format!("canonicalize bundle dir {}", dir.display()))?;
     let parent = abs.parent().unwrap_or(&abs);
     let basename = abs
         .file_name()
@@ -234,4 +227,3 @@ fn urlencode(s: &str) -> String {
     }
     out
 }
-

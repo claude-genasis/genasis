@@ -90,44 +90,57 @@ Code를 다룬다면 자기 문제를 생성해도 좋다.)
 대해 결정적 (시드 자체는 세션마다 무작위지만, 향후 "결과 공유"
 기능을 원하면 재현 가능). 로그인 없음, 저장 없음, 텔레메트리 없음.
 
-## 5. trial-app 통합 (v0.6.0 model)
+## 5. trial-app 통합 (ADR-020 push-to-operator 모델)
 
-에이전트 팀이 **사용자 sandbox 안에 standalone 실행 가능한 React
-앱** 을 짓고, `announce_dev_server_url` 로 trial-app 의 showcase
-패널에 노출시킨다.
+에이전트 팀은 **프로젝트 루트의 `app/` 하위에 standalone React
+앱** 을 빌드한 뒤, `genasis push` 로 정적 자산을 운영자의 trial-app
+에 업로드한다. 운영자가 `/dev/<team_token>/` 경로로 직접 serve 하므로
+사용자 머신이 꺼져도 데모 URL 이 살아있고, 다른 디바이스에서도 같은
+URL 로 접근 가능하다.
 
-요구 scaffold 구조 (frontend 가 없으면 만들어야 함):
+요구 layout (사용자가 `mkdir my-team && cd my-team && genasis init
+--trial` 로 만든 프로젝트 루트 기준 — Claude project 표준):
 
 ```
-<sandbox-root>/
-├── package.json            # vite + react-ts 의존성
-├── vite.config.ts          # default export 에서 --host 0.0.0.0
-├── index.html
-├── src/
-│   ├── main.tsx
-│   ├── App.tsx             # QuizApp 마운트
-│   ├── components/
-│   │   └── QuizApp.tsx     # §3 + §4 따른 quiz 컴포넌트
-│   └── lib/
-│       └── quiz-bank.ts    # 문제 은행
+my-team/                       ← cwd / project root
+├── .claude/agents/            ← genasis 가 만든 에이전트 정의
+├── .genasis/                  ← daemon state
+├── genasis.toml               ← provider + trial config
+├── PRD.md                     ← 이 파일
+└── app/                       ← frontend 가 scaffold 하는 React 앱
+    ├── package.json           # vite + react-ts 의존성
+    ├── vite.config.ts
+    ├── index.html
+    ├── src/
+    │   ├── main.tsx
+    │   ├── App.tsx            # QuizApp 마운트
+    │   ├── components/
+    │   │   └── QuizApp.tsx    # §3 + §4 quiz 컴포넌트
+    │   └── lib/
+    │       └── quiz-bank.ts   # 문제 은행
+    └── dist/                  ← `npm run build` 산출물 (genasis push 가 업로드)
 ```
 
 워크플로우 (PM 이 순서대로 dispatch):
 
-1. **frontend** Task — 위 scaffold 작성 (npm create vite + npm install)
-   + §3-§4 따라 `QuizApp.tsx` / `quiz-bank.ts` 작성 + typecheck.
-2. **devops** Task — `npm install` (idempotent) + `npm run dev --
-   --host 0.0.0.0 --port 5173 &` 백그라운드 spawn + `ss -tlnp |
-   grep 5173` 확인 + `mcp__trial-app__announce_dev_server_url(url=
-   "http://localhost:5173")` 호출.
-3. trial-app 의 `ShowcasePanel.LocalDevServerOrFallback` 가
-   `sim_teams.dev_server_url` 을 읽어 사용자 localhost dev server
-   를 iframe 으로 렌더. URL 이 안 도착하면 호스팅 시뮬레이션 demo
-   fallback (경고 notice 표시).
+1. **frontend** Task — `npm create vite@latest app -- --template
+   react-ts --yes` + `(cd app && npm install)` + §3-§4 따라
+   `app/src/components/QuizApp.tsx` / `app/src/lib/quiz-bank.ts`
+   작성 + `(cd app && npx tsc --noEmit)` typecheck.
+2. **devops** Task — `(cd app && npm run build)` 로 `app/dist/`
+   생성 + `[ -f app/dist/index.html ]` 확인 + `genasis push --dir
+   ./app/dist` 호출. push 가 trial-app 에 정적 자산을 업로드하면
+   `sim_teams.showcase_pushed_at` 이 갱신되고 showcase panel 의
+   placeholder ("준비중") 가 즉시 사용자 빌드 결과 iframe 으로 바뀐다.
+3. **app_status** 는 publish 시 자동으로 `complete` 로 전환되므로
+   별도 호출 불필요.
 
-agent 가 trial-app 소스 트리에 직접 PR 하는 v0.5.x 모델은
-ADR-016 참고. v0.6.0 부터는 localhost iframe 흐름이 우선 —
-사용자가 호스팅 재현물이 아니라 agent 가 실제로 짠 코드를 본다.
+cwd 자체 (`.` ) 를 vite root 로 잡지 말 것 — `genasis.toml` / `.genasis/`
+가 빌드 산출물에 섞이고 사용자 layout 이 깨진다. 항상 `app/` 하위로.
+
+이전 v0.5.x — `announce_dev_server_url` + localhost iframe — 흐름은
+ADR-020 으로 폐기됐다. 사용자 localhost 가 dev server 를 띄울 필요가
+없으므로 노트북을 닫아도 데모가 유지된다.
 
 ## 6. 수용 기준
 

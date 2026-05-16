@@ -193,13 +193,8 @@ async fn run_foreground(project_root: &Path, args: &Args) -> Result<()> {
                 ("GENASIS_FLAVOR".to_string(), flavor.clone()),
                 ("GENASIS_TRIAL_URL".to_string(), trial_url.clone()),
             ];
-            session::ClaudeTeamSession::spawn(
-                &project_root,
-                &mcp_config_str,
-                &append,
-                &env_vars,
-            )
-            .await
+            session::ClaudeTeamSession::spawn(&project_root, &mcp_config_str, &append, &env_vars)
+                .await
         })
     });
 

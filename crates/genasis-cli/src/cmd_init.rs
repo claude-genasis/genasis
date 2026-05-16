@@ -807,9 +807,7 @@ async fn auto_publish_and_start_daemon(project_root: &std::path::Path) {
         Ok(()) => println!("✓"),
         Err(e) => {
             println!("✗");
-            eprintln!(
-                "  ⚠ publish failed: {e}\n    Run `genasis publish` manually to retry."
-            );
+            eprintln!("  ⚠ publish failed: {e}\n    Run `genasis publish` manually to retry.");
         }
     }
 
@@ -862,6 +860,7 @@ mod tests {
             name: Some("Marketing Squad".into()),
             bootstrap: false,
             roles: None,
+            no_auto_start: false,
         };
         run_trial(args, None, true, true)
             .await
@@ -900,6 +899,7 @@ mod tests {
             name: Some("Anything".into()),
             bootstrap: false,
             roles: None,
+            no_auto_start: false,
         };
         run_trial(args, None, true, true).await.unwrap();
         let cfg = std::fs::read_to_string(&cfg_path).unwrap();
@@ -918,6 +918,7 @@ mod tests {
             name: None,
             bootstrap: false,
             roles: None,
+            no_auto_start: false,
         };
         run_trial(args, None, true, true)
             .await

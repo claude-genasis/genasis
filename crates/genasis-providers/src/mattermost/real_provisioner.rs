@@ -238,11 +238,11 @@ impl MmClient {
             .await
             .map_err(|e| Error::Provider(format!("channel-by-name: {e}")))?;
         match resp.status() {
-            StatusCode::OK => Ok(Some(
-                resp.json()
-                    .await
-                    .map_err(|e| Error::Provider(format!("channel json: {e}")))?,
-            )),
+            StatusCode::OK => {
+                Ok(Some(resp.json().await.map_err(|e| {
+                    Error::Provider(format!("channel json: {e}"))
+                })?))
+            }
             StatusCode::NOT_FOUND => Ok(None),
             other => {
                 let body = resp.text().await.unwrap_or_default();
@@ -321,11 +321,7 @@ impl MmClient {
     /// already a team member (the response body is the existing
     /// membership record, not a "no-op" sentinel). Without the GET
     /// probe we couldn't tell Created from Reused.
-    pub async fn ensure_team_member(
-        &self,
-        team_id: &str,
-        user_id: &str,
-    ) -> Result<Outcome> {
+    pub async fn ensure_team_member(&self, team_id: &str, user_id: &str) -> Result<Outcome> {
         if self.is_team_member(team_id, user_id).await? {
             return Ok(Outcome::Reused);
         }
@@ -364,11 +360,7 @@ impl MmClient {
 
     /// Add user to channel. Same GET-before-POST pattern as
     /// `ensure_team_member` for the same reason.
-    pub async fn ensure_channel_member(
-        &self,
-        channel_id: &str,
-        user_id: &str,
-    ) -> Result<Outcome> {
+    pub async fn ensure_channel_member(&self, channel_id: &str, user_id: &str) -> Result<Outcome> {
         if self.is_channel_member(channel_id, user_id).await? {
             return Ok(Outcome::Reused);
         }
@@ -389,7 +381,9 @@ impl MmClient {
         if lc.contains("already") || lc.contains("exists") {
             return Ok(Outcome::Reused);
         }
-        Err(Error::Provider(format!("add channel member {status}: {body}")))
+        Err(Error::Provider(format!(
+            "add channel member {status}: {body}"
+        )))
     }
 
     async fn is_channel_member(&self, channel_id: &str, user_id: &str) -> Result<bool> {
@@ -407,11 +401,7 @@ impl MmClient {
     /// system_admin (or the user themselves with the appropriate
     /// scope). Returns the bare token string — store it carefully,
     /// upstream does not expose it again.
-    pub async fn issue_pat(
-        &self,
-        user_id: &str,
-        description: &str,
-    ) -> Result<MmAccessToken> {
+    pub async fn issue_pat(&self, user_id: &str, description: &str) -> Result<MmAccessToken> {
         let body = serde_json::json!({ "description": description });
         let resp = self
             .http
@@ -434,11 +424,7 @@ impl MmClient {
     /// Used when the human doesn't already have an MM account and
     /// you want them to sign up themselves via the link in the
     /// email.
-    pub async fn invite_human_by_email(
-        &self,
-        team_id: &str,
-        emails: &[String],
-    ) -> Result<()> {
+    pub async fn invite_human_by_email(&self, team_id: &str, emails: &[String]) -> Result<()> {
         let resp = self
             .http
             .post(self.v4(&format!("teams/{team_id}/invite/email")))
