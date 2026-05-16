@@ -357,6 +357,53 @@ genasis db query "SELECT ..."  # 읽기 전용 SQL
 genasis lang switch <en|ko>    # 에이전트 언어 전환
 ```
 
+## Trial-app 배포 모델
+
+내 trial-app 은 어디서 실행돼?
+
+| 옵션 | URL | 추천 시나리오 |
+|------|-----|---------------|
+| **A. 운영자 호스팅 (default)** | `https://mmplane-trial.realstory.blog` | 가장 빠른 데모. 추가 설치 없음. UI 업데이트는 genasis 운영자가 배포. |
+| **B. 자체 호스팅** | `GENASIS_TRIAL_URL=http://localhost:2099` | 폐쇄망 데모, 커스텀 UI 수정, 오프라인 작업. |
+
+두 path 모두 `genasis` CLI 흐름은 **동일** — daemon + browser 가
+가리키는 URL 만 다름.
+
+### 옵션 A — 운영자 호스팅 (Quick Path 따랐다면 이미 사용 중)
+
+브라우저가 `mmplane-trial.realstory.blog` 를 접속, 내 머신의 daemon 은
+같은 host 의 REST + SSE API 와 통신, 그리고 agent 가 만든 앱은 내
+localhost 의 `vite dev` 가 serve 하는 걸 trial-app 의 reverse-proxy
+(`/dev/<token>/`) 를 거쳐 iframe 으로 보임. 추가 설치 불필요.
+
+만약 daemon 로그에는 frontend/devops 활동이 잘 찍히는데 칸반 + 채팅
+패널이 stale (카드 이동 안 보이고 응답 메시지 안 옴) 이면 십중팔구
+운영자 restart 또는 네트워크 blip 으로 SSE 가 끊긴 것. alpha.37+ 부터
+채팅 + 칸반 모두 auto-reconnect 가 들어가 있고, 옛 빌드면 사용자가
+한 번 새로고침해야 회복.
+
+### 옵션 B — trial-app 자체 호스팅
+
+trial-app 소스는 운영자 private repo (`agents-pool/trial-app/`) 에
+있고, runtime artifact 는 GitHub Container Registry 에 publish. 로컬
+stack 에 추가:
+
+```bash
+cd servers
+# docker-compose.yml 의 trial-app 서비스 블록 주석 해제
+docker compose up -d trial-app   # :2099 listen
+
+# CLI + 브라우저를 로컬 trial-app 으로
+export GENASIS_TRIAL_URL=http://localhost:2099
+cd ~/my-project
+genasis init --trial --name "X"
+# init banner 가 http://localhost:2099/?team=... 출력  ← 그걸 열기
+```
+
+(image publish + docker-compose 서비스 블록은 `v0.6.0-alpha.38+`
+follow-up. 그때까지 자체 호스트는 agents-pool 접근 권한 있는 clone
+에서 빌드해야 함.)
+
 ## 문제 해결
 
 ### "결과보기" 핸들이 "준비중" 으로 회색 표시

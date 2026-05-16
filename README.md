@@ -379,6 +379,55 @@ genasis debug collect          # generate anonymised patch
 genasis debug submit           # contribute to genasis improvement (opt-in)
 ```
 
+## Trial-app deployment model
+
+Where does your trial-app actually run?
+
+| Option | URL | Best for |
+|--------|-----|----------|
+| **A. Operator-hosted (default)** | `https://mmplane-trial.realstory.blog` | Quickest demo. No extra setup. UI updates ship from the genasis maintainer. |
+| **B. Self-hosted trial-app** | `GENASIS_TRIAL_URL=http://localhost:2099` | Air-gapped demos, custom UI mods, working offline. |
+
+Both paths use the **same** `genasis` CLI flow — only the URL the
+daemon and browser point at changes.
+
+### Option A — operator-hosted (you already have this if you ran the Quick Path)
+
+The browser hits `mmplane-trial.realstory.blog`, the daemon on your
+machine talks to the same host via its REST + SSE API, and your
+agents' built apps stream out of `vite dev` on your localhost via
+the trial-app's reverse-proxy at `/dev/<token>/`. Nothing else to
+install.
+
+If you ever see the kanban + chat panel falling behind the daemon
+logs (cards not transitioning, chat replies missing), the most
+likely cause is the SSE stream dropping during an operator restart
+or a network blip. alpha.37+ adds auto-reconnect for both the chat
+and kanban; older builds need a manual page reload.
+
+### Option B — self-host the trial-app
+
+The trial-app's source is in the operator's private repo
+(`agents-pool/trial-app/`), but the runtime artifact is published to
+GitHub Container Registry. Add it to your local stack:
+
+```bash
+cd servers
+# Edit docker-compose.yml — uncomment the trial-app service block
+docker compose up -d trial-app   # listens on :2099 by default
+
+# Point your CLI + browser at the local instance
+export GENASIS_TRIAL_URL=http://localhost:2099
+cd ~/my-project
+genasis init --trial --name "X"
+# The init banner prints http://localhost:2099/?team=...  ← open this
+```
+
+(Image publish + the docker-compose service block are the
+`v0.6.0-alpha.38+` follow-up; until then self-host requires building
+the trial-app from a clone of the agents-pool repo you've been
+granted access to.)
+
 ## Troubleshooting
 
 ### "결과보기" 핸들이 "준비중" 으로만 보임
