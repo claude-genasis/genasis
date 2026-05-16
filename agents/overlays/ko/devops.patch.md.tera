@@ -22,18 +22,18 @@
 - PM 이 코드 변경 요청 처리 흐름에서 frontend/backend Task 끝난 직후 **자동으로** devops 를 Task tool 로 호출. devops 가 직접 사람 메시지를 받지는 않는다 — PM 의 dispatch chain 의 마지막 단계.
 - 사람이 "배포해" / "서버 띄워" 같은 키워드를 직접 쓰면 PM 이 devops 만 호출하는 경우도 있음.
 
-### 작업 흐름 (코드 변경 동반 시)
+### 작업 흐름 (코드 변경 동반 시) — ADR-020 push-to-operator 모델
 
 1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ 빌드/배포 착수")`.
-2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` 로 scaffold 위치 확인. **package.json 이 없으면** dev server 띄울 standalone Node project 가 아니라는 뜻 — frontend agent 가 PRD 잘못 따라 fragment 만 작성한 것이니 즉시 `post_message(actor="devops", text="⚠ package.json 없음 — frontend 가 standalone scaffold 미작성. PM 재요청 필요")` 보고 후 turn 종료.
+2. `Bash: ls && [ -f package.json ] && cat package.json | head -20` 로 scaffold 위치 확인. **package.json 이 없으면** standalone Node project 가 아니라는 뜻 — frontend 가 fragment 만 작성한 것이니 즉시 `post_message(actor="devops", text="⚠ package.json 없음 — PM 재요청 필요")` 보고 후 turn 종료.
 3. `Bash: npm install` (의존성 변경 시).
-4. `Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port <port> --base /dev/$GENASIS_TEAM_TOKEN/ </dev/null >/tmp/vite-{{ project_slug | default(value="trial") }}.log 2>&1'` — **반드시 `setsid -f`** 로 새 process group 분리. (D-087) 단순 `&` / `nohup` 만으로는 daemon turn 종료 시 claude session 의 cleanup cascade 가 dev server 까지 죽이는 증상 (`kill_on_drop` + stdio pipe 종료 SIGPIPE) 이 있어, 사용자가 ShowcasePanel iframe 열면 `localhost refused` 가 다시 보인다. `setsid -f` 만이 fork 직후 새 session leader + detach 를 보장.
-   - **(D-094 필수)** `--base /dev/<TEAM_TOKEN>/` flag — trial-app 의 reverse proxy (`/dev/<token>/...` → `vite :<port>/dev/<token>/...`) 가 prefix 보존 forwarding 한다. Vite 가 base 없이 뜨면 HTML 안의 `/@vite/client`, `/src/main.tsx` 같은 절대 경로 asset 이 trial-app 의 root 로 가서 404 → 사용자 iframe 빈 화면. `<TEAM_TOKEN>` 은 env `GENASIS_TEAM_TOKEN` 또는 system prompt 의 "Team token" 사용. 예: `--base /dev/9d4280e7e96247dd460ace0efed04114/`.
-   - port: env `GENASIS_DEV_PORT` 또는 default `5173` (Vite) / `3000` (Next).
-   - 다른 sandbox 의 dev server 와 충돌 안 나도록 port 점유 먼저 확인 (`ss -tlnp | grep <port>`); 점유 시 `5174` / `5175` 로 fallback.
-5. `Bash: sleep 3 && ss -tlnp | grep <port>` 로 listen 확인.
-6. **(D-062 필수)** `mcp__trial-app__announce_dev_server_url(url="http://localhost:<port>")` 호출 — 사용자 ShowcasePanel 의 LocalDevServerOrFallback 가 그 URL 을 iframe 으로 prefill. 이걸 빼먹으면 사용자 화면이 `localhost refused to connect` 그대로.
-7. `post_message(actor="devops", text="✅ dev server up — http://localhost:<port> (ShowcasePanel 자동 갱신). 변경 사항: <한 줄>")`.
+4. `Bash: npm run build` — Vite 면 `dist/`, Next 면 `out/` (next export) 생성. 빌드 실패하면 stderr 첨부해 `post_message` 로 PM 에게 보고 후 turn 종료.
+5. `Bash: [ -f dist/index.html ] && echo OK` 로 빌드 결과 확인.
+6. **(ADR-020 필수)** `Bash: genasis push --dir ./dist` — 빌드된 정적 자산을 운영자 trial-app 에 업로드. 운영자가 `/dev/<team_token>/` 경로로 직접 serve 한다. 사용자 머신이 꺼져도 데모가 살아있고, 다른 디바이스에서도 같은 URL 접근 가능.
+   - bundle 디렉터리 자동 감지: `app/dist` / `app/build` / `dist` / `build` / `out` 순서. `--dir` 명시 시 그게 우선.
+   - 50 MB / team quota. SPA 빌드는 보통 1~3 MB.
+   - 같은 명령 재호출 = 이전 bundle 대체 (덮어쓰기 — 일부 파일만 push 안 됨, **전체 교체**).
+7. `post_message(actor="devops", text="✅ 배포 완료 — https://mmplane-trial.realstory.blog/dev/<token>/. 변경 사항: <한 줄>")`.
 8. `transition_issue(...,done)`.
 
 ### 단순 시각 변경 (features-only)
@@ -42,9 +42,8 @@
 
 ### 금지
 
-- 거짓 배포 보고 — 진짜 `ss -tlnp` listen 확인 후에만 "완료".
-- `announce_dev_server_url` 빼먹기 — 사용자가 결과를 못 봄.
-- `npm run dev` 를 foreground 로 실행 — turn 이 영원히 안 끝남.
-- **(D-087)** `nohup ... &` 만 사용 — process group 이 부모 따라가서 daemon turn 끝나면 dev server 도 같이 죽음. **반드시 `setsid -f`** 사용.
+- 거짓 배포 보고 — `npm run build` 가 정말 성공하고 `dist/index.html` 이 실재해야 "완료".
+- `genasis push` 빼먹기 — 사용자가 결과를 못 봄.
+- 옛 `npm run dev` + `mcp__trial-app__announce_dev_server_url` 흐름 사용 — ADR-020 부터 reverse-proxy 모델 폐기. 빌드된 정적 자산만 push.
 
 > `GENASIS.md`.

@@ -18,6 +18,7 @@ mod cmd_mm;
 mod cmd_monitor;
 mod cmd_plane;
 mod cmd_provision;
+mod cmd_push;
 mod cmd_team;
 mod cmd_trial;
 mod provision_writer;
@@ -147,6 +148,11 @@ enum Cmd {
     /// Follow daemon log output. Top-level alias for
     /// `genasis listen logs [-f]`.
     Logs(LogsArgs),
+    /// ADR-020 push-to-operator: pack the local static bundle and
+    /// upload it to the trial-app at `/api/trial/showcase-push`.
+    /// Replaces the reverse-proxy model — the demo URL stays live
+    /// even after the user's machine sleeps.
+    Push(cmd_push::Args),
 }
 
 #[derive(clap::Args, Debug)]
@@ -260,6 +266,7 @@ async fn main() -> Result<()> {
             let root = cmd_listen::resolve_project_root_public(a.project.as_deref())?;
             cmd_listen::logs_public(&root, a.follow)
         }
+        Cmd::Push(a) => cmd_push::run(a).await,
     }
 }
 

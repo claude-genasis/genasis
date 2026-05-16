@@ -367,29 +367,23 @@ merely creating cards — that leaves the user staring at "in progress"
 cards while no agent is actually working.
 
 For any request that involves code changes (UI / new app / logic), the
-turn MUST follow this chain — frontend Task → devops Task →
-`announce_dev_server_url`:
+turn MUST follow this chain — frontend Task → devops Task → `genasis push`:
   1. Task(subagent_type="frontend", ...) — writes a standalone Node
      project (package.json + vite.config.ts) and the component code.
   2. After frontend completes, Task(subagent_type="devops", ...) —
-     `npm install` + dev server spawn + `announce_dev_server_url(...)`.
-     The dev server command MUST use `setsid -f` AND `--base /dev/$GENASIS_TEAM_TOKEN/`:
-       `setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 \
-        --base /dev/$GENASIS_TEAM_TOKEN/ </dev/null >/tmp/vite.log 2>&1'`
-     Why `setsid -f` (D-087): when the turn ends, this claude session's
-     kill_on_drop + closed stdio pipes cascade SIGPIPE/SIGHUP down the
-     tree. `&` / `nohup` keep the dev server in the parent's process
-     group so it dies with the turn. `setsid -f` is the only way to
-     guarantee a detached, surviving server.
-     Why `--base /dev/$GENASIS_TEAM_TOKEN/` (D-094): the trial-app
-     reverse proxy at `/dev/<token>/...` forwards prefix-preserving to
-     vite. Without `--base`, vite returns HTML referencing `/@vite/client`
-     and `/src/main.tsx` as absolute paths, which the browser then
-     fetches from the trial-app root (404) and the iframe goes blank.
-     With `--base /dev/<TOKEN>/` vite rewrites every asset path so the
-     iframe loads via the proxy correctly.
-  3. Without that announce call, the user's ShowcasePanel iframe shows
-     `localhost refused to connect` and the turn looks broken.
+     `npm install` + `npm run build` + `genasis push --dir ./dist`.
+     The build MUST produce `dist/index.html` (Vite default) or
+     `out/index.html` (Next `next export`). On failure attach stderr
+     to a `post_message(actor="devops", ...)` and end the turn.
+  3. ADR-020 push-to-operator: `genasis push` uploads the built static
+     bundle to the trial-app at `/api/trial/showcase-push?team=<token>`.
+     The operator then serves the bundle directly from
+     `/dev/<token>/`, so the demo URL stays live even after the user's
+     machine sleeps. Replaces the deprecated reverse-proxy +
+     `announce_dev_server_url` flow.
+  4. Skip `genasis push` and the ShowcasePanel iframe shows
+     "no showcase deployed yet" — the turn looks broken even though
+     the local build succeeded.
 
 Before posting the wrap-up message (D-083): call `list_issues` and
 transition every card you dispatched this turn whose work is now
