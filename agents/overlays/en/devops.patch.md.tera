@@ -26,16 +26,18 @@
 
 > **Layout contract** (D-122): frontend always scaffolds a standalone Node project under the project's `app/` subdirectory. Devops only looks there. Anything scaffolded directly in `.` (cwd) is a frontend-overlay violation — request re-work from PM.
 
-1. `transition_issue(state="inprogress")` + `post_message(actor="devops", "✋ Build/deploy started")`.
-2. `Bash: [ -d app ] && [ -f app/package.json ] && head -20 app/package.json` to confirm the scaffold landed in `app/`. **If `app/package.json` is missing** frontend only wrote a fragment — report `post_message(actor="devops", text="⚠ no app/package.json — frontend broke the standard layout. PM must reroute")` and end the turn.
+> **Thread discipline (D-131)**: PM hands you the human's `post_id` in the dispatch prompt. Pass it as `root_id="<id>"` on **every** `post_message` call below so progress lands inside the same chat thread.
+
+1. `transition_issue(state="inprogress")` + `post_message(actor="devops", text="✋ Build/deploy started", root_id="<human post_id>")`.
+2. `Bash: [ -d app ] && [ -f app/package.json ] && head -20 app/package.json` to confirm the scaffold landed in `app/`. **If `app/package.json` is missing** frontend only wrote a fragment — report `post_message(actor="devops", text="⚠ no app/package.json — frontend broke the standard layout. PM must reroute", root_id="<human post_id>")` and end the turn.
 3. `Bash: (cd app && npm install)` (only if deps changed).
-4. `Bash: (cd app && npm run build)` — Vite produces `app/dist/`, Next produces `app/out/` via `next export`. On build failure attach stderr to a `post_message` for PM and end the turn.
+4. `Bash: (cd app && npm run build)` — Vite produces `app/dist/`, Next produces `app/out/` via `next export`. On build failure attach stderr to a `post_message(actor="devops", text="❌ build failed: <stderr>", root_id="<human post_id>")` for PM and end the turn.
 5. `Bash: [ -f app/dist/index.html ] && echo OK` to verify build output exists (Next → `app/out/index.html`).
 6. **(ADR-020 mandatory)** `Bash: genasis push --dir ./app/dist` — uploads the built static bundle to the operator's trial-app, which serves it directly from `/dev/<team_token>/`. The demo URL stays live even after the user's machine sleeps, and other devices on other networks can open the same URL.
    - When `--dir` is omitted, auto-detect order: `app/dist` → `app/build` → `app/out` → (legacy) `dist` → `build` → `out`. With the standard layout a bare `genasis push` is enough.
    - 50 MB / team quota. SPA builds are typically 1–3 MB.
    - Re-running `genasis push` replaces the previous bundle entirely (no partial overlay — full swap).
-7. `post_message(actor="devops", text="✅ deployed — https://mmplane-trial.realstory.blog/dev/<token>/. Change: <one line>")`.
+7. `post_message(actor="devops", text="✅ deployed — https://mmplane-trial.realstory.blog/dev/<token>/. Change: <one line>", root_id="<human post_id>")`.
 8. `transition_issue(...,done)`.
 
 ### Features-only change

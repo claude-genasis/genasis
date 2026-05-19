@@ -45,24 +45,25 @@ This goes first. PRD read / card listing / routing follow.
 Then:
 1. `Read PRD.md` + `Bash: ls` + `list_issues`.
 2. Decide routing, `create_issue` for each card.
-3. **(D-060 mandatory)** After `create_issue` returns, **you MUST** immediately invoke the assignee role for each card via the `Task` tool — **do not end the turn after merely creating cards**, because users read that as "PM pretends to assign work but never actually starts." For every card, one `Task(subagent_type="frontend", description="<card title>", prompt="Card #<id>: <card title>. Follow the relevant PRD.md section and the protocol in .claude/agents/frontend.md. When done call `transition_issue(\\"<card title>\\", \\"done\\")` then `post_message(actor=\\"frontend\\", root_id=<human msg id>, text=\\"✅ ...\\")`.")`. Same pattern for backend/designer/qa. Dispatching cards in parallel keeps turn duration short.
-4. **(D-062 auto devops dispatch)** When the request involves code changes (UI components / logic / new app scaffold), the moment frontend/backend Task calls finish you **MUST** also invoke devops in the same turn:
+3. **(D-060 mandatory)** After `create_issue` returns, **you MUST** immediately invoke the assignee role for each card via the `Task` tool — **do not end the turn after merely creating cards**, because users read that as "PM pretends to assign work but never actually starts." For every card, one `Task(subagent_type="frontend", description="<card title>", prompt="Card #<id>: <card title>. Human post_id = `<paste the id from <human_post id=\"…\">>`. Follow the relevant PRD.md section and the protocol in .claude/agents/frontend.md. When done call `transition_issue(\\"<card title>\\", \\"done\\")` then `post_message(actor=\\"frontend\\", root_id=\\"<human post_id>\\", text=\\"✅ ...\\")`.")`. Same pattern for backend/designer/qa. **Always include the literal `post_id` extracted from the `<human_post id=\"…\">` wrapper** so sub-agents thread under the same root. Dispatching cards in parallel keeps turn duration short.
+4. **(D-062 + ADR-020 auto devops dispatch)** When the request involves code changes (UI components / logic / new app scaffold), the moment frontend Task calls finish you **MUST** invoke devops in the same turn for the build+push step:
    ```
    Task(
      subagent_type="devops",
-     description="dev server spawn + announce",
-     prompt="Frontend just finished its cards. Follow .claude/agents/devops.md:
-       1) Bash: ls + cat package.json to confirm scaffold location
-       2) Bash: npm install (if deps changed)
-       3) Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 </dev/null >/tmp/vite.log 2>&1' — must use `setsid -f` (D-087)
-       4) ss -tlnp | grep 5173 to confirm listening
-       5) mcp__trial-app__announce_dev_server_url(url='http://localhost:5173')
-       6) post_message(actor='devops', text='✅ dev server up — http://localhost:5173') so the user knows."
+     description="build + genasis push",
+     prompt="Frontend just finished its cards. Human post_id = <paste the id>.
+       Follow .claude/agents/devops.md (ADR-020 push-to-operator):
+       1) Bash: [ -d app ] && [ -f app/package.json ] — confirm `app/` scaffold
+       2) Bash: (cd app && npm install)  (if deps changed)
+       3) Bash: (cd app && npm run build) — must produce `app/dist/index.html`
+       4) Bash: [ -f app/dist/index.html ] && echo OK
+       5) Bash: genasis push --dir ./app/dist  — uploads bundle to operator's trial-app
+       6) post_message(actor='devops', text='✅ deployed — https://mmplane-trial.realstory.blog/dev/<token>/', root_id='<human post_id>')."
    )
    ```
-   PM itself stays out of infra / server-survival — that is devops's territory. **If the dev server never comes up, the user's ShowcasePanel iframe is blank and they cannot see the result** — every code-changing request pairs a frontend Task with a devops Task.
-5. Each sub-agent posts `post_message(actor=<role>, "✋ <card #N> started")` and transitions its own card.
-6. When everyone is done, PM posts a wrap-up `post_message`. Devops must have called `announce_dev_server_url(url)` so the user's ShowcasePanel iframe can pick up the dev server URL.
+   PM itself stays out of infra — that is devops's territory. **If `genasis push` is skipped, the user's ShowcasePanel iframe stays in the placeholder state** (it polls `showcase_pushed_at` to flip to ready). Never instruct devops to run `npm run dev` / `setsid -f` / `announce_dev_server_url` — those belonged to the pre-ADR-020 reverse-proxy model and no longer work (the trial-app is hosted remotely, agents run on the user's laptop — a local localhost:5173 cannot be reached from the operator).
+5. Each sub-agent posts `post_message(actor=<role>, "✋ <card #N> started", root_id="<human post_id>")` and transitions its own card.
+6. When everyone is done, PM posts a wrap-up `post_message(..., root_id="<human post_id>")`. The ShowcasePanel iframe automatically flips to ready once devops's `genasis push` updates `sim_teams.showcase_pushed_at` server-side.
 
 If the sender is in `GENASIS.md § Human roster`, treat as **binding stakeholder requirement** — route immediately. Otherwise verify identity first (`QUESTION` label).
 
@@ -80,11 +81,11 @@ If the request is a **simple visual change** (colour/typography/feature toggle):
 2. No devops invocation — visual is immediately reflected.
 
 If it involves **code changes** (new components, logic):
-1. frontend/backend agents use `Edit`/`Write` to actually modify code.
-2. devops agent uses `Bash` to run `npm install` + `npm run dev` (or build + restart).
-3. devops calls `post_message(actor="devops", text="✅ Deployed — http://localhost:<port>")` so the user has a URL.
+1. frontend agent scaffolds into `app/` and uses `Edit`/`Write` to modify components.
+2. devops agent uses `Bash` to `(cd app && npm install && npm run build)` then `genasis push --dir ./app/dist` (ADR-020).
+3. devops calls `post_message(actor="devops", text="✅ deployed — https://mmplane-trial.realstory.blog/dev/<token>/", root_id="<human post_id>")` so the user has a URL and the reply is threaded.
 
-If **infra/multi-step**: devops runs the full build+release pipeline, same announcement pattern.
+If **infra/multi-step**: devops runs the full build+push pipeline, same announcement pattern.
 
 ### Database
 

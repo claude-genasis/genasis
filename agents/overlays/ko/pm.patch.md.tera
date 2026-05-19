@@ -45,24 +45,25 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
 - 접수 announce 후 천천히 컨텍스트 파악:
   1. `Read PRD.md` + `Bash: ls` + `list_issues`.
   2. 작업 분배 결정 후 `create_issue` 로 카드 N 개 생성.
-  3. **(D-060 강제 조항)** `create_issue` 호출이 끝나면 그 자리에서 **반드시** `Task` tool 로 각 카드의 assignee role 을 invoke. **카드 생성만 하고 turn 을 종료하지 말 것** — 카드만 만들고 멈추면 사용자는 "PM 이 분배 시늉만 하고 실제 작업은 안 한다" 고 판단. 카드 1 개당 정확히 1 회 `Task(subagent_type="frontend", description="<카드 제목>", prompt="카드 #<id>: <카드 제목>. PRD.md 의 해당 섹션 따라 .claude/agents/frontend.md 의 프로토콜대로 진행. 작업 끝나면 `transition_issue(\\"<카드 제목>\\", \\"done\\")` + `post_message(actor=\\"frontend\\", root_id=<사람 메시지 id>, text=\\"✅ ...\\")` 로 보고.")`. backend/designer/qa 등 다른 역할도 같은 패턴. 카드들을 병렬로 디스패치하면 turn 이 짧아진다.
-  4. **(D-062 자동 devops dispatch)** 코드 변경 동반 요청 (UI 컴포넌트 / 로직 / 신규 앱 빌드 등) 인 경우 frontend/backend Task 가 끝나는 즉시 같은 turn 안에서 **반드시** devops 도 Task 로 invoke:
+  3. **(D-060 강제 조항)** `create_issue` 호출이 끝나면 그 자리에서 **반드시** `Task` tool 로 각 카드의 assignee role 을 invoke. **카드 생성만 하고 turn 을 종료하지 말 것** — 카드만 만들고 멈추면 사용자는 "PM 이 분배 시늉만 하고 실제 작업은 안 한다" 고 판단. 카드 1 개당 정확히 1 회 `Task(subagent_type="frontend", description="<카드 제목>", prompt="카드 #<id>: <카드 제목>. 사람의 post_id = `<<human_post id=\"…\"> 에서 추출한 id>`. PRD.md 의 해당 섹션 따라 .claude/agents/frontend.md 의 프로토콜대로 진행. 작업 끝나면 `transition_issue(\\"<카드 제목>\\", \\"done\\")` + `post_message(actor=\\"frontend\\", root_id=\\"<human post_id>\\", text=\\"✅ ...\\")` 로 보고.")`. backend/designer/qa 등 다른 역할도 같은 패턴. **`<human_post id=\"…\">` 래퍼에서 추출한 literal `post_id` 를 dispatch prompt 안에 반드시 넣을 것** — sub-agent 가 root 를 같이 잇는 유일한 경로. 카드들을 병렬로 디스패치하면 turn 이 짧아진다.
+  4. **(D-062 + ADR-020 자동 devops dispatch)** 코드 변경 동반 요청 (UI 컴포넌트 / 로직 / 신규 앱 빌드 등) 인 경우 frontend Task 가 끝나는 즉시 같은 turn 안에서 **반드시** devops 도 Task 로 invoke — build + push 단계:
      ```
      Task(
        subagent_type="devops",
-       description="dev server spawn + announce",
-       prompt="frontend 가 방금 카드들 완료. .claude/agents/devops.md 프로토콜대로
-         1) Bash: ls + cat package.json 으로 scaffold 위치 확인
-         2) Bash: npm install (의존성 변경 시)
-         3) Bash: setsid -f sh -c 'npm run dev -- --host 0.0.0.0 --port 5173 </dev/null >/tmp/vite.log 2>&1' — 반드시 `setsid -f` (D-087)
-         4) ss -tlnp | grep 5173 으로 listen 확인
-         5) mcp__trial-app__announce_dev_server_url(url='http://localhost:5173')
-         6) post_message(actor='devops', text='✅ dev server up — http://localhost:5173') 로 사용자에게 보고."
+       description="build + genasis push",
+       prompt="frontend 가 방금 카드들 완료. 사람의 post_id = <id>.
+         .claude/agents/devops.md (ADR-020 push-to-operator) 프로토콜대로:
+         1) Bash: [ -d app ] && [ -f app/package.json ] 로 `app/` scaffold 확인
+         2) Bash: (cd app && npm install)  (의존성 변경 시)
+         3) Bash: (cd app && npm run build) — `app/dist/index.html` 생성돼야 함
+         4) Bash: [ -f app/dist/index.html ] && echo OK
+         5) Bash: genasis push --dir ./app/dist — 운영자 trial-app 에 bundle 업로드
+         6) post_message(actor='devops', text='✅ 배포 완료 — https://mmplane-trial.realstory.blog/dev/<token>/', root_id='<human post_id>')."
      )
      ```
-     PM 본인은 인프라/서버 살림에 관여 안 함 — devops 의 영역. **dev server 가 안 떠 있으면 ShowcasePanel iframe 이 빈 화면이라 사용자가 결과 못 봄** — 코드 변경 요청은 frontend Task 끝 = devops Task 시작이 짝.
-  5. sub-agent 들이 시작 시 `post_message(actor=<role>, "✋ <카드 #N> 착수")` + 자기 카드 transition 호출.
-  6. 모든 agent 가 끝나면 PM 이 종합 `post_message`. devops 가 `announce_dev_server_url(url)` 까지 호출해야 사용자 ShowcasePanel iframe 이 dev server URL 을 picks up.
+     PM 본인은 인프라에 관여 안 함 — devops 의 영역. **`genasis push` 를 빼먹으면 사용자 ShowcasePanel iframe 이 placeholder 그대로** (서버측 `showcase_pushed_at` 폴링으로 ready 전환). devops 에게 `npm run dev` / `setsid -f` / `announce_dev_server_url` 시키지 말 것 — 그건 ADR-020 이전 reverse-proxy 모델이라 더 이상 동작 안 함 (trial-app 은 리모트, agent 는 사용자 노트북 — 로컬 5173 은 운영자가 접근 불가).
+  5. sub-agent 들이 시작 시 `post_message(actor=<role>, "✋ <카드 #N> 착수", root_id="<human post_id>")` + 자기 카드 transition 호출.
+  6. 모든 agent 가 끝나면 PM 이 종합 `post_message(..., root_id="<human post_id>")`. devops 의 `genasis push` 가 서버측 `sim_teams.showcase_pushed_at` 을 채우면 ShowcasePanel iframe 이 자동으로 ready 로 flip.
 
 - 발신자가 `GENASIS.md § 사람 로스터` 에 있으면 **바인딩 stakeholder 요구사항** — 즉시 작업 분배. 미등록이면 PM 이 먼저 신원 확인 (`QUESTION` 라벨).
 
@@ -80,11 +81,11 @@ v0.6.0 이래 카드 transition / 채팅 reply / app feature 갱신은 **MCP too
 2. devops 호출 안 함 — 즉시 반영.
 
 **코드 변경 동반** (컴포넌트 신규/로직 변경) 이면:
-1. frontend/backend agent 가 `Edit`/`Write` tool 로 진짜 코드 수정.
-2. devops agent 가 `Bash` 로 `npm install` + `npm run dev` (또는 build/restart).
-3. devops 가 `post_message(actor="devops", text="✅ 배포 완료 — http://localhost:<port>")` 로 사용자에게 URL 안내.
+1. frontend agent 가 `app/` 하위에 scaffold + `Edit`/`Write` 로 컴포넌트 수정.
+2. devops agent 가 `Bash` 로 `(cd app && npm install && npm run build)` 후 `genasis push --dir ./app/dist` (ADR-020).
+3. devops 가 `post_message(actor="devops", text="✅ 배포 완료 — https://mmplane-trial.realstory.blog/dev/<token>/", root_id="<human post_id>")` 로 사용자에게 URL + thread 안내.
 
-**인프라/멀티스텝**: devops 호출, 빌드+릴리스 파이프라인 실행 후 위와 동일.
+**인프라/멀티스텝**: devops 호출, build + push 파이프라인 실행 후 위와 동일.
 
 ### 데이터베이스
 

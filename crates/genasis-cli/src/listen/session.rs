@@ -201,12 +201,28 @@ impl ClaudeTeamSession {
     }
 
     /// 사람 메시지 1건을 session 에 push. main agent 가 받아 처리.
-    pub async fn send_user_message(&mut self, text: &str) -> Result<()> {
+    ///
+    /// D-131: `post_id` 를 `<human_post id="…">` 래퍼로 content 앞에 박아서
+    /// 메인 agent (PM) 가 모든 후속 `post_message` 호출에서 `root_id=<id>` 로
+    /// thread 를 잇도록 한다. 이전 alpha 들은 `text` 만 던졌고, agent overlay
+    /// 에는 `root_id=<human msg id>` 가 literal 로만 적혀 있어서 sub-agent 가
+    /// 실제 id 를 어디서 얻을지 모르고 root_id 를 누락 → trial-app 채팅에
+    /// PM/devops 보고가 새 thread 로 떨어짐 (사용자가 보고한 결함).
+    pub async fn send_user_message(&mut self, text: &str, post_id: &str) -> Result<()> {
+        let content = if post_id.is_empty() {
+            text.to_string()
+        } else {
+            format!(
+                "<human_post id=\"{post_id}\">\n{text}\n</human_post>\n\
+                 (Use `root_id=\"{post_id}\"` on every `post_message` reply in this turn — \
+                 yours and every sub-agent you dispatch — so the chat stays threaded.)"
+            )
+        };
         let msg = json!({
             "type": "user",
             "message": {
                 "role": "user",
-                "content": text,
+                "content": content,
             }
         });
         let line = format!("{}\n", serde_json::to_string(&msg)?);
@@ -359,6 +375,16 @@ Runtime context:
 
 When a human posts a message, follow the protocol in .claude/agents/pm.md
 (MCP tool calls, not marker text).
+
+Thread discipline (D-131): every human post arrives wrapped as
+`<human_post id="…">…</human_post>` followed by an explicit reminder
+line. **Extract that `id`** and pass it as `root_id="<id>"` to EVERY
+`post_message` call you make this turn, AND propagate it into every
+`Task(subagent_type=…)` prompt so frontend / devops / qa thread their
+own `post_message` calls under the same root. Without `root_id` the
+chat sidebar shows your reply as a brand-new top-level message instead
+of a threaded answer to the human — that is the most common
+"왜 PM 답변이 새 글로 떨어졌어?" complaint.
 
 CRITICAL (D-060 + D-062): after you create kanban cards with
 `create_issue`, you MUST immediately invoke the assignee role of each

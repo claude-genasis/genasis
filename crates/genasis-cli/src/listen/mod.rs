@@ -126,8 +126,10 @@ pub async fn run_listen_loop_multi(
             warn!(target: "listen", "inbound event missing team_token — dropping");
             continue;
         }
-        let message = match &event {
-            InboundEvent::PostCreated { message, .. } => message.clone(),
+        let (message, post_id) = match &event {
+            InboundEvent::PostCreated {
+                message, post_id, ..
+            } => (message.clone(), post_id.clone()),
         };
 
         // get-or-spawn
@@ -163,7 +165,7 @@ pub async fn run_listen_loop_multi(
             preview = %preview,
             "received human-authored post → session.send"
         );
-        if let Err(e) = session.send_user_message(&message).await {
+        if let Err(e) = session.send_user_message(&message, &post_id).await {
             warn!("session send failed: {e}");
         }
         handled += 1;
