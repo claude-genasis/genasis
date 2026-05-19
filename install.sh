@@ -10,10 +10,17 @@
 #   3. Print OS-specific install commands for whatever is missing.
 #   4. Resolve the release asset URL, download, verify sha256, extract.
 #   5. Install to ~/.local/bin/genasis (fallback: /usr/local/bin/genasis with sudo).
-#   6. Optionally exec `genasis attach`.
+#   6. Print Next steps and exit. The installer NEVER touches the user's cwd
+#      — no `.claude/`, no `.genasis/`, no agents catalog fetch. Project
+#      bootstrap is the user's explicit `cd <project> && genasis init --trial`
+#      / `genasis attach` step per the README Quick Path (D-124).
 #
 # Flags:
-#   --no-run                Skip the auto `genasis attach` at the end.
+#   --with-attach           Run `genasis attach` in the cwd after install.
+#                           Off by default. Opt-in for legacy / CI flows that
+#                           expect the pre-alpha.42 auto-attach behaviour.
+#   --no-run                DEPRECATED no-op (auto-attach is now off by default).
+#                           Kept so existing invocations keep working.
 #   --prefix=PATH           Override install dir (default: ~/.local/bin).
 #   --version=vX.Y.Z        Pin a specific release (default: latest).
 #   --skip-prereqs          Bypass prerequisite check (not recommended).
@@ -26,7 +33,14 @@ OWNER="${GENASIS_OWNER:-claude-genasis}"
 REPO="genasis"
 RELEASE_VERSION="latest"
 PREFIX=""
-RUN_AFTER_INSTALL=1
+# D-124 (alpha.42): auto-attach default flipped from ON to OFF. Earlier
+# alphas ran `genasis attach` against the cwd at install time, which
+# scribbled `.claude/` + `.genasis/` into whatever directory the user
+# happened to be in (most often `~` or the test-bed parent) — that
+# polluted the Claude project-discovery cascade and surprised users who
+# only wanted to check `genasis --version`. Opt in with `--with-attach`
+# for the old behaviour.
+RUN_AFTER_INSTALL=0
 SKIP_PREREQS=0
 LANG_FLAG=""           # --lang en|ko (empty = prompt or fallback)
 NON_INTERACTIVE=0      # --non-interactive
@@ -41,7 +55,8 @@ ASSUME_YES=0           # --yes / -y
 # "unknown flag", which was caught in field testing.
 while [ $# -gt 0 ]; do
     case "$1" in
-        --no-run) RUN_AFTER_INSTALL=0 ;;
+        --with-attach) RUN_AFTER_INSTALL=1 ;;
+        --no-run) ;;  # D-124: no-op (auto-attach is OFF by default now). Kept so existing invocations don't error.
         --skip-prereqs) SKIP_PREREQS=1 ;;
         --non-interactive) NON_INTERACTIVE=1 ;;
         -y|--yes) ASSUME_YES=1 ;;
@@ -57,16 +72,25 @@ Genasis installer
 
 Usage:
   curl -fsSL https://raw.githubusercontent.com/${OWNER}/${REPO}/main/install.sh | sh
-  curl -fsSL .../install.sh | sh -s -- --lang ko --no-run
+  curl -fsSL .../install.sh | sh -s -- --lang ko --with-attach
 
 Flags:
   --lang LANG          Agent-context language (en|ko). Rejects "both".
-                       Without this, an interactive prompt asks (TTY) or
-                       \$LANG is parsed (non-TTY).
+                       Used only when --with-attach is set (otherwise the
+                       lang prompt is for forward compatibility / e2e).
+                       Without --with-attach this value is recorded but the
+                       installer never touches cwd.
                        Accepts both '--lang ko' and '--lang=ko' forms.
   --non-interactive    Skip the prompt; use \$LANG fallback.
   -y, --yes            Auto-accept the confirmation step.
-  --no-run             Skip the auto attach run.
+  --with-attach        Run 'genasis attach' against the current directory
+                       after install. OFF by default — the installer leaves
+                       cwd untouched so users running it for binary install
+                       or '--version' checks do not get '.claude/' +
+                       '.genasis/' scribbled into an arbitrary directory.
+                       Opt in for legacy / CI flows.
+  --no-run             DEPRECATED no-op. Kept so existing invocations don't
+                       error. Auto-attach is now OFF by default (alpha.42).
   --prefix PATH        Override install dir (default: ~/.local/bin).
                        Accepts both '--prefix /opt/bin' and '--prefix=/opt/bin'.
   --version vX.Y.Z     Pin a release (default: latest). Same dual-form
@@ -564,30 +588,34 @@ main() {
 
     if fetch_binary; then
         if [ "$RUN_AFTER_INSTALL" -eq 1 ]; then
+            # Opt-in path (--with-attach). The default since alpha.42 is OFF
+            # so binary-install / version-check invocations never touch cwd
+            # (D-124). Reaching this branch means the user explicitly asked
+            # the installer to seed `.claude/` + `.genasis/` here.
             info "Fetching agents catalog (required before first attach)..."
             "$PREFIX/genasis" agents fetch \
                 || warn "'genasis agents fetch' failed — attach will use cached catalog if available."
 
             # v0.5.4 (issue M3): when install.sh is invoked via
-            # `curl ... | sh`, stdin is the curl pipe, not a TTY.
-            # We already detect that and skip the lang prompt in
+            # `curl ... | sh`, stdin is the curl pipe, not a TTY. We
+            # already detect that and skip the lang prompt in
             # `resolve_install_lang`, but the child `genasis attach`
-            # process inherits the same pipe stdin — and any
-            # interactive read inside attach (TTY-aware prompts that
-            # didn't get the `--non-interactive` flag through) would
-            # try to consume bytes meant for the install script
-            # itself. Redirecting stdin from /dev/null here guarantees
-            # the child never even attempts to read.
-            info "Running 'genasis attach --lang $ACTIVE_LANG --non-interactive' (use --no-run to skip)"
+            # process inherits the same pipe stdin — and any interactive
+            # read inside attach (TTY-aware prompts that didn't get the
+            # `--non-interactive` flag through) would try to consume bytes
+            # meant for the install script itself. Redirecting stdin from
+            # /dev/null here guarantees the child never even attempts to
+            # read.
+            info "Running 'genasis attach --lang $ACTIVE_LANG --non-interactive' (--with-attach was set)"
             "$PREFIX/genasis" attach \
                 --lang "$ACTIVE_LANG" \
                 --non-interactive \
                 --yes \
                 </dev/null \
                 || warn "'genasis attach' exited non-zero — check output above."
-        else
-            ok "Skipping auto-run (--no-run)."
         fi
+        # Default path: no auto-attach, no cwd writes. Next steps below
+        # tell the user how to bootstrap a project on their own terms.
     else
         warn "Binary install skipped. Either build from source or wait for the first release."
     fi
@@ -595,8 +623,10 @@ main() {
     hr
     ok "Done. Next steps:"
     printf "  - run %bgenasis doctor%b to re-check prerequisites\n" "$C_BLU" "$C_RST"
-    printf "  - run %bgenasis attach%b in your project directory\n" "$C_BLU" "$C_RST"
-    printf "  - read %bblueprint.md%b and %bprogress.md%b in the repo for the design\n" "$C_BLU" "$C_RST" "$C_BLU" "$C_RST"
+    printf "  - %bcd %binto a project directory%b, then:\n" "$C_BLU" "$C_DIM" "$C_RST"
+    printf "      %bgenasis init --trial --name \"My Team\"%b   (trial mode — operator-hosted Plane + MM)\n" "$C_BLU" "$C_RST"
+    printf "      %bgenasis attach%b                          (real mode — your own Plane + MM)\n" "$C_BLU" "$C_RST"
+    printf "  - read %bREADME.md %s§Quick Path%b for the full flow\n" "$C_BLU" "" "$C_RST"
 }
 
 main "$@"

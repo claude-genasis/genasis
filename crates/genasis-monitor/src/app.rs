@@ -35,6 +35,24 @@ const TRIAL_TICK: Duration = Duration::from_secs(5);
 const LISTEN_LOG_TICK: Duration = Duration::from_secs(3);
 
 pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
+    // D-123 — bail when stdout is not a TTY. The ratatui UI needs an
+    // interactive terminal: enable_raw_mode() + EnterAlternateScreen
+    // would otherwise emit ANSI escape sequences into a pipe while the
+    // render/JSONL/Plane polling loop kept running, ballooning RSS in
+    // CI / e2e / piped-shell environments. Without this gate, the e2e
+    // `monitor_smoke_without_tty_exits_cleanly` test plus parallel
+    // `cargo test --workspace --all-targets` runs blew up to ~25 GB
+    // anon-rss per binary and OOM-killed the host.
+    use std::io::IsTerminal;
+    if !std::io::stdout().is_terminal() {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "`genasis monitor` requires an interactive terminal (stdout is not a TTY). \
+             Run from a real terminal — automated/piped invocation cannot drive the ratatui UI.",
+        )
+        .into());
+    }
+
     let mut state = AppState::default();
 
     // Load configuration from env
