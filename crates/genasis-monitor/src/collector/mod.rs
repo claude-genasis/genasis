@@ -5,6 +5,7 @@
 
 pub mod jsonl;
 pub mod listen_log;
+pub mod oauth_usage;
 pub mod plane;
 pub mod ports;
 pub mod sessions;

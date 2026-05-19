@@ -39,4 +39,25 @@ fn main() {
     } else {
         println!("tier_to_limits: <unknown tier — env defaults will be used>");
     }
+
+    // D-131: live OAuth fetch.
+    println!();
+    println!("=== /api/oauth/usage ===");
+    let rt = tokio::runtime::Runtime::new().expect("tokio rt");
+    rt.block_on(async {
+        match genasis_monitor::collector::oauth_usage::fetch().await {
+            Ok(Some(u)) => {
+                println!("five_hour          : {:?}", u.five_hour);
+                println!("seven_day          : {:?}", u.seven_day);
+                println!("seven_day_opus     : {:?}", u.seven_day_opus);
+                println!("seven_day_sonnet   : {:?}", u.seven_day_sonnet);
+                println!("seven_day_omelette : {:?}", u.seven_day_omelette);
+                println!("extra_usage        : {:?}", u.extra_usage);
+            }
+            Ok(None) => {
+                println!("<oauth fetch returned None — token missing/expired or feature disabled>")
+            }
+            Err(e) => println!("<oauth fetch error: {e}>"),
+        }
+    });
 }

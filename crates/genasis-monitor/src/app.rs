@@ -33,6 +33,10 @@ const JSONL_TICK: Duration = Duration::from_secs(60);
 const PORT_TICK: Duration = Duration::from_secs(5);
 const TRIAL_TICK: Duration = Duration::from_secs(5);
 const LISTEN_LOG_TICK: Duration = Duration::from_secs(3);
+/// D-131: `/api/oauth/usage` poll cadence. Claude Code itself caches
+/// the response ~1 minute; 60 s here matches that without hammering
+/// the endpoint.
+const OAUTH_USAGE_TICK: Duration = Duration::from_secs(60);
 
 pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
     // D-123 — bail when stdout is not a TTY. The ratatui UI needs an
@@ -85,6 +89,7 @@ pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
     collect_sessions(&mut state);
     collect_jsonl(&mut state);
     collect_ports(&mut state);
+    collect_oauth_usage(&mut state).await;
     if state.trial_mode {
         collect_trial(&mut state).await;
     }
@@ -118,6 +123,7 @@ async fn run_loop<B: ratatui::backend::Backend>(
     let mut last_port = Instant::now();
     let mut last_trial = Instant::now();
     let mut last_listen_log = Instant::now();
+    let mut last_oauth_usage = Instant::now();
 
     loop {
         // Collect data on schedule
@@ -143,6 +149,11 @@ async fn run_loop<B: ratatui::backend::Backend>(
                 collector::listen_log::poll(state, &root);
             }
             last_listen_log = Instant::now();
+        }
+        // D-131: refresh server-reported utilization.
+        if last_oauth_usage.elapsed() >= OAUTH_USAGE_TICK {
+            collect_oauth_usage(state).await;
+            last_oauth_usage = Instant::now();
         }
 
         // Render
@@ -211,6 +222,8 @@ async fn run_loop<B: ratatui::backend::Backend>(
                         collect_sessions(state);
                         collect_jsonl(state);
                         collect_ports(state);
+                        collect_oauth_usage(state).await;
+                        last_oauth_usage = Instant::now();
                         if state.trial_mode {
                             collect_trial(state).await;
                             last_trial = Instant::now();
@@ -268,7 +281,34 @@ fn collect_sessions(state: &mut AppState) {
 }
 
 fn collect_jsonl(state: &mut AppState) {
+    // D-131: carry the OAuth-derived fields across the JSONL refresh —
+    // `scan_sessions_dir()` returns a fresh `UsageSnapshot::default()`
+    // and would wipe the server-reported utilization we just fetched.
+    let oauth_carry = (
+        state.usage.oauth_five_h_pct,
+        state.usage.oauth_seven_day_pct,
+        state.usage.oauth_seven_day_opus_pct,
+        state.usage.oauth_seven_day_sonnet_pct,
+        state.usage.oauth_seven_day_design_pct,
+        state.usage.oauth_five_h_resets_at,
+        state.usage.oauth_seven_day_resets_at,
+        state.usage.oauth_extra_used_credits_cents,
+        state.usage.oauth_extra_monthly_limit_cents,
+        state.usage.oauth_extra_pct,
+        state.usage.oauth_fetched_at,
+    );
     state.usage = collector::jsonl::scan_sessions_dir();
+    state.usage.oauth_five_h_pct = oauth_carry.0;
+    state.usage.oauth_seven_day_pct = oauth_carry.1;
+    state.usage.oauth_seven_day_opus_pct = oauth_carry.2;
+    state.usage.oauth_seven_day_sonnet_pct = oauth_carry.3;
+    state.usage.oauth_seven_day_design_pct = oauth_carry.4;
+    state.usage.oauth_five_h_resets_at = oauth_carry.5;
+    state.usage.oauth_seven_day_resets_at = oauth_carry.6;
+    state.usage.oauth_extra_used_credits_cents = oauth_carry.7;
+    state.usage.oauth_extra_monthly_limit_cents = oauth_carry.8;
+    state.usage.oauth_extra_pct = oauth_carry.9;
+    state.usage.oauth_fetched_at = oauth_carry.10;
     // D-073: Anthropic prompt-cache hit rate over the 5h window.
     // Hit = cache_read_input_tokens / (cache_read + cache_creation + input).
     // High percentages (typically 80-95%) signal healthy caching; near-zero
@@ -288,6 +328,30 @@ fn collect_jsonl(state: &mut AppState) {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     state.last_jsonl_scan = now;
+}
+
+/// D-131: best-effort fetch of `/api/oauth/usage`. Silently no-ops on
+/// any failure — the JSONL aggregator stays the fallback. Errors are
+/// pushed onto `log_tail` so an operator who notices stale numbers can
+/// see why the OAuth path isn't kicking in.
+async fn collect_oauth_usage(state: &mut AppState) {
+    match collector::oauth_usage::fetch().await {
+        Ok(Some(u)) => state.usage.apply_oauth_usage(&u),
+        Ok(None) => {
+            // No token / token expired / feature disabled — nothing to
+            // surface; user will see the JSONL fallback numbers.
+        }
+        Err(e) => {
+            let now_hm = chrono::Local::now().format("%H:%M").to_string();
+            state
+                .log_tail
+                .push(format!("{now_hm}  (oauth usage fetch failed: {e})"));
+            if state.log_tail.len() > 200 {
+                let overflow = state.log_tail.len() - 200;
+                state.log_tail.drain(..overflow);
+            }
+        }
+    }
 }
 
 fn collect_ports(state: &mut AppState) {

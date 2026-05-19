@@ -190,6 +190,36 @@ pub struct UsageSnapshot {
     /// widget to detect "no activity yet" and surface a hint instead of
     /// rendering empty gauges.
     pub five_h_event_count: u64,
+
+    // ────────────────────────────────────────────────────────────────
+    // D-131: server-reported utilization from `/api/oauth/usage`.
+    // When `Some`, these override the JSONL-derived percentages because
+    // the server already applies plan-specific weighting (cache rates,
+    // per-window carve-outs, plan limits) that we cannot reproduce
+    // locally. JSONL totals stay populated so cost / token-count widgets
+    // keep working — only the % gauges defer to the server values.
+    // ────────────────────────────────────────────────────────────────
+    pub oauth_five_h_pct: Option<f32>,
+    pub oauth_seven_day_pct: Option<f32>,
+    pub oauth_seven_day_opus_pct: Option<f32>,
+    pub oauth_seven_day_sonnet_pct: Option<f32>,
+    /// Anthropic's "Claude Design" weekly bucket (server name
+    /// `seven_day_omelette`). Surfaced as a fifth gauge when non-null.
+    pub oauth_seven_day_design_pct: Option<f32>,
+    pub oauth_five_h_resets_at: Option<u64>,
+    pub oauth_seven_day_resets_at: Option<u64>,
+    /// Extra-usage / overage credits — monthly cap and current usage
+    /// in USD cents (divide by 100 to display dollars). Mirrors the
+    /// "사용 크레딧 / Usage Credits" section of the Anthropic settings
+    /// page so the cost line on the widget shows the same number the
+    /// user sees there.
+    pub oauth_extra_used_credits_cents: Option<f64>,
+    pub oauth_extra_monthly_limit_cents: Option<f64>,
+    pub oauth_extra_pct: Option<f32>,
+    /// Epoch seconds when the last successful OAuth fetch landed; 0
+    /// when we've never had one. Used by the widget to fall back to
+    /// JSONL gauges if the server data is stale.
+    pub oauth_fetched_at: u64,
 }
 
 impl UsageSnapshot {
@@ -294,6 +324,65 @@ impl UsageSnapshot {
     /// 0 % gauges that look broken.
     pub fn is_empty_5h(&self) -> bool {
         self.five_h_event_count == 0
+    }
+
+    /// D-131: copy the values from `/api/oauth/usage` onto the snapshot.
+    /// Called by the run-loop after each successful fetch. The widget
+    /// prefers these over the JSONL-derived percentages when present.
+    pub fn apply_oauth_usage(&mut self, src: &crate::collector::oauth_usage::OAuthUsage) {
+        use crate::collector::oauth_usage::parse_resets_at;
+        self.oauth_five_h_pct = src
+            .five_hour
+            .as_ref()
+            .and_then(|w| w.utilization)
+            .map(|v| v as f32);
+        self.oauth_seven_day_pct = src
+            .seven_day
+            .as_ref()
+            .and_then(|w| w.utilization)
+            .map(|v| v as f32);
+        self.oauth_seven_day_opus_pct = src
+            .seven_day_opus
+            .as_ref()
+            .and_then(|w| w.utilization)
+            .map(|v| v as f32);
+        self.oauth_seven_day_sonnet_pct = src
+            .seven_day_sonnet
+            .as_ref()
+            .and_then(|w| w.utilization)
+            .map(|v| v as f32);
+        self.oauth_seven_day_design_pct = src
+            .seven_day_omelette
+            .as_ref()
+            .and_then(|w| w.utilization)
+            .map(|v| v as f32);
+        self.oauth_five_h_resets_at = src
+            .five_hour
+            .as_ref()
+            .and_then(|w| w.resets_at.as_deref())
+            .map(parse_resets_at)
+            .filter(|t| *t > 0);
+        self.oauth_seven_day_resets_at = src
+            .seven_day
+            .as_ref()
+            .and_then(|w| w.resets_at.as_deref())
+            .map(parse_resets_at)
+            .filter(|t| *t > 0);
+        if let Some(extra) = &src.extra_usage {
+            self.oauth_extra_used_credits_cents = extra.used_credits;
+            self.oauth_extra_monthly_limit_cents = extra.monthly_limit;
+            self.oauth_extra_pct = extra.utilization.map(|v| v as f32);
+        }
+        self.oauth_fetched_at = now_epoch();
+    }
+
+    /// D-131: seconds remaining until the server-reported 5 h window
+    /// resets — preferred over the JSONL sliding-window estimate when
+    /// available because the server's `resets_at` is authoritative.
+    pub fn five_h_oauth_countdown(&self) -> Option<i64> {
+        let ts = self.oauth_five_h_resets_at?;
+        let now = now_epoch();
+        Some(ts as i64 - now as i64)
     }
 }
 
