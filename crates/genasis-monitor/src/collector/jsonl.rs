@@ -15,11 +15,102 @@
 //! (b) extract tokens from `message.usage.*` of `type=assistant` events,
 //! (c) parse ISO 8601 timestamps, and (d) read the model from
 //! `message.model` (not from `usage.model`, which doesn't exist).
+//!
+//! D-130: Filled in the dead fields that made the CLAUDE USAGE widget look
+//! broken for everyone — cost (`five_h_cost_usd` / `week_cost_usd`) was
+//! declared but never written; reset epochs only came from `rate_limit_event`
+//! JSONL events that current Claude Code (v2.1.x) doesn't emit; the Sonnet
+//! line was permanently 0 % for Opus-heavy users; `read_credentials` looked
+//! at top-level keys but the real plan info lives under
+//! `claudeAiOauth.subscriptionType` / `.rateLimitTier`.
+//!
+//! Token costs are computed from a model→pricing table (per-million-token
+//! rates published by Anthropic). Reset countdowns are derived from the
+//! *oldest* assistant event still inside each sliding window
+//! (`oldest_ts + window_len`). Plan reading falls back to legacy top-level
+//! keys so older credential files keep working.
 
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Per-million-token pricing for a single model. All fields in USD per
+/// 1 M tokens. `cache_read` is normally `input * 0.1` and `cache_create`
+/// is `input * 1.25` per Anthropic's prompt-caching documentation, but
+/// the table keeps them explicit so future rate changes are a single-line
+/// edit.
+#[derive(Debug, Clone, Copy)]
+struct ModelPricing {
+    input: f64,
+    output: f64,
+    cache_read: f64,
+    cache_create: f64,
+}
+
+/// D-130: pricing table covering the current Claude 4.x lineup. Unknown
+/// models fall through to `default_pricing()` (mid-tier estimate) so cost
+/// is non-zero but slightly inaccurate — preferable to silently dropping
+/// usage from cost totals.
+fn pricing_for(model: &str) -> ModelPricing {
+    let m = model.to_ascii_lowercase();
+    if m.contains("opus") {
+        ModelPricing {
+            input: 15.0,
+            output: 75.0,
+            cache_read: 1.5,
+            cache_create: 18.75,
+        }
+    } else if m.contains("haiku") {
+        ModelPricing {
+            input: 1.0,
+            output: 5.0,
+            cache_read: 0.1,
+            cache_create: 1.25,
+        }
+    } else if m.contains("sonnet") {
+        ModelPricing {
+            input: 3.0,
+            output: 15.0,
+            cache_read: 0.3,
+            cache_create: 3.75,
+        }
+    } else {
+        // Default to Sonnet pricing — middle of the lineup, safer than
+        // assuming Haiku (which would under-count).
+        ModelPricing {
+            input: 3.0,
+            output: 15.0,
+            cache_read: 0.3,
+            cache_create: 3.75,
+        }
+    }
+}
+
+/// Coarse model family classifier — used to bucket weekly token totals
+/// into Sonnet / Opus / Haiku / Other rows in the widget. Lowercase
+/// substring match matches the long model IDs Anthropic returns
+/// (`claude-opus-4-7`, `claude-sonnet-4-6`, …).
+fn classify_model(model: &str) -> ModelFamily {
+    let m = model.to_ascii_lowercase();
+    if m.contains("opus") {
+        ModelFamily::Opus
+    } else if m.contains("sonnet") {
+        ModelFamily::Sonnet
+    } else if m.contains("haiku") {
+        ModelFamily::Haiku
+    } else {
+        ModelFamily::Other
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelFamily {
+    Opus,
+    Sonnet,
+    Haiku,
+    Other,
+}
 
 /// Token usage snapshot (aggregated from JSONL events).
 #[derive(Debug, Clone, Default)]
@@ -31,20 +122,43 @@ pub struct UsageSnapshot {
     pub five_h_cache_create: u64,
     pub five_h_cost_usd: f64,
     pub five_h_window_start: u64,
+    /// D-130: oldest assistant-event timestamp still inside the 5h window.
+    /// Drives `five_h_reset_countdown()` since Claude Code no longer
+    /// emits `rate_limit_event` records. 0 = no events in window.
+    pub five_h_oldest_event_ts: u64,
 
     // 7-day window (all models)
     pub week_input_tokens: u64,
     pub week_output_tokens: u64,
     pub week_cache_read: u64,
     pub week_cache_create: u64,
+    pub week_cost_usd: f64,
+    /// D-130: oldest assistant-event timestamp still inside the 7d window.
+    pub week_oldest_event_ts: u64,
 
-    // 7-day window (sonnet only)
+    // 7-day window (sonnet only) — kept for back-compat callers, also
+    // mirrored into per-family counters below.
     pub week_sonnet_input: u64,
     pub week_sonnet_output: u64,
     pub week_sonnet_cache_read: u64,
     pub week_sonnet_cache_create: u64,
 
-    // Rate limit status
+    /// D-130: 7-day Opus track — Max plan accounts these separately from
+    /// Sonnet, and Opus-heavy users were watching a permanently-0 % bar.
+    pub week_opus_input: u64,
+    pub week_opus_output: u64,
+    pub week_opus_cache_read: u64,
+    pub week_opus_cache_create: u64,
+
+    /// D-130: 7-day Haiku + "other" buckets — surfaced as the residual
+    /// when the user runs a model we don't classify.
+    pub week_haiku_input: u64,
+    pub week_haiku_output: u64,
+    pub week_other_input: u64,
+    pub week_other_output: u64,
+
+    // Rate limit status (legacy — rate_limit_event JSONL events from
+    // pre-2.1 Claude Code; kept so old transcripts still drive the widget).
     pub five_h_status: String, // "allowed" | "warning" | "limited"
     pub five_h_reset_epoch: u64,
     pub week_status: String,
@@ -72,6 +186,10 @@ pub struct UsageSnapshot {
     /// D-082: when an `assistant` event has cache_read_input_tokens > 0
     /// we count it as a cache hit. Ratio surfaces as `cache hit %`.
     pub mcp_cache_hits_5h: u64,
+    /// D-130: counted assistant events inside the 5h window. Used by the
+    /// widget to detect "no activity yet" and surface a hint instead of
+    /// rendering empty gauges.
+    pub five_h_event_count: u64,
 }
 
 impl UsageSnapshot {
@@ -82,6 +200,21 @@ impl UsageSnapshot {
         }
         let used = self.five_h_input_tokens + self.five_h_output_tokens;
         (used as f64 / budget as f64 * 100.0) as f32
+    }
+
+    /// D-130: 5h % with cache tokens folded in via Anthropic's published
+    /// prompt-caching weights (cache_read counts at 0.1×, cache_create
+    /// at 1.25× of input). Closer to what the server-side rate limiter
+    /// actually sees.
+    pub fn five_h_pct_weighted(&self, budget: u64) -> f32 {
+        if budget == 0 {
+            return 0.0;
+        }
+        let used = self.five_h_input_tokens as f64
+            + self.five_h_output_tokens as f64
+            + self.five_h_cache_create as f64 * 1.25
+            + self.five_h_cache_read as f64 * 0.1;
+        (used / budget as f64 * 100.0) as f32
     }
 
     /// Calculate 7d all-model usage percentage.
@@ -102,6 +235,16 @@ impl UsageSnapshot {
         (used as f64 / budget as f64 * 100.0) as f32
     }
 
+    /// D-130: 7d Opus-only usage percentage. Max-plan users see this
+    /// tracked separately from Sonnet on the server side.
+    pub fn week_opus_pct(&self, budget: u64) -> f32 {
+        if budget == 0 {
+            return 0.0;
+        }
+        let used = self.week_opus_input + self.week_opus_output;
+        (used as f64 / budget as f64 * 100.0) as f32
+    }
+
     /// Context window usage percentage.
     pub fn ctx_pct(&self) -> f32 {
         if self.ctx_window_size == 0 {
@@ -112,15 +255,45 @@ impl UsageSnapshot {
     }
 
     /// Seconds remaining until 5h rate limit reset.
+    ///
+    /// D-130: prefer the legacy `rate_limit_event` epoch when present
+    /// (older Claude Code versions still write them); otherwise derive
+    /// from the oldest assistant event still inside the 5h window —
+    /// `oldest_ts + 5h` is when that earliest call slides out of the
+    /// window, freeing up that share of the budget. Returns 0 when there
+    /// is no activity to anchor a window on.
     pub fn five_h_reset_countdown(&self) -> i64 {
         let now = now_epoch();
-        self.five_h_reset_epoch as i64 - now as i64
+        if self.five_h_reset_epoch != 0 {
+            return self.five_h_reset_epoch as i64 - now as i64;
+        }
+        if self.five_h_oldest_event_ts == 0 {
+            return 0;
+        }
+        let reset = self.five_h_oldest_event_ts + 5 * 3600;
+        reset as i64 - now as i64
     }
 
-    /// Seconds remaining until weekly reset.
+    /// Seconds remaining until weekly reset. Same fallback logic as 5h
+    /// — derived from the oldest event in the 7-day window when no
+    /// explicit `rate_limit_event` is recorded.
     pub fn week_reset_countdown(&self) -> i64 {
         let now = now_epoch();
-        self.week_reset_epoch as i64 - now as i64
+        if self.week_reset_epoch != 0 {
+            return self.week_reset_epoch as i64 - now as i64;
+        }
+        if self.week_oldest_event_ts == 0 {
+            return 0;
+        }
+        let reset = self.week_oldest_event_ts + 7 * 24 * 3600;
+        reset as i64 - now as i64
+    }
+
+    /// D-130: returns true when no assistant activity was seen in the 5h
+    /// window. The widget renders an empty-state hint instead of three
+    /// 0 % gauges that look broken.
+    pub fn is_empty_5h(&self) -> bool {
+        self.five_h_event_count == 0
     }
 }
 
@@ -286,12 +459,20 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
                     .get("cache_creation_input_tokens")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(0);
-                let is_sonnet = model.contains("sonnet");
+                let family = classify_model(model);
 
                 if input + output + cache_read + cache_create == 0 {
                     // assistant 메시지인데 usage 가 모두 0 — drop.
                     continue;
                 }
+
+                // D-130: cost = (tokens / 1M) × per-million rate.
+                let pricing = pricing_for(model);
+                let cost = (input as f64 * pricing.input
+                    + output as f64 * pricing.output
+                    + cache_read as f64 * pricing.cache_read
+                    + cache_create as f64 * pricing.cache_create)
+                    / 1_000_000.0;
 
                 // 5h window
                 if timestamp >= five_h_start {
@@ -299,6 +480,16 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
                     snapshot.five_h_output_tokens += output;
                     snapshot.five_h_cache_read += cache_read;
                     snapshot.five_h_cache_create += cache_create;
+                    snapshot.five_h_cost_usd += cost;
+                    snapshot.five_h_event_count += 1;
+                    // D-130: track oldest event in window for sliding-window
+                    // reset estimate. Skip timestamp==0 (unparseable).
+                    if timestamp > 0
+                        && (snapshot.five_h_oldest_event_ts == 0
+                            || timestamp < snapshot.five_h_oldest_event_ts)
+                    {
+                        snapshot.five_h_oldest_event_ts = timestamp;
+                    }
                     // D-082: 매 assistant turn 을 "MCP call" 카운트로
                     // 간주 — 진짜 MCP 호출만이 아니라 Bash / Edit / Read
                     // 같은 built-in tool 도 포함하지만 사용자가 보기
@@ -315,12 +506,35 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
                     snapshot.week_output_tokens += output;
                     snapshot.week_cache_read += cache_read;
                     snapshot.week_cache_create += cache_create;
+                    snapshot.week_cost_usd += cost;
+                    if timestamp > 0
+                        && (snapshot.week_oldest_event_ts == 0
+                            || timestamp < snapshot.week_oldest_event_ts)
+                    {
+                        snapshot.week_oldest_event_ts = timestamp;
+                    }
 
-                    if is_sonnet {
-                        snapshot.week_sonnet_input += input;
-                        snapshot.week_sonnet_output += output;
-                        snapshot.week_sonnet_cache_read += cache_read;
-                        snapshot.week_sonnet_cache_create += cache_create;
+                    match family {
+                        ModelFamily::Sonnet => {
+                            snapshot.week_sonnet_input += input;
+                            snapshot.week_sonnet_output += output;
+                            snapshot.week_sonnet_cache_read += cache_read;
+                            snapshot.week_sonnet_cache_create += cache_create;
+                        }
+                        ModelFamily::Opus => {
+                            snapshot.week_opus_input += input;
+                            snapshot.week_opus_output += output;
+                            snapshot.week_opus_cache_read += cache_read;
+                            snapshot.week_opus_cache_create += cache_create;
+                        }
+                        ModelFamily::Haiku => {
+                            snapshot.week_haiku_input += input;
+                            snapshot.week_haiku_output += output;
+                        }
+                        ModelFamily::Other => {
+                            snapshot.week_other_input += input;
+                            snapshot.week_other_output += output;
+                        }
                     }
                 }
 
@@ -382,7 +596,65 @@ fn scan_single_file(path: &Path, snapshot: &mut UsageSnapshot, five_h_start: u64
     }
 }
 
+/// Anthropic rate-limit tier → (5h tokens, weekly all-model tokens,
+/// weekly opus tokens, weekly sonnet tokens). Values reflect Anthropic's
+/// published Claude Code limits for Pro / Max / Team plans (D-130). Tier
+/// strings come from `~/.claude/.credentials.json`'s
+/// `claudeAiOauth.rateLimitTier` field.
+///
+/// Returns `None` for unknown tiers so the caller can fall back to env
+/// defaults rather than silently using wrong numbers.
+pub fn tier_to_limits(tier: &str) -> Option<(u64, u64, u64, u64)> {
+    // Source: Anthropic's "Claude Code usage limits" page, approximations.
+    // Conservative — when in doubt, undershoot so the widget warns earlier.
+    match tier {
+        // Pro plan
+        "default_claude_pro" | "pro" => Some((220_000, 5_000_000, 2_000_000, 5_000_000)),
+        // Max 5x
+        "default_claude_max_5x" | "max_5x" => Some((1_100_000, 25_000_000, 10_000_000, 25_000_000)),
+        // Max 20x
+        "default_claude_max_20x" | "max_20x" => {
+            Some((4_400_000, 100_000_000, 40_000_000, 100_000_000))
+        }
+        // Team
+        "default_claude_team" | "team" => Some((220_000, 10_000_000, 4_000_000, 10_000_000)),
+        // Enterprise — assume Max 20x equivalent until we have a real number
+        "default_claude_enterprise" | "enterprise" => {
+            Some((4_400_000, 100_000_000, 40_000_000, 100_000_000))
+        }
+        _ => None,
+    }
+}
+
+/// Map an internal `rateLimitTier` string to the user-friendly label that
+/// Anthropic uses ("Max (20x)", "Pro", etc).
+pub fn plan_display_name(subscription: &str, tier: &str) -> String {
+    // Prefer tier (more specific than subscription).
+    match tier {
+        "default_claude_pro" | "pro" => return "Pro".to_string(),
+        "default_claude_max_5x" | "max_5x" => return "Max (5x)".to_string(),
+        "default_claude_max_20x" | "max_20x" => return "Max (20x)".to_string(),
+        "default_claude_team" | "team" => return "Team".to_string(),
+        "default_claude_enterprise" | "enterprise" => return "Enterprise".to_string(),
+        _ => {}
+    }
+    match subscription {
+        "max" => "Max".to_string(),
+        "pro" => "Pro".to_string(),
+        "team" => "Team".to_string(),
+        "enterprise" => "Enterprise".to_string(),
+        s if !s.is_empty() => s.to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
 /// Read Claude credentials for plan info.
+///
+/// D-130: the real structure is `{"claudeAiOauth": {"subscriptionType":
+/// "max", "rateLimitTier": "default_claude_max_20x", ...}}`. The old
+/// implementation looked at top-level `plan` / `planName` / `tier` /
+/// `serviceTier` and always returned ("unknown", "-"). Top-level keys
+/// are still tried as a fallback so legacy credential files keep working.
 pub fn read_credentials() -> (String, String) {
     let path = match dirs::home_dir() {
         Some(h) => h.join(".claude").join(".credentials.json"),
@@ -397,20 +669,41 @@ pub fn read_credentials() -> (String, String) {
         Err(_) => return ("unknown".into(), "-".into()),
     };
 
+    let oauth = creds.get("claudeAiOauth");
+    let subscription = oauth
+        .and_then(|o| o.get("subscriptionType"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let tier = oauth
+        .and_then(|o| o.get("rateLimitTier"))
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            creds
+                .get("tier")
+                .or_else(|| creds.get("serviceTier"))
+                .and_then(|t| t.as_str())
+        })
+        .unwrap_or("");
+
+    if !subscription.is_empty() || !tier.is_empty() {
+        return (plan_display_name(subscription, tier), tier.to_string());
+    }
+
+    // Legacy fallback (pre-OAuth credentials shape).
     let plan = creds
         .get("plan")
         .or_else(|| creds.get("planName"))
         .and_then(|p| p.as_str())
         .unwrap_or("unknown")
         .to_string();
-    let tier = creds
+    let tier_legacy = creds
         .get("tier")
         .or_else(|| creds.get("serviceTier"))
         .and_then(|t| t.as_str())
         .unwrap_or("-")
         .to_string();
 
-    (plan, tier)
+    (plan, tier_legacy)
 }
 
 #[cfg(test)]
@@ -425,6 +718,8 @@ mod tests {
         let snap = scan_dir(d.path());
         assert_eq!(snap.files_scanned, 0);
         assert_eq!(snap.five_h_input_tokens, 0);
+        assert!(snap.is_empty_5h(), "empty scan must report empty 5h");
+        assert_eq!(snap.five_h_reset_countdown(), 0);
     }
 
     #[test]
@@ -445,6 +740,7 @@ mod tests {
         assert_eq!(snap.five_h_output_tokens, 500);
         assert_eq!(snap.week_input_tokens, 3000); // 1000 + 2000
         assert_eq!(snap.week_sonnet_input, 1000); // only the sonnet event
+        assert_eq!(snap.week_opus_input, 2000); // D-130: Opus tracked separately
     }
 
     #[test]
@@ -454,5 +750,119 @@ mod tests {
         snap.five_h_output_tokens = 500_000;
         let pct = snap.five_h_pct(7_000_000);
         assert!((pct - 21.4).abs() < 0.5);
+    }
+
+    /// D-130: cost was a dead field — verify it's populated and roughly
+    /// matches the Sonnet rate (3 + 15 = 18 USD per MTok of mixed traffic).
+    #[test]
+    fn scan_populates_cost() {
+        let d = tempdir().unwrap();
+        let jsonl = d.path().join("session.jsonl");
+        let now = now_epoch();
+        let mut f = fs::File::create(&jsonl).unwrap();
+        // 1 M input + 1 M output Sonnet = $3 + $15 = $18.
+        writeln!(
+            f,
+            r#"{{"type":"assistant","timestamp":"{}","message":{{"model":"claude-sonnet-4-6","usage":{{"input_tokens":1000000,"output_tokens":1000000}}}}}}"#,
+            chrono::DateTime::from_timestamp(now as i64 - 60, 0)
+                .unwrap()
+                .to_rfc3339(),
+        )
+        .unwrap();
+
+        let snap = scan_dir(d.path());
+        assert!(
+            (snap.five_h_cost_usd - 18.0).abs() < 0.01,
+            "expected ~$18, got ${}",
+            snap.five_h_cost_usd
+        );
+        assert!((snap.week_cost_usd - 18.0).abs() < 0.01);
+    }
+
+    /// D-130: Opus rates are 5× Sonnet — verify pricing table picks the
+    /// right row.
+    #[test]
+    fn opus_cost_higher_than_sonnet() {
+        let d = tempdir().unwrap();
+        let jsonl = d.path().join("session.jsonl");
+        let now = now_epoch();
+        let mut f = fs::File::create(&jsonl).unwrap();
+        writeln!(
+            f,
+            r#"{{"type":"assistant","timestamp":"{}","message":{{"model":"claude-opus-4-7","usage":{{"input_tokens":1000000,"output_tokens":1000000}}}}}}"#,
+            chrono::DateTime::from_timestamp(now as i64 - 60, 0)
+                .unwrap()
+                .to_rfc3339(),
+        )
+        .unwrap();
+
+        let snap = scan_dir(d.path());
+        // Opus: $15 + $75 = $90.
+        assert!(
+            (snap.five_h_cost_usd - 90.0).abs() < 0.5,
+            "expected ~$90, got ${}",
+            snap.five_h_cost_usd
+        );
+        assert_eq!(snap.week_opus_input, 1_000_000);
+        assert_eq!(snap.week_sonnet_input, 0);
+    }
+
+    /// D-130: reset countdown should derive from the oldest in-window
+    /// event when no `rate_limit_event` is present.
+    #[test]
+    fn reset_countdown_from_oldest_event() {
+        let d = tempdir().unwrap();
+        let jsonl = d.path().join("session.jsonl");
+        let now = now_epoch();
+        let mut f = fs::File::create(&jsonl).unwrap();
+        // Event 2h ago (still in 5h window).
+        let old = now as i64 - 2 * 3600;
+        writeln!(
+            f,
+            r#"{{"type":"assistant","timestamp":"{}","message":{{"model":"claude-sonnet-4-6","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#,
+            chrono::DateTime::from_timestamp(old, 0).unwrap().to_rfc3339(),
+        )
+        .unwrap();
+
+        let snap = scan_dir(d.path());
+        let countdown = snap.five_h_reset_countdown();
+        // Reset = oldest + 5h = now - 2h + 5h = now + 3h.
+        let expected = 3 * 3600;
+        assert!(
+            (countdown - expected).abs() < 120,
+            "expected ~{expected}s countdown, got {countdown}"
+        );
+    }
+
+    #[test]
+    fn tier_lookup() {
+        assert!(tier_to_limits("default_claude_max_20x").is_some());
+        assert!(tier_to_limits("default_claude_pro").is_some());
+        assert!(tier_to_limits("unknown_tier").is_none());
+    }
+
+    #[test]
+    fn plan_label_max_20x() {
+        assert_eq!(
+            plan_display_name("max", "default_claude_max_20x"),
+            "Max (20x)"
+        );
+        assert_eq!(plan_display_name("pro", "default_claude_pro"), "Pro");
+        assert_eq!(plan_display_name("", ""), "unknown");
+    }
+
+    /// D-130: cache-weighted % > raw % when cache tokens dominate.
+    #[test]
+    fn weighted_pct_includes_cache() {
+        let mut snap = UsageSnapshot::default();
+        snap.five_h_input_tokens = 100;
+        snap.five_h_output_tokens = 100;
+        snap.five_h_cache_read = 1_000_000;
+        let raw = snap.five_h_pct(10_000_000);
+        let weighted = snap.five_h_pct_weighted(10_000_000);
+        assert!(
+            weighted > raw,
+            "weighted ({weighted}) should exceed raw ({raw}) when cache_read is large"
+        );
     }
 }

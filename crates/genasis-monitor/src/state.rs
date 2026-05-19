@@ -17,10 +17,12 @@ pub struct AppState {
     // Token usage (from JSONL scan, 60-120s TTL)
     pub usage: UsageSnapshot,
 
-    // Limits (configurable via env)
+    // Limits (configurable via env; defaults derived from plan tier in
+    // app.rs / D-130).
     pub limit_5h_tokens: u64,
     pub limit_week_all_tokens: u64,
     pub limit_week_sonnet_tokens: u64,
+    pub limit_week_opus_tokens: u64,
     pub limit_overage_usd: f64,
 
     // Claude sessions (from /proc, 1s poll)

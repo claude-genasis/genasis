@@ -1,7 +1,13 @@
 //! Claude Code sessions + usage widget.
 //!
 //! Left 2/3: active session list (PID, role, ctx%, age, state)
-//! Right 1/3: usage bar charts (5h, 7d all, 7d sonnet, cost)
+//! Right 1/3: usage bar charts (5h, 7d all, 7d Sonnet/Opus, cost, reset)
+//!
+//! D-130: extended layout to surface Opus + Sonnet as separate rows
+//! (Anthropic Max plans track them independently) and to render an
+//! empty-state hint when no assistant activity exists in the 5h window
+//! — the pre-D-130 layout silently rendered all-zero gauges in that
+//! case, which looked broken on first-time / clean-env installs.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -88,20 +94,47 @@ fn render_sessions_list(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_usage_bars(frame: &mut Frame, area: Rect, state: &AppState) {
+    let title = if state.plan_name.is_empty() || state.plan_name == "unknown" {
+        " CLAUDE USAGE ".to_string()
+    } else {
+        format!(" CLAUDE USAGE — {} ", state.plan_name)
+    };
     let block = Block::default()
-        .title(" CLAUDE USAGE ")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // D-130: empty-state hint. When there are no assistant events in the
+    // 5h window AND no JSONL files were scanned, the widget was showing
+    // four 0 % gauges + $0.00 / Reset: pending — which looks like a bug.
+    // Surface a one-line explanation instead.
+    if state.usage.is_empty_5h() {
+        let lines = vec![
+            Line::from(vec![Span::styled(
+                "  No Claude activity in last 5h.",
+                Style::default().fg(Color::DarkGray),
+            )]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "  Run `claude` in any project to populate.",
+                Style::default().fg(Color::DarkGray),
+            )]),
+        ];
+        let hint = Paragraph::new(lines);
+        frame.render_widget(hint, inner);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2), // 5h session
-            Constraint::Length(2), // 7d all
-            Constraint::Length(2), // 7d sonnet
+            Constraint::Length(1), // 5h session
+            Constraint::Length(1), // 7d all
+            Constraint::Length(1), // 7d Opus
+            Constraint::Length(1), // 7d Sonnet
             Constraint::Length(1), // cost
             Constraint::Length(1), // reset
             Constraint::Min(0),
@@ -128,28 +161,54 @@ fn render_usage_bars(frame: &mut Frame, area: Rect, state: &AppState) {
         .label(week_label);
     frame.render_widget(week_gauge, chunks[1]);
 
-    // 7d sonnet only
+    // D-130: 7d Opus — Max plan tracks this separately from Sonnet, and
+    // Opus-heavy users were watching a 0 % bar that didn't reflect their
+    // actual usage on the server side.
+    let opus_budget = if state.limit_week_opus_tokens > 0 {
+        state.limit_week_opus_tokens
+    } else {
+        // No tier-aware Opus budget configured — fall back to the all-model
+        // limit so the bar is at least proportional.
+        state.limit_week_all_tokens
+    };
+    let opus_pct = state.usage.week_opus_pct(opus_budget);
+    let opus_label = format!("7d (Opus)   {:.0}%", opus_pct);
+    let opus_gauge = Gauge::default()
+        .gauge_style(Style::default().fg(Color::Magenta))
+        .ratio((opus_pct as f64 / 100.0).min(1.0))
+        .label(opus_label);
+    frame.render_widget(opus_gauge, chunks[2]);
+
+    // 7d Sonnet
     let sonnet_pct = state.usage.week_sonnet_pct(state.limit_week_sonnet_tokens);
     let sonnet_label = format!("7d (Sonnet) {:.0}%", sonnet_pct);
     let sonnet_gauge = Gauge::default()
         .gauge_style(Style::default().fg(Color::Blue))
         .ratio((sonnet_pct as f64 / 100.0).min(1.0))
         .label(sonnet_label);
-    frame.render_widget(sonnet_gauge, chunks[2]);
+    frame.render_widget(sonnet_gauge, chunks[3]);
 
-    // Cost
+    // D-130: 5h cost (now actually populated) + 7d cost on the same line
+    // so users can correlate today's burn against the week.
     let cost_text = format!(
-        " ${:.2} / ${:.0}",
-        state.usage.five_h_cost_usd, state.limit_overage_usd,
+        " 5h ${:.2}  ·  7d ${:.2}  ·  cap ${:.0}",
+        state.usage.five_h_cost_usd, state.usage.week_cost_usd, state.limit_overage_usd,
     );
     let cost_line = Paragraph::new(cost_text).style(Style::default().fg(Color::Yellow));
-    frame.render_widget(cost_line, chunks[3]);
+    frame.render_widget(cost_line, chunks[4]);
 
-    // Reset countdown
-    let countdown = format_countdown(state.usage.five_h_reset_countdown());
-    let reset_text = format!(" Reset: {}", countdown);
+    // D-130: reset countdown — now derived from oldest in-window event
+    // when the JSONL has no rate_limit_event records (Claude Code v2.1+
+    // stopped emitting those).
+    let countdown_secs = state.usage.five_h_reset_countdown();
+    let countdown = if countdown_secs <= 0 {
+        "—".to_string()
+    } else {
+        format_countdown(countdown_secs)
+    };
+    let reset_text = format!(" Reset (5h): {}", countdown);
     let reset_line = Paragraph::new(reset_text).style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(reset_line, chunks[4]);
+    frame.render_widget(reset_line, chunks[5]);
 }
 
 fn pct_color(pct: f32) -> Color {

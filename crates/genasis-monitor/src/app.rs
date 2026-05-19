@@ -55,16 +55,24 @@ pub async fn run(project_root: Option<std::path::PathBuf>) -> Result<()> {
 
     let mut state = AppState::default();
 
-    // Load configuration from env
-    state.limit_5h_tokens = env_u64("MONITOR_5H_TOKEN_LIMIT", 7_000_000);
-    state.limit_week_all_tokens = env_u64("MONITOR_WEEK_ALL_TOKEN_LIMIT", 50_000_000);
-    state.limit_week_sonnet_tokens = env_u64("MONITOR_WEEK_SONNET_TOKEN_LIMIT", 30_000_000);
-    state.limit_overage_usd = env_f64("MONITOR_OVERAGE_LIMIT_USD", 200.0);
-
-    // Load plan info from credentials
+    // Load plan info from credentials FIRST so tier_to_limits can seed
+    // sensible defaults before env overrides kick in (D-130).
     let (plan, tier) = collector::jsonl::read_credentials();
     state.plan_name = plan;
-    state.plan_tier = tier;
+    state.plan_tier = tier.clone();
+
+    // D-130: tier-derived defaults. Falls through to legacy 7M/50M/30M
+    // when the credentials file doesn't carry a known tier — that path
+    // matches the pre-D-130 behaviour for older Claude installs.
+    let (def_5h, def_week_all, def_week_opus, def_week_sonnet) =
+        collector::jsonl::tier_to_limits(&tier).unwrap_or((7_000_000, 50_000_000, 0, 30_000_000));
+
+    // Env override wins (set MONITOR_*_TOKEN_LIMIT to pin a custom number).
+    state.limit_5h_tokens = env_u64("MONITOR_5H_TOKEN_LIMIT", def_5h);
+    state.limit_week_all_tokens = env_u64("MONITOR_WEEK_ALL_TOKEN_LIMIT", def_week_all);
+    state.limit_week_sonnet_tokens = env_u64("MONITOR_WEEK_SONNET_TOKEN_LIMIT", def_week_sonnet);
+    state.limit_week_opus_tokens = env_u64("MONITOR_WEEK_OPUS_TOKEN_LIMIT", def_week_opus);
+    state.limit_overage_usd = env_f64("MONITOR_OVERAGE_LIMIT_USD", 200.0);
 
     // Load design state
     state.design = load_design_state();
